@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Curl-to-RestAssured Converter</title>
+    <link rel="stylesheet" href="../src/index.css">
+</head>
+
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>Curl-to-RestAssured Converter</h1>
+            <p>Convert your curl commands into Rest Assured Java test code with ease</p>
+        </div>
+
+        <!-- Curl Input Section -->
+        <div class="section">
+            <div class="section-header">
+                📝 Curl Command Input
+            </div>
+            <div class="section-content">
+                <textarea id="curlInput" rows="8" placeholder="Paste your curl command here...
+Example: curl -X POST https://api.example.com/users \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer token123' \
+  -d '{\" name\":\"John\",\"email\":\"john@example.com\"}'"></textarea>
+                <div style="margin-top: 10px;">
+                    <button class="btn" onclick="parseCurl()">Parse Curl</button>
+                    <button class="btn btn-secondary" onclick="clearInput()">Clear</button>
+                </div>
+                <div id="parseError" style="margin-top: 10px;"></div>
+            </div>
+        </div>
+
+        <!-- Parsed Data Sections -->
+        <div id="parsedSections" style="display: none;">
+            <!-- Request Overview -->
+            <div class="section">
+                <div class="section-header">
+                    🔍 Request Overview
+                </div>
+                <div class="section-content">
+                    <div class="grid">
+                        <div>
+                            <label>Method:</label>
+                            <input type="text" id="requestMethod" readonly style="background: #f5f5f5;">
+                        </div>
+                        <div>
+                            <label>URL:</label>
+                            <input type="text" id="requestUrl" readonly style="background: #f5f5f5;">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Headers -->
+            <div class="section">
+                <div class="section-header" onclick="toggleSection('headers')">
+                    📋 Headers
+                    <span class="expand-icon">▼</span>
+                </div>
+                <div class="section-content expandable" id="headers">
+                    <div id="headersList"></div>
+                    <button class="btn btn-secondary btn-small" onclick="addHeader()">+ Add Header</button>
+                </div>
+            </div>
+
+            <!-- Query Parameters -->
+            <div class="section">
+                <div class="section-header" onclick="toggleSection('queryParams')">
+                    🔗 Query Parameters
+                    <span class="expand-icon">▼</span>
+                </div>
+                <div class="section-content expandable" id="queryParams">
+                    <div id="queryParamsList"></div>
+                    <button class="btn btn-secondary btn-small" onclick="addQueryParam()">+ Add Parameter</button>
+                </div>
+            </div>
+
+            <!-- Body/Payload -->
+            <div class="section">
+                <div class="section-header" onclick="toggleSection('bodySection')">
+                    📄 Request Body
+                    <span class="expand-icon">▼</span>
+                </div>
+                <div class="section-content expandable" id="bodySection">
+                    <textarea id="requestBody" rows="6"
+                        placeholder="Request body (JSON, XML, or plain text)"></textarea>
+                </div>
+            </div>
+
+            <!-- Authentication -->
+            <div class="section">
+                <div class="section-header" onclick="toggleSection('authSection')">
+                    🔐 Authentication
+                    <span class="expand-icon">▼</span>
+                </div>
+                <div class="section-content expandable" id="authSection">
+                    <div id="authList"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Global Test Settings -->
+        <div class="section">
+            <div class="section-header">
+                ⚙️ Test Configuration
+            </div>
+            <div class="section-content">
+                <div class="grid">
+                    <div class="form-group">
+                        <label for="className">Class Name:</label>
+                        <input type="text" id="className" value="ApiTest">
+                    </div>
+                    <div class="form-group">
+                        <label for="methodName">Method Name:</label>
+                        <input type="text" id="methodName" value="testApi">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Test Framework:</label>
+                    <div class="radio-group">
+                        <label>
+                            <input type="radio" name="framework" value="junit" checked>
+                            JUnit
+                        </label>
+                        <label>
+                            <input type="radio" name="framework" value="testng">
+                            TestNG
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Code Preview -->
+        <div class="section">
+            <div class="section-header">
+                💻 Generated Code
+            </div>
+            <div class="section-content">
+                <div style="margin-bottom: 15px;">
+                    <button class="btn" onclick="generateCode()">Generate Code</button>
+                    <button class="btn btn-secondary" onclick="copyCode()">Copy Code</button>
+                    <button class="btn btn-secondary" onclick="downloadCode()">Download .java</button>
+                </div>
+                <div class="code-preview" id="codePreview">
+                    // Generated Rest Assured code will appear here...
+                    // Click "Generate Code" to create your test code
+                </div>
+                <div id="generateError" style="margin-top: 10px;"></div>
+            </div>
+        </div>
+
+        <!-- Execution Section (MVP+1) -->
+        <div class="section">
+            <div class="section-header">
+                🚀 Test Execution (Optional)
+            </div>
+            <div class="section-content">
+                <button class="btn btn-success" onclick="runTest()">Run Test</button>
+                <div id="executionResults" style="margin-top: 15px;"></div>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>
