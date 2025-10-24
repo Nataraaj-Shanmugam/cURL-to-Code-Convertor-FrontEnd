@@ -1,26 +1,49 @@
-// eslint.config.js
-import tseslint from 'typescript-eslint';
-import react from 'eslint-plugin-react';
-import hooks from 'eslint-plugin-react-hooks';
-import jsxA11y from 'eslint-plugin-jsx-a11y';
-import globals from 'globals';
+import js from "@eslint/js";
+import globals from "globals";
+import react from "eslint-plugin-react";
+import reactHooks from "eslint-plugin-react-hooks";
+import tseslint from "typescript-eslint";
 
-export default tseslint.config(
-  { ignores: ['dist', 'node_modules'] },
+export default [
+  js.configs.recommended,
+  ...tseslint.configs.recommended,
   {
-    files: ['**/*.{ts,tsx}'],
+    files: ["**/*.{ts,tsx}"],
     languageOptions: {
-      parser: tseslint.parser,
-      parserOptions: { ecmaVersion: 'latest', sourceType: 'module' },
+      ecmaVersion: 2022,
       globals: globals.browser,
+      parserOptions: { 
+        sourceType: "module", 
+        ecmaFeatures: { jsx: true } 
+      }
     },
-    plugins: { react, 'react-hooks': hooks, 'jsx-a11y': jsxA11y },
+    plugins: { 
+      react, 
+      "react-hooks": reactHooks 
+    },
     rules: {
-      'react/jsx-uses-react': 'off',
-      'react/react-in-jsx-scope': 'off',
-      'react-hooks/rules-of-hooks': 'error',
-      'react-hooks/exhaustive-deps': 'warn',
+      // React
+      "react/react-in-jsx-scope": "off",
+      
+      // React Hooks
+      "react-hooks/rules-of-hooks": "error",
+      "react-hooks/exhaustive-deps": "warn",
+      
+      // TypeScript - use @typescript-eslint rules instead
+      "@typescript-eslint/no-unused-vars": [
+        "warn", 
+        { 
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_"
+        }
+      ],
+      "@typescript-eslint/no-explicit-any": "warn",
+      
+      // Turn off conflicting base rule
+      "no-unused-vars": "off"
     },
-    settings: { react: { version: 'detect' } },
+    settings: { 
+      react: { version: "detect" } 
+    }
   }
-);
+];
