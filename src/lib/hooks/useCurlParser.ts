@@ -1,14 +1,14 @@
 import { useState } from "react";
 import { curlApi } from "@/lib/api/curl";
 import { normalizeParsedCurl } from "@/lib/utils/curl";
-import type { ParsedCurl, FilterState, ParsedCurlResponse } from "@/types/curl";
+import type { ParsedCurl, FilterState } from "@/types/curl";
 
 /**
  * Custom hook for parsing cURL commands
  * Manages parsing state, error handling, and filter state
  */
 export const useCurlParser = () => {
-  const [parsed, setParsed] = useState<ParsedCurlResponse | null>(null);
+  const [parsed, setParsed] = useState<ParsedCurl | null>(null);
   const [error, setError] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [selectedKeys, setSelectedKeys] = useState<FilterState>({});
@@ -31,7 +31,7 @@ export const useCurlParser = () => {
       }
 
       // Extract and validate raw data
-      let raw: ParsedCurlResponse | undefined;
+      let raw: any;
 
       if (Array.isArray(result.data)) {
         // Handle array response - get first element
@@ -45,7 +45,7 @@ export const useCurlParser = () => {
         raw = result.data;
       } else {
         // Fallback: use result itself if data is missing
-        raw = result as ParsedCurlResponse;
+        raw = result;
       }
 
       // Additional validation: ensure raw is not undefined
