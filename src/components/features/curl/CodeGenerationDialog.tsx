@@ -150,7 +150,7 @@ ${dependencies.join('\n\n')}
         setIsGenerating(true);
 
         try {
-            const response = await fetch('http://127.0.0.1:8000/api/generate-from-parsed', {
+            const response = await fetch(`${import.meta.env.VITE_CURL_CRAFT_API_URL}${import.meta.env.VITE_CURL_CRAFT_API_GENERATE_ENDPOINT}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -458,8 +458,8 @@ ${dependencies.join('\n\n')}
                             <button
                                 onClick={() => setActiveTab('test')}
                                 className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'test'
-                                        ? 'border-primary text-primary'
-                                        : 'border-transparent text-muted-foreground hover:text-foreground'
+                                    ? 'border-primary text-primary'
+                                    : 'border-transparent text-muted-foreground hover:text-foreground'
                                     }`}
                             >
                                 Test Code
@@ -468,8 +468,8 @@ ${dependencies.join('\n\n')}
                                 <button
                                     onClick={() => setActiveTab('pojo')}
                                     className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'pojo'
-                                            ? 'border-primary text-primary'
-                                            : 'border-transparent text-muted-foreground hover:text-foreground'
+                                        ? 'border-primary text-primary'
+                                        : 'border-transparent text-muted-foreground hover:text-foreground'
                                         }`}
                                 >
                                     POJO Classes
@@ -478,8 +478,8 @@ ${dependencies.join('\n\n')}
                             <button
                                 onClick={() => setActiveTab('pom')}
                                 className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'pom'
-                                        ? 'border-primary text-primary'
-                                        : 'border-transparent text-muted-foreground hover:text-foreground'
+                                    ? 'border-primary text-primary'
+                                    : 'border-transparent text-muted-foreground hover:text-foreground'
                                     }`}
                             >
                                 Dependencies (pom.xml)
@@ -487,42 +487,42 @@ ${dependencies.join('\n\n')}
                         </div>
 
                         {/* Code Display */}
-                        <div className="flex-1 overflow-hidden relative rounded-md border">
-                            <div className="absolute right-2 top-2 z-10 flex gap-2">
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={handleCopyCode}
-                                    className="bg-background/95 backdrop-blur-sm"
-                                >
-                                    {copied ? (
-                                        <>
-                                            <CheckCircle2 className="w-4 h-4 mr-2 text-green-600" />
-                                            Copied
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Copy className="w-4 h-4 mr-2" />
-                                            Copy
-                                        </>
-                                    )}
-                                </Button>
-                                {canDownload() && (
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={handleDownloadCode}
-                                        className="bg-background/95 backdrop-blur-sm"
-                                    >
-                                        <Download className="w-4 h-4 mr-2" />
-                                        Download
-                                    </Button>
-                                )}
-                            </div>
-                            <pre className="text-xs font-mono bg-muted/30 p-6 overflow-auto whitespace-pre h-full">
-                                {activeTab === 'test' ? generatedCode : activeTab === 'pojo' ? pojoCode : pomDependencies}
-                            </pre>
-                        </div>
+<div className="flex-1 flex flex-col overflow-hidden rounded-md border">
+    <div className="flex justify-end gap-2 p-2 border-b bg-muted/30">
+        <Button
+            variant="outline"
+            size="sm"
+            onClick={handleCopyCode}
+        >
+            {copied ? (
+                <>
+                    <CheckCircle2 className="w-4 h-4 mr-2 text-green-600" />
+                    Copied
+                </>
+            ) : (
+                <>
+                    <Copy className="w-4 h-4 mr-2" />
+                    Copy
+                </>
+            )}
+        </Button>
+        {canDownload() && (
+            <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDownloadCode}
+            >
+                <Download className="w-4 h-4 mr-2" />
+                Download
+            </Button>
+        )}
+    </div>
+    <div className="flex-1 overflow-auto bg-muted/30">
+        <pre className="text-xs font-mono p-6">
+            <code>{activeTab === 'test' ? generatedCode : activeTab === 'pojo' ? pojoCode : pomDependencies}</code>
+        </pre>
+    </div>
+</div>
 
                         {/* Action Buttons */}
                         <div className="flex justify-between gap-2 pt-4 border-t mt-4">

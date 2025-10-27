@@ -7,7 +7,7 @@ import EditorPage from "@/pages/EditorPage";
 
 export default function App() {
   return (
-    <ThemeProvider defaultTheme="system" storageKey="ui-theme">
+    <ThemeProvider attribute="class" defaultTheme="system" storageKey="ui-theme">
       <AppLayout>
         <Routes>
           <Route path="/" element={<Home />} />
