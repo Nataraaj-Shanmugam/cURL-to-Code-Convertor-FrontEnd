@@ -523,4 +523,4 @@ For issues, questions, or contributions, please [open an issue](link-to-issues) 
 
 ---
 
-**Built with ❤️ using React, TypeScript, and shadcn/ui**
+**Built with ❤️ using Claude, React, TypeScript, and shadcn/ui**

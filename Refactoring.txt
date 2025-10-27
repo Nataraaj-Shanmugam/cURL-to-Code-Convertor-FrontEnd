@@ -1,0 +1,252 @@
+CodeGenerationDialog.tsx
+Redundancies:
+
+Duplicate state management: codeConfig.className is overridden when needPojo is true, creating confusion
+Hardcoded dependency versions: Should be externalized to a config file
+Inline POM generation: generatePomDependencies() is too large and should be a separate utility
+Magic strings: 'full', 'method', 'test', 'pojo', 'pom' should be constants/enums
+Repetitive validation: Multiple checks for needPojo && !pojoClassName.trim() scattered
+
+Optimizations:
+
+Extract dependency templates to a separate config object
+Move generatePomDependencies to a utility file
+Use a single source of truth for class names instead of conditional logic
+Memoize generated POM to avoid regeneration on re-renders
+Replace multiple useState calls with useReducer for complex state
+canDownload() logic should be derived state, not a function called in render
+
+Architecture Issues:
+
+Component is doing too much: UI rendering, code generation, file handling
+Should split into: ConfigStep, ResultStep, and useCodeGeneration hook
+File download logic should be a utility function
+API call should be abstracted to a service layer
+
+----------------------------------------------------------------------------------------------------------
+CurlPlayground.tsx
+Redundancies:
+
+Unnecessary state reset: setError("") called both in handleParse and handleReset
+Array wrapping check: Array.isArray(result.data) ? result.data[0] : result.data - backend should be consistent
+
+Optimizations:
+
+Use custom hook useCurlParser which already exists but isn't being used here
+Error state could be part of the parsing hook
+navigate with state could be abstracted to a navigation service
+Remove defensive array handling if backend is fixed
+
+Architecture Issues:
+
+Duplicate logic with useCurlParser.ts - this component should use that hook
+Direct API calls instead of using the curlApi service
+Missing loading states during navigation
+No error boundary for navigation failures
+----------------------------------------------------------------------------------------------------------
+
+ParsedCurlEditor.tsx
+Redundancies:
+
+Massive component (500+ lines) - should be split into smaller components
+Duplicate section rendering logic: renderSection has too many conditional branches
+Repeated section checks: Multiple places check for empty sections
+Inline helper functions: getSectionDisplayName should be in utils
+Duplicate data filtering: Multiple places filter out undefined/null/empty
+
+Optimizations:
+
+Extract renderBodyField into its own component with memoization
+Move getSectionsToRender logic to the custom hook
+renderEditableField should be a separate component
+Icons and repeated UI patterns should be componentized
+Section metadata (display names, validation) should be config-driven
+
+Architecture Issues:
+
+UI logic mixed with business logic throughout
+useParsedCurlEditor hook does too much - should be split
+Client Context section logic is duplicated
+Missing proper TypeScript types for section configurations
+No separation between view and data transformation logic
+----------------------------------------------------------------------------------------------------------
+
+useParsedCurlEditor.ts
+Redundancies:
+
+Massive hook (600+ lines) - violates single responsibility
+Duplicate validation logic: hasValidData, hasActiveFlags, repeated checks
+Code generation logic: generateRestAssuredCode doesn't belong in this hook
+Duplicate section filtering: getValidSections and getValidSectionsFromData are nearly identical
+Path manipulation repeated: Multiple places split/join paths
+
+Optimizations:
+
+Split into multiple hooks: useEditorState, useEditorActions, useSectionManager
+Move code generation to separate hook/utility
+Extract path utilities to helper functions
+Use immer for immutable state updates instead of JSON.parse(JSON.stringify())
+Memoize expensive computations like getMissingSections
+
+Architecture Issues:
+
+Hook is doing data transformation, UI state, business logic, and API concerns
+Should use a state machine for multi-step flows (config → result)
+Deep nested object updates are error-prone without proper typing
+Missing proper validation layer
+No undo/redo capability despite complex state management
+----------------------------------------------------------------------------------------------------------
+
+accordion.tsx, button.tsx, card.tsx, etc. (UI Components)
+Redundancies:
+
+Standard shadcn components - minimal changes needed
+Some unused props may exist if copied from templates
+
+Optimizations:
+
+Audit which variant combinations are actually used
+Remove unused displayName declarations if not debugging
+Consider tree-shaking unused variants
+----------------------------------------------------------------------------------------------------------
+
+apiClient.ts
+Redundancies:
+
+Commented out auth code: Remove if not planned
+Generic error handling: Could be more specific
+
+Optimizations:
+
+Add request/response logging in development mode
+Implement retry logic for failed requests
+Add request cancellation support
+Type the interceptors properly
+
+Architecture Issues:
+
+No request deduplication
+No caching layer
+Missing environment-based URL configuration
+No request/response transformation layer
+
+----------------------------------------------------------------------------------------------------------
+curl.ts (API)
+Redundancies:
+
+Single method export - could be part of apiClient
+
+Optimizations:
+
+Add request caching
+Add abort signal support
+Type safety could be improved
+----------------------------------------------------------------------------------------------------------
+
+useCurlParser.ts
+Redundancies:
+
+Not used in CurlPlayground - duplication of logic
+Defensive array handling duplicated with CurlPlayground
+
+Optimizations:
+
+Should be the single source of truth for parsing
+Add debouncing for parse operations
+Memoize normalized results
+
+Architecture Issues:
+
+FilterState logic seems incomplete/unused
+Missing validation before normalization
+
+----------------------------------------------------------------------------------------------------------
+utils.ts & curl.ts (Utils)
+Redundancies:
+
+Three separate curl utilities: normalizeParsedCurl, cleanObject, filterParsed could be composed better
+Recursive cleaning happens multiple times
+
+Optimizations:
+
+Combine cleaning and normalization in single pass
+Add proper TypeScript type guards
+Memoize URL parsing results
+Use a schema validation library (Zod) instead of manual cleaning
+
+Architecture Issues:
+
+No error handling in normalization
+Silent failures with try/catch returning empty values
+Missing input validation
+
+----------------------------------------------------------------------------------------------------------
+Pages (Home.tsx, Playground.tsx, EditorPage.tsx)
+Redundancies:
+
+Very thin wrappers - EditorPage and Playground are unnecessary
+Duplicate navigation logic
+
+Optimizations:
+
+Remove wrapper pages and handle routing directly in App.tsx
+Consolidate route handling
+
+Architecture Issues:
+
+State passing through location.state is fragile
+No handling for missing state on direct URL access
+Missing error boundaries
+
+----------------------------------------------------------------------------------------------------------
+App.tsx & main.tsx
+Redundancies:
+
+Standard setup, minimal redundancy
+
+Optimizations:
+
+Add lazy loading for routes
+Add error boundary
+Add suspense fallbacks
+
+----------------------------------------------------------------------------------------------------------
+index.css
+Redundancies:
+
+Some utility classes may be unused
+Scrollbar styling duplicated in webkit prefixes
+
+Optimizations:
+
+Audit which custom utilities are actually used
+Consider using CSS modules for component-specific styles
+Remove unused theme variables
+
+----------------------------------------------------------------------------------------------------------
+Global Architecture Issues
+
+No proper state management: Using prop drilling and location state
+Inconsistent data flow: Sometimes hooks, sometimes props, sometimes direct API calls
+No error boundaries: App can crash from unhandled errors
+Missing loading states: Many async operations lack loading UI
+Type safety gaps: Many any types, especially in parsed data
+No data validation layer: Raw API data used directly
+No testing structure: Code isn't structured for testability
+Duplicate business logic: Parsing, validation, transformation scattered
+No performance monitoring: Large re-renders not optimized
+Inconsistent naming: camelCase, snake_case, PascalCase mixed
+
+
+Priority Refactoring Order
+
+Split useParsedCurlEditor hook - biggest complexity bloat
+Extract CodeGenerationDialog into feature module
+Create proper service layer for API calls
+Implement proper state management (Context/Zustand)
+Add Zod schemas for data validation
+Component composition - break mega-components
+Create utility library - consolidate helpers
+Add error boundaries and loading states
+TypeScript strictness - remove any types
+Performance optimization - memoization, code splitting
