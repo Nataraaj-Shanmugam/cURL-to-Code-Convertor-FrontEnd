@@ -13,10 +13,11 @@ import {
   Settings,
   Copy,
 } from "lucide-react";
-
+import { useNavigate } from 'react-router-dom';
 
 
 export default function Home() {
+  const navigate = useNavigate();
 
   const [_isBackendReady, setIsBackendReady] = useState(false);
 
@@ -87,8 +88,7 @@ export default function Home() {
   ];
 
   const handleGetStarted = () => {
-    // In your app, use: navigate('/playground')
-    window.location.href = '/playground';
+    navigate('/playground');
   };
 
   return (
