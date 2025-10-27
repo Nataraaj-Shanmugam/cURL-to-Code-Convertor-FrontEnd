@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useParsedCurlEditor, VALID_SECTIONS } from "@/lib/hooks/useParsedCurlEditor";
 import { useState } from "react";
+import CodeGenerationDialog from "./CodeGenerationDialog";
 
 interface ParsedCurlEditorProps {
   initialData: any;
@@ -23,8 +24,6 @@ export default function ParsedCurlEditor({ initialData, originalCurl, onBack, on
     selected,
     editing,
     editedValues,
-    showCodeDialog,
-    generatedCode,
     showAddDialog,
     addDialogSection,
     newKey,
@@ -34,7 +33,6 @@ export default function ParsedCurlEditor({ initialData, originalCurl, onBack, on
     openSections,
     bodyCollapsed,
     allExpanded,
-    setShowCodeDialog,
     setNewKey,
     setNewValue,
     setShowAddDialog,
@@ -42,7 +40,6 @@ export default function ParsedCurlEditor({ initialData, originalCurl, onBack, on
     setNewSectionName,
     setOpenSections,
     setSelected,
-    setGeneratedCode,
     handleReset,
     deleteSection,
     toggleSelect,
@@ -51,30 +48,19 @@ export default function ParsedCurlEditor({ initialData, originalCurl, onBack, on
     deleteSingle,
     handleEditChange,
     exportData,
-    copyCode,
     handleAddEntry,
     saveNewEntry,
     handleAddSection,
     saveNewSection,
     toggleBodyCollapse,
     handleBodyExpandCollapseAll,
-    hasValidData,
     hasActiveFlags,
     getActiveFlags,
     getMissingSections,
   } = useParsedCurlEditor(initialData);
 
-  // Code generation config state - NO DEFAULT SELECTION
-  const [showConfigDialog, setShowConfigDialog] = useState(false);
-  const [codeConfig, setCodeConfig] = useState({
-    option: '', // Empty by default
-    className: 'ApiTest',
-    methodName: 'testApiRequest',
-    assertionRequired: true,
-    statusCode: '200',
-    loggingRequired: true,
-    needPojo: false // New field for POJO generation
-  });
+  // Code generation dialog state
+  const [showCodeDialog, setShowCodeDialog] = useState(false);
 
   const handleSave = () => {
     if (onSave) {
@@ -83,39 +69,7 @@ export default function ParsedCurlEditor({ initialData, originalCurl, onBack, on
   };
 
   const handleGenerateCode = () => {
-    setShowConfigDialog(true);
-  };
-
-  const handleGenerateCodeWithConfig = async () => {
-    // Validation: ensure an option is selected
-    if (!codeConfig.option) {
-      alert('Please select a code generation option');
-      return;
-    }
-
-    try {
-      const response = await fetch('http://127.0.0.1:8000/api/generate-from-parsed', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          parsed_data: parsed,
-          config: codeConfig
-        })
-      });
-
-      const result = await response.json();
-      
-      if (result.success) {
-        setGeneratedCode(result.generated_code);
-        setShowConfigDialog(false);
-        setShowCodeDialog(true);
-      } else {
-        alert('Failed to generate code: ' + result.error);
-      }
-    } catch (error) {
-      console.error('Error generating code:', error);
-      alert('Failed to generate code. Please try again.');
-    }
+    setShowCodeDialog(true);
   };
 
   // Get section display name
@@ -550,152 +504,12 @@ export default function ParsedCurlEditor({ initialData, originalCurl, onBack, on
         </div>
       </div>
 
-      {/* Code Generation Config Dialog */}
-      <Dialog open={showConfigDialog} onOpenChange={setShowConfigDialog}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Code Generation Options</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-6">
-            {/* Radio Options - NO DEFAULT SELECTION */}
-            <div className="space-y-4 p-4 bg-muted/30 rounded-lg">
-              <p className="text-sm font-medium text-muted-foreground mb-3">Select Generation Type:</p>
-              
-              <label className="flex items-center gap-3 cursor-pointer p-3 rounded-md hover:bg-accent transition-colors">
-                <input
-                  type="radio"
-                  name="codeOption"
-                  value="full"
-                  checked={codeConfig.option === 'full'}
-                  onChange={(e) => setCodeConfig({...codeConfig, option: e.target.value})}
-                  className="w-4 h-4"
-                />
-                <div>
-                  <span className="font-medium">Create Entire TestClass File</span>
-                  <p className="text-xs text-muted-foreground mt-1">Generates a complete Java class with imports, setup method, and test method</p>
-                </div>
-              </label>
-              
-              <label className="flex items-center gap-3 cursor-pointer p-3 rounded-md hover:bg-accent transition-colors">
-                <input
-                  type="radio"
-                  name="codeOption"
-                  value="method"
-                  checked={codeConfig.option === 'method'}
-                  onChange={(e) => setCodeConfig({...codeConfig, option: e.target.value})}
-                  className="w-4 h-4"
-                />
-                <div>
-                  <span className="font-medium">Create Only Test Method</span>
-                  <p className="text-xs text-muted-foreground mt-1">Generates just the test method with required imports</p>
-                </div>
-              </label>
-            </div>
-
-            {/* Configuration Fields - Only show when an option is selected */}
-            {codeConfig.option && (
-              <div className="space-y-4 p-4 border border-border rounded-lg bg-background">
-                <h3 className="font-semibold text-sm mb-3">Configuration Options</h3>
-                
-                {codeConfig.option === 'full' && (
-                  <div>
-                    <label className="text-sm font-medium mb-2 block">Class Name</label>
-                    <Input
-                      value={codeConfig.className}
-                      onChange={(e) => setCodeConfig({...codeConfig, className: e.target.value})}
-                      placeholder="ApiTest"
-                      className="font-mono"
-                    />
-                  </div>
-                )}
-
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Method Name</label>
-                  <Input
-                    value={codeConfig.methodName}
-                    onChange={(e) => setCodeConfig({...codeConfig, methodName: e.target.value})}
-                    placeholder="testApiRequest"
-                    className="font-mono"
-                  />
-                </div>
-
-                {/* POJO Checkbox - Available for both options */}
-                <div className="p-3 bg-blue-50 dark:bg-blue-950/20 rounded-md border border-blue-200 dark:border-blue-800">
-                  <label className="flex items-start gap-3 cursor-pointer">
-                    <Checkbox
-                      checked={codeConfig.needPojo}
-                      onCheckedChange={(checked) => setCodeConfig({...codeConfig, needPojo: !!checked})}
-                      className="mt-0.5"
-                    />
-                    <div className="flex-1">
-                      <span className="text-sm font-medium">Need POJO for Request Body</span>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Generate a separate Java POJO class for the request body structure
-                      </p>
-                    </div>
-                  </label>
-                </div>
-
-                <div className="space-y-3 pt-2 border-t border-border">
-                  <label className="flex items-start gap-3 cursor-pointer">
-                    <Checkbox
-                      checked={codeConfig.assertionRequired}
-                      onCheckedChange={(checked) => setCodeConfig({...codeConfig, assertionRequired: !!checked})}
-                      className="mt-0.5"
-                    />
-                    <div className="flex-1">
-                      <span className="text-sm font-medium">Assertion Required</span>
-                      <p className="text-xs text-muted-foreground mt-1">Add TestNG assertions for status code validation</p>
-                    </div>
-                  </label>
-
-                  {codeConfig.assertionRequired && (
-                    <div className="pl-8">
-                      <label className="text-sm font-medium mb-2 block">Expected Status Code</label>
-                      <Input
-                        type="number"
-                        value={codeConfig.statusCode}
-                        onChange={(e) => setCodeConfig({...codeConfig, statusCode: e.target.value})}
-                        placeholder="200"
-                        min="100"
-                        max="599"
-                        className="w-32"
-                      />
-                    </div>
-                  )}
-                </div>
-
-                <label className="flex items-start gap-3 cursor-pointer">
-                  <Checkbox
-                    checked={codeConfig.loggingRequired}
-                    onCheckedChange={(checked) => setCodeConfig({...codeConfig, loggingRequired: !!checked})}
-                    className="mt-0.5"
-                  />
-                  <div className="flex-1">
-                    <span className="text-sm font-medium">Logging Required</span>
-                    <p className="text-xs text-muted-foreground mt-1">Include System.out.println statements for debugging</p>
-                  </div>
-                </label>
-              </div>
-            )}
-
-            <div className="flex justify-end gap-2 pt-4 border-t border-border">
-              <Button variant="outline" onClick={() => {
-                setShowConfigDialog(false);
-              }}>
-                Cancel
-              </Button>
-              <Button 
-                onClick={handleGenerateCodeWithConfig} 
-                disabled={!codeConfig.option}
-                className="bg-purple-600 hover:bg-purple-700 text-white disabled:bg-gray-400 disabled:cursor-not-allowed"
-              >
-                Generate Now
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* Code Generation Dialog */}
+      <CodeGenerationDialog
+        open={showCodeDialog}
+        onOpenChange={setShowCodeDialog}
+        parsedData={parsed}
+      />
 
       {/* Add Entry Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
@@ -767,32 +581,6 @@ export default function ParsedCurlEditor({ initialData, originalCurl, onBack, on
               <Button onClick={saveNewSection} disabled={!newSectionName}>
                 Add Section
               </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Generated Code Dialog */}
-      <Dialog open={showCodeDialog} onOpenChange={setShowCodeDialog}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
-          <DialogHeader>
-            <DialogTitle>
-              {codeConfig.option === 'full' ? 'Generated Java + RestAssured Code' : 'Generated Test Method'}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="flex-1 overflow-auto">
-            <div className="relative">
-              <Button
-                variant="outline"
-                size="sm"
-                className="absolute right-2 top-2 z-10"
-                onClick={copyCode}
-              >
-                Copy
-              </Button>
-              <pre className="text-xs font-mono bg-muted rounded-md p-4 overflow-auto whitespace-pre">
-                {generatedCode}
-              </pre>
             </div>
           </div>
         </DialogContent>
