@@ -169,11 +169,8 @@ ${dependencies.join('\n\n')}
                 setPojoCode(result.pojo_code || '');
                 setPomDependencies(generatePomDependencies());
 
-                if (codeConfig.needPojo && result.pojo_code) {
-                    setActiveTab('pojo');
-                } else {
-                    setActiveTab('test');
-                }
+                // Always default to test tab
+                setActiveTab('test');
 
                 setCurrentStep('result');
             } else {
@@ -454,12 +451,12 @@ ${dependencies.join('\n\n')}
                 ) : (
                     <div className="flex flex-col flex-1 overflow-hidden">
                         {/* Tabs */}
-                        <div className="flex gap-1 mb-4 border-b">
+                        <div className="flex gap-1 mb-4 border-b bg-muted/50 rounded-t-md p-1">
                             <button
                                 onClick={() => setActiveTab('test')}
-                                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'test'
-                                    ? 'border-primary text-primary'
-                                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                                className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${activeTab === 'test'
+                                    ? 'bg-primary text-primary-foreground shadow-sm'
+                                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                                     }`}
                             >
                                 Test Code
@@ -467,9 +464,9 @@ ${dependencies.join('\n\n')}
                             {codeConfig.needPojo && pojoCode && (
                                 <button
                                     onClick={() => setActiveTab('pojo')}
-                                    className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'pojo'
-                                        ? 'border-primary text-primary'
-                                        : 'border-transparent text-muted-foreground hover:text-foreground'
+                                    className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${activeTab === 'pojo'
+                                        ? 'bg-primary text-primary-foreground shadow-sm'
+                                        : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                                         }`}
                                 >
                                     POJO Classes
@@ -477,9 +474,9 @@ ${dependencies.join('\n\n')}
                             )}
                             <button
                                 onClick={() => setActiveTab('pom')}
-                                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'pom'
-                                    ? 'border-primary text-primary'
-                                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                                className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${activeTab === 'pom'
+                                    ? 'bg-primary text-primary-foreground shadow-sm'
+                                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                                     }`}
                             >
                                 Dependencies (pom.xml)
@@ -487,42 +484,42 @@ ${dependencies.join('\n\n')}
                         </div>
 
                         {/* Code Display */}
-<div className="flex-1 flex flex-col overflow-hidden rounded-md border">
-    <div className="flex justify-end gap-2 p-2 border-b bg-muted/30">
-        <Button
-            variant="outline"
-            size="sm"
-            onClick={handleCopyCode}
-        >
-            {copied ? (
-                <>
-                    <CheckCircle2 className="w-4 h-4 mr-2 text-green-600" />
-                    Copied
-                </>
-            ) : (
-                <>
-                    <Copy className="w-4 h-4 mr-2" />
-                    Copy
-                </>
-            )}
-        </Button>
-        {canDownload() && (
-            <Button
-                variant="outline"
-                size="sm"
-                onClick={handleDownloadCode}
-            >
-                <Download className="w-4 h-4 mr-2" />
-                Download
-            </Button>
-        )}
-    </div>
-    <div className="flex-1 overflow-auto bg-muted/30">
-        <pre className="text-xs font-mono p-6">
-            <code>{activeTab === 'test' ? generatedCode : activeTab === 'pojo' ? pojoCode : pomDependencies}</code>
-        </pre>
-    </div>
-</div>
+                        <div className="flex-1 flex flex-col overflow-hidden rounded-md border">
+                            <div className="flex justify-end gap-2 p-2 border-b bg-muted/30">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleCopyCode}
+                                >
+                                    {copied ? (
+                                        <>
+                                            <CheckCircle2 className="w-4 h-4 mr-2 text-green-600" />
+                                            Copied
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Copy className="w-4 h-4 mr-2" />
+                                            Copy
+                                        </>
+                                    )}
+                                </Button>
+                                {canDownload() && (
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={handleDownloadCode}
+                                    >
+                                        <Download className="w-4 h-4 mr-2" />
+                                        Download
+                                    </Button>
+                                )}
+                            </div>
+                            <div className="flex-1 overflow-auto bg-muted/30">
+                                <pre className="text-xs font-mono p-6">
+                                    <code>{activeTab === 'test' ? generatedCode : activeTab === 'pojo' ? pojoCode : pomDependencies}</code>
+                                </pre>
+                            </div>
+                        </div>
 
                         {/* Action Buttons */}
                         <div className="flex justify-between gap-2 pt-4 border-t mt-4">

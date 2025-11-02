@@ -120,7 +120,7 @@ export default function Home() {
           <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-200">
             <h1 className="text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight">
               <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 dark:from-blue-400 dark:via-purple-400 dark:to-pink-400">
-                CurlCraft Assured
+                cURLCraft Assured
               </span>
             </h1>
 
