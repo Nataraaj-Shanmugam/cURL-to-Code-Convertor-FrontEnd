@@ -22,8 +22,6 @@ export interface PomGenerationConfig {
   includeLogging: boolean;
   includeCommonsIo: boolean;
   javaVersion: "8" | "11" | "17" | "21";
-  parallelExecution: "methods" | "classes" | "tests" | "instances" | "none";
-  threadCount: number;
 }
 
 // ---- Core parsed cURL shape ----
@@ -33,8 +31,6 @@ export interface ParsedCurl {
   url: string;
   base_url: string;
   endpoint: string;
-
-  path_template?: string;
   path_parameters?: any[];
   query_params?: Record<string, any>;
 
@@ -88,7 +84,7 @@ export interface ParseCurlResponse {
 export interface CodeGenerationConfig {
   option: "full" | "method";
 
-  className: string;
+  serviceName: string;
   methodName: string;
 
   assertionRequired: boolean;
