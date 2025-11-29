@@ -80,10 +80,10 @@ export const useParsedCurlEditor = (initialData: any) => {
 
       const value = parsed[key];
 
-      // Skip null/undefined
-      if (value === null || value === undefined) return;
+      if ((value === null || value === undefined) && !openSections.includes(key)) {
+        return;
+      }
 
-      // Skip empty strings
       if (typeof value === 'string' && value.trim() === '') return;
 
       if (key === 'path_parameters') {
@@ -91,7 +91,7 @@ export const useParsedCurlEditor = (initialData: any) => {
           valid.push(key);
         }
       } else if (key === 'flags') {
-        if (hasActiveFlags(value)) {
+        if (hasActiveFlags(value) || openSections.includes(key)) {
           valid.push(key);
         }
       } else if (key === 'ssl_config') {
@@ -99,7 +99,6 @@ export const useParsedCurlEditor = (initialData: any) => {
           valid.push(key);
         }
       } else if (key === 'data') {
-        // Check if data has actual content
         if (typeof value === 'object' && value !== null) {
           if (Array.isArray(value) ? value.length > 0 : Object.keys(value).length > 0) {
             valid.push(key);
@@ -120,41 +119,33 @@ export const useParsedCurlEditor = (initialData: any) => {
       const sectionData = parsed[key];
 
       if (key === 'flags') {
-        const result = !hasActiveFlags(sectionData);
-        return result;
+        return !hasActiveFlags(sectionData);
       }
 
       if (key === 'ssl_config') {
-        const result = !(sectionData && typeof sectionData === 'object' && Object.keys(sectionData).some(k => sectionData[k] === true));
-        return result;
+        return !(sectionData && typeof sectionData === 'object' && Object.keys(sectionData).some(k => sectionData[k] === true));
       }
 
-      // Section is missing if it doesn't exist at all
       if (!sectionData) {
         return true;
       }
 
-      // Section is missing if it's an empty object/array
       if (typeof sectionData === 'object' && !Array.isArray(sectionData)) {
-        const result = Object.keys(sectionData).length === 0;
-        return result;
+        return Object.keys(sectionData).length === 0;
       }
 
       if (Array.isArray(sectionData)) {
-        const result = sectionData.length === 0;
-        return result;
+        return sectionData.length === 0;
       }
       return false;
     });
     return missing;
   };
 
-  // Initialize default open sections on mount
   useEffect(() => {
     const defaultSections = getValidSections();
     const sectionsToOpen = [...defaultSections];
 
-    // Only add 'request' if there's actual request data
     const fixedSections = ['method', 'url', 'base_url', 'endpoint', 'path_template'];
     const hasRequestData = fixedSections.some(key =>
       parsed[key] !== undefined && parsed[key] !== null && parsed[key] !== ''
@@ -164,7 +155,6 @@ export const useParsedCurlEditor = (initialData: any) => {
       sectionsToOpen.unshift('request');
     }
 
-    // Only add 'context' if there's context data
     if (parsed.user_agent || parsed.referer || parsed.proxy) {
       sectionsToOpen.push('context');
     }
@@ -172,18 +162,14 @@ export const useParsedCurlEditor = (initialData: any) => {
     setOpenSections(sectionsToOpen);
   }, []);
 
-  // Action handlers
   const handleReset = () => {
     if (window.confirm('Are you sure you want to reset all changes?')) {
-
       const resetParsed = JSON.parse(JSON.stringify(originalParsed));
       setParsed(resetParsed);
 
-      // Recalculate which sections should be open based on original data
       const defaultSections = getValidSectionsFromData(resetParsed);
       const sectionsToOpen = [...defaultSections];
 
-      // Only add 'request' if there's actual request data in original
       const fixedSections = ['method', 'url', 'base_url', 'endpoint', 'path_template'];
       const hasRequestData = fixedSections.some(key =>
         resetParsed[key] !== undefined && resetParsed[key] !== null && resetParsed[key] !== ''
@@ -193,7 +179,6 @@ export const useParsedCurlEditor = (initialData: any) => {
         sectionsToOpen.unshift('request');
       }
 
-      // Only add 'context' if there's context data in original
       if (resetParsed.user_agent || resetParsed.referer || resetParsed.proxy) {
         sectionsToOpen.push('context');
       }
@@ -207,7 +192,6 @@ export const useParsedCurlEditor = (initialData: any) => {
     }
   };
 
-  // Helper to get valid sections from any data object (used for reset)
   const getValidSectionsFromData = (data: any): string[] => {
     const valid: string[] = [];
 
@@ -218,10 +202,7 @@ export const useParsedCurlEditor = (initialData: any) => {
 
       const value = data[key];
 
-      // Skip null/undefined
       if (value === null || value === undefined) return;
-
-      // Skip empty strings
       if (typeof value === 'string' && value.trim() === '') return;
 
       if (key === 'path_parameters') {
@@ -237,7 +218,6 @@ export const useParsedCurlEditor = (initialData: any) => {
           valid.push(key);
         }
       } else if (key === 'data') {
-        // Check if data has actual content
         if (typeof value === 'object' && value !== null) {
           if (Array.isArray(value) ? value.length > 0 : Object.keys(value).length > 0) {
             valid.push(key);
@@ -469,7 +449,6 @@ public class GeneratedTest {
       newParsed[addDialogSection] = {};
     }
 
-    // For flags and ssl_config, set boolean true; for others, use the value
     if (addDialogSection === 'flags' || addDialogSection === 'ssl_config') {
       newParsed[addDialogSection][newKey] = true;
     } else {
@@ -498,7 +477,6 @@ public class GeneratedTest {
   };
 
   const saveNewSection = () => {
-
     if (!newSectionName.trim()) {
       return;
     }
@@ -516,7 +494,6 @@ public class GeneratedTest {
     }
     setParsed(newParsed);
 
-    // Ensure the section is opened
     const updatedOpenSections = openSections.includes(newSectionName)
       ? openSections
       : [...openSections, newSectionName];
