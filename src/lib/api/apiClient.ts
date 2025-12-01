@@ -2,7 +2,7 @@
 import axios from "axios";
 
 // Single source of truth for API configuration
-const API_BASE_URL = "http://127.0.0.1:8000";
+const API_BASE_URL = import.meta.env.VITE_CURL_CRAFT_API_URL;
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
