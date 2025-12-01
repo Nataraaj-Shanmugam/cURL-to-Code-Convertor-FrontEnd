@@ -26,11 +26,12 @@ export interface PomGenerationConfig {
 
 // ---- Core parsed cURL shape ----
 export interface ParsedCurl {
-  // Core request
+  // Core request (normalized shape used by the UI)
   method: string;
   url: string;
   base_url: string;
   endpoint: string;
+  path_template?: string;
   path_parameters?: any[];
   query_params?: Record<string, any>;
 
@@ -41,7 +42,18 @@ export interface ParsedCurl {
   form_data?: Record<string, any>;
   files?: Record<string, any>;
 
-  // Auth / network / misc – keep them loose to avoid tight coupling
+  // Cookies & auth
+  cookies?: Record<string, any>;
+  auth?: any;
+  proxy?: any;
+  user_agent?: string | null;
+  referer?: string | null;
+
+  // Flags / options
+  flags?: Record<string, any>;
+  all_options?: any[];
+
+  // Config blocks (keep them loose to avoid tight coupling with BE)
   auth_config?: Record<string, any>;
   ssl_config?: Record<string, any>;
   proxy_config?: Record<string, any>;
@@ -72,10 +84,76 @@ export interface BackendStructuredError {
   details?: string[];
 }
 
+// ---- Raw parsed cURL payload from backend ----
+export interface ParsedCurlResponse {
+  url?: string;
+  full_url?: string;
+  base_url?: string;
+  endpoint?: string;
+  path_template?: string;
+  method?: string;
+  path_parameters?: any[];
+  query_params?: Record<string, any>;
+
+  // Payload
+  headers?: Record<string, string>;
+  data?: any;
+  raw_data?: string | null;
+  form_data?: Record<string, any>;
+  cookies?: Record<string, any>;
+
+  // Auth / proxy / UA
+  auth?: any;
+  proxy?: any;
+  user_agent?: string | null;
+  referer?: string | null;
+  flags?: Record<string, any>;
+
+  // Network options (flat or grouped)
+  timeout?: number | null;
+  connect_timeout?: number | null;
+  max_time?: number | null;
+  retry?: number | null;
+  retry_delay?: number | null;
+  retry_max_time?: number | null;
+  max_redirs?: number | null;
+
+  network_config?: {
+    timeout?: number | null;
+    connect_timeout?: number | null;
+    max_time?: number | null;
+    retry?: number | null;
+    retry_delay?: number | null;
+    retry_max_time?: number | null;
+    max_redirs?: number | null;
+  };
+
+  // SSL options
+  cert?: string | null;
+  key?: string | null;
+  cacert?: string | null;
+  capath?: string | null;
+  ssl_version?: string | null;
+
+  ssl_config?: {
+    cert?: string | null;
+    key?: string | null;
+    cacert?: string | null;
+    capath?: string | null;
+    ssl_version?: string | null;
+  };
+
+  // Raw / meta / extras
+  all_options?: any[];
+  meta?: any;
+}
+
+
+// ---- Parse cURL response ----
 // ---- Parse cURL response ----
 export interface ParseCurlResponse {
   success: boolean;
-  data?: ParsedCurl;
+  data?: ParsedCurlResponse;   // <-- use the raw payload type
   error?: BackendStructuredError;
   meta: BackendMeta;
 }
