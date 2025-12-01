@@ -1,5 +1,5 @@
 // src/components/NavBar.tsx
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useTheme } from "@/components/ui/theme-provider";
 import { Moon, Sun, Code2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,7 @@ const navLinks = [
 export default function NavBar() {
   const { theme, setTheme } = useTheme();
   const location = useLocation();
-  const navigate = useNavigate();
+  // const navigate = useNavigate();
   const { isBackendDown } = useBackendStatus();
   const [mounted, setMounted] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -34,7 +34,7 @@ export default function NavBar() {
 
   const toggleTheme = () => setTheme(theme === "light" ? "dark" : "light");
 
-  const handleNavClick = (e: React.MouseEvent, path: string, requiresBackend: boolean) => {
+  const handleNavClick = (e: React.MouseEvent, _path: string, requiresBackend: boolean) => {
     if (requiresBackend && isBackendDown) {
       e.preventDefault();
       alert('Playground is currently unavailable. Backend is down.');

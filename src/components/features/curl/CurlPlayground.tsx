@@ -35,11 +35,21 @@ const CURL_TEMPLATES = [
   -d '{"name":"Jane Doe","email":"jane@example.com"}'`
   },
   {
-    name: "DELETE Request",
-    description: "Remove a resource",
-    icon: "🗑️",
-    curl: `curl -X DELETE https://api.example.com/users/123 \\
-  -H "Authorization: Bearer token123"`
+    name: "Nested JSON body",
+    description: "Request with nested JSON body for POJO",
+    icon: "👤",
+    curl: `curl -X POST "https://kekiranbekiran.com/create-user" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "person": {
+          "name": "Nataraaj",
+          "age": 28,
+          "city": {
+            "city": "Chennai",
+            "state": "Tamil Nadu"
+          }
+        }
+      }'`
   },
   {
     name: "Form Data Upload",
@@ -61,9 +71,9 @@ const CURL_TEMPLATES = [
 ];
 
 export default function CurlPlayground() {
-  const [curl, setCurl] = useState("");
-  const [setLoading] = useState(false);
-  const [setError] = useState("");
+  // const [curl, setCurl] = useState("");
+  // const [setLoading] = useState(false);
+  // const [setError] = useState("");
   const navigate = useNavigate();
   const { parsed, error, loading, parseCurl, reset } = useCurlParser();
   const [curlInput, setCurlInput] = useState("");
@@ -115,7 +125,7 @@ export default function CurlPlayground() {
           <div className="absolute top-0 left-1/4 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl animate-float"></div>
           <div className="absolute bottom-0 right-1/4 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl animate-float" style={{ animationDelay: '1s' }}></div>
         </div>
-        
+
         <div className="relative z-10">
           <h1 className="text-4xl md:text-5xl font-bold mb-3 animate-slide-in-bottom">
             cURL Command Parser
@@ -249,11 +259,10 @@ export default function CurlPlayground() {
             {CURL_TEMPLATES.map((template, index) => (
               <Card
                 key={index}
-                className={`cursor-pointer transition-all duration-300 hover:shadow-xl hover:-translate-y-1 border-2 group ${
-                  selectedTemplate === template.name
-                    ? 'border-primary bg-primary/5'
-                    : 'border-border hover:border-primary/50'
-                }`}
+                className={`cursor-pointer transition-all duration-300 hover:shadow-xl hover:-translate-y-1 border-2 group ${selectedTemplate === template.name
+                  ? 'border-primary bg-primary/5'
+                  : 'border-border hover:border-primary/50'
+                  }`}
                 onClick={() => handleTemplateSelect(template)}
               >
                 <CardContent className="p-6">

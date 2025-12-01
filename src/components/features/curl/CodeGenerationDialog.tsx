@@ -11,7 +11,6 @@ import { curlApi } from "@/lib/api/curl";
 import type {
   ParsedCurl,
   CodeGenerationConfig,
-  CodeGenerationResponse,
   PomGenerationConfig,
   PomProjectInfo,
 } from "@/types/curl";
@@ -289,20 +288,20 @@ export default function CodeGenerationDialog({
   };
 
   // 4. Add POM validation before generate
-  const canGenerate = () => {
-    if (!codeConfig.serviceName?.trim() || !codeConfig.methodName?.trim()) {
-      return false;
-    }
+  // const _canGenerate = () => {
+  //   if (!codeConfig.serviceName?.trim() || !codeConfig.methodName?.trim()) {
+  //     return false;
+  //   }
 
-    if (codeConfig.generatePom && pomConfig.pomType === "full") {
-      const projectInfo = pomConfig.projectInfo;
-      return !!(projectInfo?.groupId?.trim() &&
-        projectInfo?.artifactId?.trim() &&
-        projectInfo?.version?.trim());
-    }
+  //   if (codeConfig.generatePom && pomConfig.pomType === "full") {
+  //     const projectInfo = pomConfig.projectInfo;
+  //     return !!(projectInfo?.groupId?.trim() &&
+  //       projectInfo?.artifactId?.trim() &&
+  //       projectInfo?.version?.trim());
+  //   }
 
-    return true;
-  };
+  //   return true;
+  // };
 
   const handleNextToConfig = () => {
     if (!codeConfig.option) {
@@ -990,8 +989,8 @@ public void apiNameTest() {
               <div className="flex justify-between items-center gap-3 p-3 border-b-2 bg-muted/30">
                 <div className="flex items-center gap-3">
                   <div className="text-sm text-muted-foreground font-medium px-2 font-mono">
-                    {activeTab === 'test' && `${codeConfig.serviceName}.java`}
-                    {activeTab === 'pojo' && `${codeConfig.serviceName}POJO.java`}
+                    {activeTab === 'test' && `${codeConfig.serviceName}_Test.java`}
+                    {activeTab === 'pojo' && `${codeConfig.serviceName}_Model.java`}
                     {activeTab === 'pom' && 'pom.xml'}
                   </div>
                   <Badge variant="secondary" className="text-xs">
