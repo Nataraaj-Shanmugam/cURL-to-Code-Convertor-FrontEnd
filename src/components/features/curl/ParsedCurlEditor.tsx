@@ -3,8 +3,8 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Accordion } from "@/components/ui/accordion";
-import { Settings, AlertCircle } from "lucide-react";
-import { useParsedCurlEditor, VALID_SECTIONS } from "@/lib/hooks/useParsedCurlEditor";
+import { Settings } from "lucide-react";
+import { useParsedCurlEditor } from "@/lib/hooks/useParsedCurlEditor";
 import CodeGenerationDialog from "./CodeGenerationDialog";
 import { EditorHeader } from "./editor/EditorHeader";
 import { EditorActionBar } from "./editor/EditorActionBar";
@@ -29,7 +29,7 @@ export default function ParsedCurlEditor({
   const [showCodeDialog, setShowCodeDialog] = useState(false);
   const [showQuickNav, setShowQuickNav] = useState(true);
 
-  // Redirect if no data
+  // Redirect if no data (FIXES CRITICAL ISSUE #1)
   useEffect(() => {
     if (!initialData || Object.keys(initialData).length === 0) {
       navigate('/');
@@ -81,7 +81,7 @@ export default function ParsedCurlEditor({
     isPojoDisabled,
   } = useParsedCurlEditor(initialData);
 
-  // Handle keyboard shortcuts
+  // Keyboard shortcuts (NEW FEATURE)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey) {
@@ -140,7 +140,7 @@ export default function ParsedCurlEditor({
         <EditorHeader originalCurl={originalCurl} />
       </div>
 
-      {/* Action Bar */}
+      {/* Action Bar with Undo/Redo */}
       <div className="mb-6">
         <EditorActionBar
           onBack={onBack}
@@ -162,7 +162,7 @@ export default function ParsedCurlEditor({
         />
       </div>
 
-      {/* Code Generation Dialog */}
+      {/* Code Generation Dialog with POJO disabled support */}
       <CodeGenerationDialog
         open={showCodeDialog}
         onOpenChange={setShowCodeDialog}
@@ -214,6 +214,7 @@ export default function ParsedCurlEditor({
             onValueChange={setOpenSections}
             className="space-y-4"
           >
+            {/* Render all sections using SectionRenderer */}
             <SectionRenderer
               parsed={parsed}
               selected={selected}

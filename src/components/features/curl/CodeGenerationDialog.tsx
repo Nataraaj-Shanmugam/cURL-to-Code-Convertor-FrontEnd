@@ -19,6 +19,7 @@ interface CodeGenerationDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   parsedData: ParsedCurl;
+  isPojoDisabled?: boolean;
 }
 
 const defaultPomProjectInfo: PomProjectInfo = {
@@ -46,6 +47,7 @@ export default function CodeGenerationDialog({
   open,
   onOpenChange,
   parsedData,
+  isPojoDisabled = false,
 }: CodeGenerationDialogProps) {
   const [currentStep, setCurrentStep] = useState<'type' | 'config' | 'result'>('type');
   const [configTab, setConfigTab] = useState<'basic' | 'pom'>('basic');
@@ -137,7 +139,12 @@ export default function CodeGenerationDialog({
         assertResponseTime: codeConfig.assertResponseTime!,
         maxResponseTimeMs: codeConfig.maxResponseTimeMs,
         generatePom: codeConfig.generatePom!,
-        pomConfig: codeConfig.generatePom ? pomConfig : undefined,
+        pomConfig: codeConfig.generatePom
+          ? {
+            ...pomConfig,
+            pomType: codeConfig.option === 'method' ? 'dependencies_only' : pomConfig.pomType
+          }
+          : undefined,
       };
 
       const result = await curlApi.generateFromParsed(parsedData, finalConfig);
@@ -252,21 +259,18 @@ export default function CodeGenerationDialog({
     });
   };
 
-  // 1. Update handleBack function
   const handleBack = () => {
     if (currentStep === 'config') {
       setCurrentStep('type');
-      setConfigTab('basic'); // Reset to basic when going back to type selection
+      setConfigTab('basic');
     } else if (currentStep === 'result') {
       setCurrentStep('config');
-      setConfigTab('pom'); // Go back to POM tab since that's where Generate was clicked
+      setConfigTab('pom');
     }
     setCopied(false);
   };
 
-  // 2. Add validation in handleNextTab
   const handleNextTab = () => {
-    // Validate before moving to next tab
     if (configTab === 'basic') {
       if (!codeConfig.serviceName?.trim() || !codeConfig.methodName?.trim()) {
         alert('Class name and method name are required');
@@ -276,32 +280,15 @@ export default function CodeGenerationDialog({
     }
   };
 
-  // 3. Update canProceedToNext logic
   const canProceedToNext = () => {
     if (configTab === 'basic') {
       if (codeConfig.option === 'full') {
         return codeConfig.serviceName?.trim() && codeConfig.methodName?.trim();
       }
-      return codeConfig.methodName?.trim(); // Method only needs method name
+      return codeConfig.methodName?.trim();
     }
-    return true; // Advanced and POM tabs don't block navigation
+    return true;
   };
-
-  // 4. Add POM validation before generate
-  // const _canGenerate = () => {
-  //   if (!codeConfig.serviceName?.trim() || !codeConfig.methodName?.trim()) {
-  //     return false;
-  //   }
-
-  //   if (codeConfig.generatePom && pomConfig.pomType === "full") {
-  //     const projectInfo = pomConfig.projectInfo;
-  //     return !!(projectInfo?.groupId?.trim() &&
-  //       projectInfo?.artifactId?.trim() &&
-  //       projectInfo?.version?.trim());
-  //   }
-
-  //   return true;
-  // };
 
   const handleNextToConfig = () => {
     if (!codeConfig.option) {
@@ -385,20 +372,17 @@ export default function CodeGenerationDialog({
 
             {/* Progress Indicator */}
             <div className="flex items-center gap-2">
-              <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium ${currentStep === 'type' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
-                }`}>
+              <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium ${currentStep === 'type' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
                 <div className="w-1.5 h-1.5 rounded-full bg-current"></div>
                 Type
               </div>
               <ChevronRight className="w-4 h-4 text-muted-foreground" />
-              <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium ${currentStep === 'config' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
-                }`}>
+              <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium ${currentStep === 'config' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
                 <div className="w-1.5 h-1.5 rounded-full bg-current"></div>
                 Configure
               </div>
               <ChevronRight className="w-4 h-4 text-muted-foreground" />
-              <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium ${currentStep === 'result' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
-                }`}>
+              <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium ${currentStep === 'result' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
                 <div className="w-1.5 h-1.5 rounded-full bg-current"></div>
                 Preview
               </div>
@@ -644,7 +628,12 @@ public void apiNameTest() {
               <Tabs value={configTab} onValueChange={(v) => setConfigTab(v as 'basic' | 'pom')} className="w-full">
                 <TabsList className="grid w-full grid-cols-2">
                   <TabsTrigger value="basic">Basic</TabsTrigger>
-                  <TabsTrigger value="pom">POM</TabsTrigger>
+                  <TabsTrigger value="pom" disabled={codeConfig.option !== 'full'}>
+                    POM
+                    {codeConfig.option !== 'full' && (
+                      <span className="ml-2 text-xs">(Full Test only)</span>
+                    )}
+                  </TabsTrigger>
                 </TabsList>
 
                 {/* Basic Tab */}
@@ -684,21 +673,30 @@ public void apiNameTest() {
                   </div>
 
                   {/* POJO Section */}
-                  <div className="p-6 border-2 rounded-xl bg-gradient-to-br from-purple-500/5 to-transparent">
-                    <label className="flex items-start gap-4 cursor-pointer group">
+                  <div className={`p-6 border-2 rounded-xl bg-gradient-to-br from-purple-500/5 to-transparent ${isPojoDisabled ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}>
+                    <label className={`flex items-start gap-4 group ${isPojoDisabled ? 'cursor-not-allowed' : 'cursor-pointer'
+                      }`}>
                       <Checkbox
                         checked={codeConfig.needPojo}
                         onCheckedChange={(checked) =>
                           setCodeConfig({ ...codeConfig, needPojo: !!checked })
                         }
+                        disabled={isPojoDisabled}
                         className="mt-1"
                       />
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
                           <Package className="w-4 h-4 text-purple-600" />
-                          <span className="font-semibold group-hover:text-primary transition-colors">
+                          <span className={`font-semibold transition-colors ${!isPojoDisabled ? 'group-hover:text-primary' : ''
+                            }`}>
                             Generate POJO Classes
                           </span>
+                          {isPojoDisabled && (
+                            <Badge variant="secondary" className="text-xs">
+                              Not available for GET/DELETE/HEAD
+                            </Badge>
+                          )}
                         </div>
                         <p className="text-sm text-muted-foreground leading-relaxed">
                           Automatically create Lombok-based POJOs with @Data and @Builder annotations for request/response handling
@@ -712,10 +710,10 @@ public void apiNameTest() {
                     <h3 className="font-semibold text-lg">Test Features</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       {[
-                        { key: 'assertionRequired', label: 'Include Assertions', desc: 'Validate responses' },
+                        { key: 'assertionRequired', label: 'Include Assertions', desc: 'Validate status code' },
                         { key: 'loggingRequired', label: 'Include Logging', desc: 'Debug output' },
-                        { key: 'useFluentApi', label: 'Use Fluent API', desc: 'Modern style' },
-                        { key: 'includeRetry', label: 'Retry Logic', desc: 'Handle failures' },
+                        // { key: 'useFluentApi', label: 'Use Fluent API', desc: 'Modern style' },
+                        // { key: 'includeRetry', label: 'Retry Logic', desc: 'Handle failures' },
                         { key: 'assertResponseTime', label: 'Response Time Check', desc: 'Performance validation' },
                       ].map((option) => (
                         <label key={option.key} className="flex items-center gap-3 cursor-pointer p-4 rounded-lg border-2 bg-card hover:border-primary/50 transition-all group">
@@ -794,7 +792,7 @@ public void apiNameTest() {
                       </div>
                     </label>
 
-                    {codeConfig.generatePom && (
+                    {codeConfig.generatePom && codeConfig.option === 'full' && (
                       <div className="ml-8 pl-6 border-l-2 border-primary/30 space-y-5">
                         <div>
                           <label className="text-sm font-medium mb-2 block">

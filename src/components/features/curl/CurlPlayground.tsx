@@ -26,20 +26,23 @@ const CURL_TEMPLATES = [
   -d '{"name":"John Doe","email":"john@example.com","age":30}'`
   },
   {
-    name: "PUT Update",
-    description: "Update existing resource",
+    name: "PUT Update with XML",
+    description: "Update existing resource using XML body",
     icon: "✏️",
     curl: `curl -X PUT https://api.example.com/users/123 \\
-  -H "Content-Type: application/json" \\
+  -H "Content-Type: application/xml" \\
   -H "Authorization: Bearer token123" \\
-  -d '{"name":"Jane Doe","email":"jane@example.com"}'`
+  -d '<user>
+        <name>Jane Doe</name>
+        <email>jane@example.com</email>
+      </user>'`
   },
   {
     name: "Nested JSON body",
     description: "Request with nested JSON body for POJO",
     icon: "👤",
-    curl: `curl -X POST "https://kekiranbekiran.com/create-user" \
-  -H "Content-Type: application/json" \
+    curl: `curl -X POST "https://kekiranbekiran.com/create-user" \\
+  -H "Content-Type: application/json" \\
   -d '{
         "person": {
           "name": "Nataraaj",

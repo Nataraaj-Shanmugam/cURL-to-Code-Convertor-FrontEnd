@@ -1,15 +1,24 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 
-interface EditingState {
+// ============================================================================
+// TYPES
+// ============================================================================
+
+export interface EditingState {
   [key: string]: boolean;
 }
 
-interface EditedValues {
+export interface EditedValues {
   [key: string]: any;
 }
 
-interface CollapsedState {
+export interface CollapsedState {
   [key: string]: boolean;
+}
+
+export interface HistoryEntry {
+  parsed: any;
+  timestamp: number;
 }
 
 export const VALID_SECTIONS = {
@@ -21,430 +30,382 @@ export const VALID_SECTIONS = {
   'network_config': 'Network Configuration',
   'ssl_config': 'SSL/TLS Configuration',
   'flags': 'Flags'
+} as const;
+
+const EXCLUDED_KEYS = [
+  'method', 'url', 'base_url', 'endpoint', 'path_template',
+  'raw_data', 'all_options', 'meta', 'user_agent', 'referer', 'proxy'
+] as const;
+
+const NON_BODY_METHODS = ['GET', 'DELETE', 'HEAD', 'OPTIONS'] as const;
+
+const MAX_HISTORY = 5;
+
+// ============================================================================
+// HELPER FUNCTIONS (Pure, no side effects)
+// ============================================================================
+
+export const hasValidData = (data: any): boolean => {
+  if (!data || typeof data !== 'object') return false;
+  if (Array.isArray(data)) return data.length > 0;
+
+  const entries = Object.entries(data);
+  if (entries.length === 0) return false;
+
+  return entries.some(([_, value]) => {
+    if (value === null || value === undefined) return false;
+    if (typeof value === 'string' && value.trim() === '') return false;
+    if (typeof value === 'object' && Object.keys(value).length === 0) return false;
+    return true;
+  });
 };
 
+export const hasActiveFlags = (flagsObj: any): boolean => {
+  if (!flagsObj || typeof flagsObj !== 'object') return false;
+  return Object.values(flagsObj).some((val) => val === true);
+};
+
+export const getActiveFlags = (flagsObj: any): string[] => {
+  if (!flagsObj || typeof flagsObj !== 'object') return [];
+  return Object.entries(flagsObj)
+    .filter(([_, val]) => val === true)
+    .map(([key]) => key);
+};
+
+export const shouldExcludeKey = (key: string): boolean => {
+  return EXCLUDED_KEYS.includes(key as any);
+};
+
+export const isNonBodyMethod = (method: string): boolean => {
+  return NON_BODY_METHODS.includes(method?.toUpperCase() as any);
+};
+
+const getValidSectionsFromData = (data: any): string[] => {
+  const valid: string[] = [];
+
+  Object.keys(data).forEach(key => {
+    if (shouldExcludeKey(key)) return;
+
+    const value = data[key];
+    if (value === null || value === undefined) return;
+    if (typeof value === 'string' && value.trim() === '') return;
+
+    if (key === 'path_parameters') {
+      if (Array.isArray(value) && value.length > 0) valid.push(key);
+    } else if (key === 'flags') {
+      if (hasActiveFlags(value)) valid.push(key);
+    } else if (key === 'ssl_config') {
+      if (value && typeof value === 'object' && Object.keys(value).some(k => value[k] === true)) {
+        valid.push(key);
+      }
+    } else if (key === 'data') {
+      if (typeof value === 'object' && value !== null) {
+        if (Array.isArray(value) ? value.length > 0 : Object.keys(value).length > 0) {
+          valid.push(key);
+        }
+      } else if (value) {
+        valid.push(key);
+      }
+    } else if (hasValidData(value)) {
+      valid.push(key);
+    }
+  });
+
+  return valid;
+};
+
+const deepClone = (obj: any): any => JSON.parse(JSON.stringify(obj));
+
+const updateNestedValue = (obj: any, path: string, value: any): any => {
+  const keys = path.split('.');
+  const result = deepClone(obj);
+  let current = result;
+
+  for (let i = 0; i < keys.length - 1; i++) {
+    const key = keys[i];
+    if (key && (!current[key] || typeof current[key] !== 'object')) {
+      current[key] = {};
+    }
+    if (key) {
+      current = current[key];
+    }
+  }
+
+  const lastKey = keys[keys.length - 1];
+  if (lastKey) {
+    current[lastKey] = value;
+  }
+  return result;
+};
+
+const deleteNestedValue = (obj: any, path: string): any => {
+  const keys = path.split('.');
+  const result = deepClone(obj);
+  let current = result;
+
+  for (let i = 0; i < keys.length - 1; i++) {
+    const key = keys[i];
+    if (key && !current[key]) return result;
+    if (key) {
+      current = current[key];
+    }
+  }
+
+  const lastKey = keys[keys.length - 1];
+  if (lastKey) {
+    delete current[lastKey];
+  }
+  return result;
+};
+
+// ============================================================================
+// MAIN HOOK
+// ============================================================================
+
 export const useParsedCurlEditor = (initialData: any) => {
+  // Core state
   const [originalParsed] = useState(initialData || {});
-  const [parsed, setParsed] = useState(JSON.parse(JSON.stringify(initialData || {})));
+  const [parsed, setParsed] = useState(deepClone(initialData || {}));
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+
+  // UI state
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<EditingState>({});
   const [editedValues, setEditedValues] = useState<EditedValues>({});
-  const [showCodeDialog, setShowCodeDialog] = useState(false);
-  const [generatedCode, setGeneratedCode] = useState("");
+  const [openSections, setOpenSections] = useState<string[]>([]);
+  const [bodyCollapsed, setBodyCollapsed] = useState<CollapsedState>({});
+  const [allExpanded, setAllExpanded] = useState(false);
+
+  // Dialog state
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [addDialogSection, setAddDialogSection] = useState("");
   const [newKey, setNewKey] = useState("");
   const [newValue, setNewValue] = useState("");
   const [showNewSectionDialog, setShowNewSectionDialog] = useState(false);
   const [newSectionName, setNewSectionName] = useState("");
-  const [openSections, setOpenSections] = useState<string[]>([]);
-  const [bodyCollapsed, setBodyCollapsed] = useState<CollapsedState>({});
-  const [allExpanded, setAllExpanded] = useState(false);
 
-  // Helper functions
-  const hasValidData = (data: any): boolean => {
-    if (!data) return false;
-    if (typeof data !== 'object') return false;
-    if (Array.isArray(data)) return data.length > 0;
-
-    const entries = Object.entries(data);
-    if (entries.length === 0) return false;
-
-    return entries.some(([_, value]) => {
-      if (value === null || value === undefined) return false;
-      if (typeof value === 'string' && value.trim() === '') return false;
-      if (typeof value === 'object' && Object.keys(value).length === 0) return false;
-      return true;
-    });
-  };
-
-  const hasActiveFlags = (flagsObj: any): boolean => {
-    if (!flagsObj || typeof flagsObj !== 'object') return false;
-    return Object.values(flagsObj).some((val) => val === true);
-  };
-
-  const getActiveFlags = (flagsObj: any): string[] => {
-    if (!flagsObj || typeof flagsObj !== 'object') return [];
-    return Object.entries(flagsObj)
-      .filter(([_, val]) => val === true)
-      .map(([key]) => key);
-  };
-
-  const getValidSections = () => {
-    const valid: string[] = [];
-
-    Object.keys(parsed).forEach(key => {
-      if (['method', 'url', 'base_url', 'endpoint', 'path_template', 'raw_data', 'all_options', 'meta', 'user_agent', 'referer', 'proxy'].includes(key)) {
-        return;
-      }
-
-      const value = parsed[key];
-
-      if ((value === null || value === undefined) && !openSections.includes(key)) {
-        return;
-      }
-
-      if (typeof value === 'string' && value.trim() === '') return;
-
-      if (key === 'path_parameters') {
-        if (Array.isArray(value) && value.length > 0) {
-          valid.push(key);
-        }
-      } else if (key === 'flags') {
-        if (hasActiveFlags(value) || openSections.includes(key)) {
-          valid.push(key);
-        }
-      } else if (key === 'ssl_config') {
-        if (value && typeof value === 'object' && Object.keys(value).some(k => value[k] === true)) {
-          valid.push(key);
-        }
-      } else if (key === 'data') {
-        if (typeof value === 'object' && value !== null) {
-          if (Array.isArray(value) ? value.length > 0 : Object.keys(value).length > 0) {
-            valid.push(key);
-          }
-        } else if (value) {
-          valid.push(key);
-        }
-      } else if (hasValidData(value)) {
-        valid.push(key);
-      }
-    });
-
-    return valid;
-  };
-
-  const getMissingSections = () => {
-    const missing = Object.entries(VALID_SECTIONS).filter(([key]) => {
-      const sectionData = parsed[key];
-
-      if (key === 'flags') {
-        return !hasActiveFlags(sectionData);
-      }
-
-      if (key === 'ssl_config') {
-        return !(sectionData && typeof sectionData === 'object' && Object.keys(sectionData).some(k => sectionData[k] === true));
-      }
-
-      if (!sectionData) {
-        return true;
-      }
-
-      if (typeof sectionData === 'object' && !Array.isArray(sectionData)) {
-        return Object.keys(sectionData).length === 0;
-      }
-
-      if (Array.isArray(sectionData)) {
-        return sectionData.length === 0;
-      }
-      return false;
-    });
-    return missing;
-  };
-
+  // Initialize history
   useEffect(() => {
-    const defaultSections = getValidSections();
+    if (initialData) {
+      setHistory([{ parsed: deepClone(initialData), timestamp: Date.now() }]);
+      setHistoryIndex(0);
+    }
+  }, []);
+
+  // Initialize open sections
+  useEffect(() => {
+    const defaultSections = getValidSectionsFromData(parsed);
     const sectionsToOpen = [...defaultSections];
 
-    const fixedSections = ['method', 'url', 'base_url', 'endpoint', 'path_template'];
-    const hasRequestData = fixedSections.some(key =>
-      parsed[key] !== undefined && parsed[key] !== null && parsed[key] !== ''
+    const hasRequestData = ['method', 'url', 'base_url', 'endpoint', 'path_template'].some(
+      key => parsed[key] !== undefined && parsed[key] !== null && parsed[key] !== ''
     );
 
-    if (hasRequestData) {
-      sectionsToOpen.unshift('request');
-    }
-
-    if (parsed.user_agent || parsed.referer || parsed.proxy) {
-      sectionsToOpen.push('context');
-    }
+    if (hasRequestData) sectionsToOpen.unshift('request');
+    if (parsed.user_agent || parsed.referer || parsed.proxy) sectionsToOpen.push('context');
 
     setOpenSections(sectionsToOpen);
   }, []);
 
-  const handleReset = () => {
+  // Add to history
+  const addToHistory = useCallback((newParsed: any) => {
+    setHistory(prev => {
+      const newHistory = prev.slice(0, historyIndex + 1);
+      newHistory.push({ parsed: deepClone(newParsed), timestamp: Date.now() });
+      if (newHistory.length > MAX_HISTORY) newHistory.shift();
+      return newHistory;
+    });
+    setHistoryIndex(prev => Math.min(prev + 1, MAX_HISTORY - 1));
+  }, [historyIndex]);
+
+  // Undo
+  const undo = useCallback(() => {
+    if (historyIndex > 0) {
+      const newIndex = historyIndex - 1;
+      const historyEntry = history[newIndex];
+      if (historyEntry) {
+        setHistoryIndex(newIndex);
+        setParsed(deepClone(historyEntry.parsed));
+      }
+    }
+  }, [historyIndex, history]);
+  // Redo
+  const redo = useCallback(() => {
+    if (historyIndex < history.length - 1) {
+      const newIndex = historyIndex + 1;
+      const historyEntry = history[newIndex];
+      if (historyEntry) {
+        setHistoryIndex(newIndex);
+        setParsed(deepClone(historyEntry.parsed));
+      }
+    }
+  }, [historyIndex, history]);
+
+  const canUndo = historyIndex > 0;
+  const canRedo = historyIndex < history.length - 1;
+
+  // Get valid sections
+  const getValidSections = useCallback((): string[] => {
+    return getValidSectionsFromData(parsed);
+  }, [parsed]);
+
+  // Get missing sections
+  const getMissingSections = useCallback(() => {
+    return Object.entries(VALID_SECTIONS).filter(([key]) => {
+      const sectionData = parsed[key];
+
+      if (key === 'flags') return !hasActiveFlags(sectionData);
+      if (key === 'ssl_config') {
+        return !(sectionData && typeof sectionData === 'object' &&
+          Object.keys(sectionData).some(k => sectionData[k] === true));
+      }
+
+      if (!sectionData) return true;
+      if (typeof sectionData === 'object' && !Array.isArray(sectionData)) {
+        return Object.keys(sectionData).length === 0;
+      }
+      if (Array.isArray(sectionData)) return sectionData.length === 0;
+      return false;
+    });
+  }, [parsed]);
+
+  // Reset
+  const handleReset = useCallback(() => {
     if (window.confirm('Are you sure you want to reset all changes?')) {
-      const resetParsed = JSON.parse(JSON.stringify(originalParsed));
+      const resetParsed = deepClone(originalParsed);
       setParsed(resetParsed);
+
+      setHistory([{ parsed: resetParsed, timestamp: Date.now() }]);
+      setHistoryIndex(0);
 
       const defaultSections = getValidSectionsFromData(resetParsed);
       const sectionsToOpen = [...defaultSections];
-
-      const fixedSections = ['method', 'url', 'base_url', 'endpoint', 'path_template'];
-      const hasRequestData = fixedSections.some(key =>
-        resetParsed[key] !== undefined && resetParsed[key] !== null && resetParsed[key] !== ''
+      const hasRequestData = ['method', 'url', 'base_url', 'endpoint', 'path_template'].some(
+        key => resetParsed[key] !== undefined && resetParsed[key] !== null && resetParsed[key] !== ''
       );
-
-      if (hasRequestData) {
-        sectionsToOpen.unshift('request');
-      }
-
+      if (hasRequestData) sectionsToOpen.unshift('request');
       if (resetParsed.user_agent || resetParsed.referer || resetParsed.proxy) {
         sectionsToOpen.push('context');
       }
 
       setOpenSections(sectionsToOpen);
-
       setSelected(new Set());
       setEditing({});
       setEditedValues({});
       setBodyCollapsed({});
     }
-  };
+  }, [originalParsed]);
 
-  const getValidSectionsFromData = (data: any): string[] => {
-    const valid: string[] = [];
-
-    Object.keys(data).forEach(key => {
-      if (['method', 'url', 'base_url', 'endpoint', 'path_template', 'raw_data', 'all_options', 'meta', 'user_agent', 'referer', 'proxy'].includes(key)) {
-        return;
-      }
-
-      const value = data[key];
-
-      if (value === null || value === undefined) return;
-      if (typeof value === 'string' && value.trim() === '') return;
-
-      if (key === 'path_parameters') {
-        if (Array.isArray(value) && value.length > 0) {
-          valid.push(key);
-        }
-      } else if (key === 'flags') {
-        if (hasActiveFlags(value)) {
-          valid.push(key);
-        }
-      } else if (key === 'ssl_config') {
-        if (value && typeof value === 'object' && Object.keys(value).some(k => value[k] === true)) {
-          valid.push(key);
-        }
-      } else if (key === 'data') {
-        if (typeof value === 'object' && value !== null) {
-          if (Array.isArray(value) ? value.length > 0 : Object.keys(value).length > 0) {
-            valid.push(key);
-          }
-        } else if (value) {
-          valid.push(key);
-        }
-      } else if (hasValidData(value)) {
-        valid.push(key);
-      }
-    });
-
-    return valid;
-  };
-
-  const deleteSection = (sectionKey: string) => {
-    if (window.confirm(`Delete the entire "${VALID_SECTIONS[sectionKey as keyof typeof VALID_SECTIONS] || sectionKey}" section?`)) {
+  // Delete section
+  const deleteSection = useCallback((sectionKey: string) => {
+    const sectionName = VALID_SECTIONS[sectionKey as keyof typeof VALID_SECTIONS] || sectionKey;
+    if (window.confirm(`Delete the entire "${sectionName}" section?`)) {
       const newParsed = { ...parsed };
       delete newParsed[sectionKey];
       setParsed(newParsed);
+      addToHistory(newParsed);
       setOpenSections(prev => prev.filter(s => s !== sectionKey));
     }
-  };
+  }, [parsed, addToHistory]);
 
-  const toggleSelect = (path: string) => {
-    const newSelected = new Set(selected);
-    if (newSelected.has(path)) {
-      newSelected.delete(path);
-    } else {
-      newSelected.add(path);
-    }
-    setSelected(newSelected);
-  };
+  // Toggle select
+  const toggleSelect = useCallback((path: string) => {
+    setSelected(prev => {
+      const newSelected = new Set(prev);
+      if (newSelected.has(path)) {
+        newSelected.delete(path);
+      } else {
+        newSelected.add(path);
+      }
+      return newSelected;
+    });
+  }, []);
 
-  const toggleEdit = (path: string, currentValue: any) => {
+  // Toggle edit
+  const toggleEdit = useCallback((path: string, currentValue: any) => {
     if (editing[path]) {
-      const keys = path.split('.');
-      let obj: any = parsed;
-      for (let i = 0; i < keys.length - 1; i++) {
-        const key = keys[i];
-        if (key && obj && typeof obj === 'object') {
-          obj = obj[key];
-        } else {
-          return;
+      let finalValue = editedValues[path] ?? currentValue;
+      if (typeof finalValue === 'string') {
+        try {
+          finalValue = JSON.parse(finalValue);
+        } catch {
+          // Keep as string
         }
       }
-      const lastKey = keys[keys.length - 1];
-      if (lastKey && obj && typeof obj === 'object') {
-        let finalValue = editedValues[path] ?? currentValue;
-        if (typeof finalValue === 'string') {
-          try {
-            finalValue = JSON.parse(finalValue);
-          } catch {
-            // Keep as string
-          }
-        }
-        obj[lastKey] = finalValue;
-      }
-      setParsed({ ...parsed });
 
-      const newEditing = { ...editing };
-      delete newEditing[path];
-      setEditing(newEditing);
+      const newParsed = updateNestedValue(parsed, path, finalValue);
+      setParsed(newParsed);
+      addToHistory(newParsed);
+
+      setEditing(prev => {
+        const newEditing = { ...prev };
+        delete newEditing[path];
+        return newEditing;
+      });
     } else {
-      setEditing({ ...editing, [path]: true });
-      setEditedValues({ ...editedValues, [path]: currentValue });
+      setEditing(prev => ({ ...prev, [path]: true }));
+      setEditedValues(prev => ({ ...prev, [path]: currentValue }));
     }
-  };
+  }, [editing, editedValues, parsed, addToHistory]);
 
-  const deleteSelected = () => {
+  // Delete selected
+  const deleteSelected = useCallback(() => {
     if (selected.size === 0) return;
 
-    const newParsed = JSON.parse(JSON.stringify(parsed));
+    let newParsed = deepClone(parsed);
     selected.forEach(path => {
-      const keys = path.split('.');
-      let obj: any = newParsed;
-      for (let i = 0; i < keys.length - 1; i++) {
-        const key = keys[i];
-        if (key && obj && typeof obj === 'object') {
-          obj = obj[key];
-        } else {
-          return;
-        }
-      }
-      const lastKey = keys[keys.length - 1];
-      if (lastKey && obj && typeof obj === 'object') {
-        delete obj[lastKey];
-      }
+      newParsed = deleteNestedValue(newParsed, path);
     });
 
     setParsed(newParsed);
+    addToHistory(newParsed);
     setSelected(new Set());
-  };
+  }, [selected, parsed, addToHistory]);
 
-  const deleteSingle = (path: string) => {
-    const keys = path.split('.');
-    const newParsed = JSON.parse(JSON.stringify(parsed));
-    let obj: any = newParsed;
-    for (let i = 0; i < keys.length - 1; i++) {
-      const key = keys[i];
-      if (key && obj && typeof obj === 'object') {
-        obj = obj[key];
-      } else {
-        return;
-      }
-    }
-    const lastKey = keys[keys.length - 1];
-    if (lastKey && obj && typeof obj === 'object') {
-      delete obj[lastKey];
-    }
+  // Delete single
+  const deleteSingle = useCallback((path: string) => {
+    const newParsed = deleteNestedValue(parsed, path);
     setParsed(newParsed);
+    addToHistory(newParsed);
+    setSelected(prev => {
+      const newSelected = new Set(prev);
+      newSelected.delete(path);
+      return newSelected;
+    });
+  }, [parsed, addToHistory]);
 
-    const newSelected = new Set(selected);
-    newSelected.delete(path);
-    setSelected(newSelected);
-  };
+  // Handle edit change
+  const handleEditChange = useCallback((path: string, value: any) => {
+    setEditedValues(prev => ({ ...prev, [path]: value }));
+  }, []);
 
-  const handleEditChange = (path: string, value: any) => {
-    setEditedValues({ ...editedValues, [path]: value });
-  };
-
-  const exportData = () => {
+  // Export data
+  const exportData = useCallback(() => {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const dataStr = JSON.stringify(parsed, null, 2);
     const dataBlob = new Blob([dataStr], { type: 'application/json' });
     const url = URL.createObjectURL(dataBlob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'parsed-curl-edited.json';
+    link.download = `parsed-curl-${timestamp}.json`;
     link.click();
     URL.revokeObjectURL(url);
-  };
+  }, [parsed]);
 
-  const generateRestAssuredCode = (data: any): string => {
-    const method = (data.method || 'GET').toUpperCase();
-    const baseUrl = data.base_url || '';
-    const endpoint = data.endpoint || '';
-
-    let code = `import io.restassured.RestAssured;
-import io.restassured.response.Response;
-import static io.restassured.RestAssured.*;
-import static org.hamcrest.Matchers.*;
-
-public class GeneratedTest {
-    
-    public void testRequest() {
-        RestAssured.baseURI = "${baseUrl}";
-        
-        Response response = given()`;
-
-    if (data.headers && Object.keys(data.headers).length > 0) {
-      code += '\n            .headers(';
-      const headerEntries = Object.entries(data.headers).map(([k, v]) =>
-        `"${k}", "${v}"`
-      );
-      code += '\n                    ' + headerEntries.join(',\n                    ');
-      code += '\n            )';
-    }
-
-    if (data.query_params && Object.keys(data.query_params).length > 0) {
-      Object.entries(data.query_params).forEach(([key, value]) => {
-        code += `\n            .queryParam("${key}", "${value}")`;
-      });
-    }
-
-    if (data.cookies && Object.keys(data.cookies).length > 0) {
-      Object.entries(data.cookies).forEach(([key, value]) => {
-        code += `\n            .cookie("${key}", "${value}")`;
-      });
-    }
-
-    if (data.auth) {
-      if (typeof data.auth === 'string' && data.auth.includes(':')) {
-        const [user, pass] = data.auth.split(':');
-        code += `\n            .auth().basic("${user}", "${pass}")`;
-      }
-    }
-
-    const contentType = data.headers?.['Content-Type'] || data.headers?.['content-type'];
-    if (contentType) {
-      code += `\n            .contentType("${contentType}")`;
-    }
-
-    if (data.data) {
-      const bodyStr = typeof data.data === 'string' ? data.data : JSON.stringify(data.data, null, 2);
-      code += `\n            .body(${JSON.stringify(bodyStr)})`;
-    }
-
-    code += `\n        .when()
-            .${method.toLowerCase()}("${endpoint}")
-        .then()
-            .statusCode(200)
-            .log().all();
-            
-        System.out.println("Response: " + response.asString());
-    }
-}`;
-
-    return code;
-  };
-
-  const handleGenerateCode = () => {
-    const code = generateRestAssuredCode(parsed);
-    setGeneratedCode(code);
-    setShowCodeDialog(true);
-  };
-
-  const copyCode = async () => {
-    try {
-      await navigator.clipboard.writeText(generatedCode);
-      alert('Code copied to clipboard!');
-    } catch {
-      alert('Copy failed');
-    }
-  };
-
-  const handleAddEntry = (section: string) => {
+  // Handle add entry
+  const handleAddEntry = useCallback((section: string) => {
     setAddDialogSection(section);
     setNewKey("");
     setNewValue("");
     setShowAddDialog(true);
-  };
+  }, []);
 
-  const saveNewEntry = () => {
+  // Save new entry
+  const saveNewEntry = useCallback(() => {
     if (!newKey.trim()) return;
 
-    const newParsed = JSON.parse(JSON.stringify(parsed));
-
+    const newParsed = deepClone(parsed);
     if (!newParsed[addDialogSection]) {
       newParsed[addDialogSection] = {};
     }
@@ -456,17 +417,19 @@ public class GeneratedTest {
     }
 
     setParsed(newParsed);
+    addToHistory(newParsed);
 
     if (!openSections.includes(addDialogSection)) {
-      setOpenSections([...openSections, addDialogSection]);
+      setOpenSections(prev => [...prev, addDialogSection]);
     }
 
     setShowAddDialog(false);
     setNewKey("");
     setNewValue("");
-  };
+  }, [newKey, newValue, parsed, addDialogSection, openSections, addToHistory]);
 
-  const handleAddSection = () => {
+  // Handle add section
+  const handleAddSection = useCallback(() => {
     const missingSections = getMissingSections();
     if (missingSections.length === 0) {
       alert('All standard sections are already present!');
@@ -474,14 +437,13 @@ public class GeneratedTest {
     }
     setShowNewSectionDialog(true);
     setNewSectionName("");
-  };
+  }, [getMissingSections]);
 
-  const saveNewSection = () => {
-    if (!newSectionName.trim()) {
-      return;
-    }
+  // Save new section
+  const saveNewSection = useCallback(() => {
+    if (!newSectionName.trim()) return;
 
-    const newParsed = JSON.parse(JSON.stringify(parsed));
+    const newParsed = deepClone(parsed);
 
     if (newSectionName === 'flags' || newSectionName === 'ssl_config') {
       newParsed[newSectionName] = {};
@@ -492,26 +454,25 @@ public class GeneratedTest {
     } else {
       newParsed[newSectionName] = {};
     }
+
     setParsed(newParsed);
+    addToHistory(newParsed);
 
-    const updatedOpenSections = openSections.includes(newSectionName)
-      ? openSections
-      : [...openSections, newSectionName];
-
-    setOpenSections(updatedOpenSections);
+    if (!openSections.includes(newSectionName)) {
+      setOpenSections(prev => [...prev, newSectionName]);
+    }
 
     setShowNewSectionDialog(false);
     setNewSectionName("");
-  };
+  }, [newSectionName, parsed, openSections, addToHistory]);
 
-  const toggleBodyCollapse = (path: string) => {
-    setBodyCollapsed(prev => ({
-      ...prev,
-      [path]: !prev[path]
-    }));
-  };
+  // Toggle body collapse
+  const toggleBodyCollapse = useCallback((path: string) => {
+    setBodyCollapsed(prev => ({ ...prev, [path]: !prev[path] }));
+  }, []);
 
-  const handleBodyExpandCollapseAll = () => {
+  // Expand/collapse all body
+  const handleBodyExpandCollapseAll = useCallback(() => {
     if (allExpanded) {
       const allPaths: string[] = [];
       const collectPaths = (obj: any, currentPath: string = 'data') => {
@@ -534,15 +495,18 @@ public class GeneratedTest {
       collectPaths(parsed.data);
 
       const collapsed: CollapsedState = {};
-      allPaths.forEach(path => {
-        collapsed[path] = true;
-      });
+      allPaths.forEach(path => { collapsed[path] = true; });
       setBodyCollapsed(collapsed);
     } else {
       setBodyCollapsed({});
     }
     setAllExpanded(!allExpanded);
-  };
+  }, [allExpanded, parsed.data]);
+
+  // Check if POJO should be disabled
+  const isPojoDisabled = useCallback(() => {
+    return isNonBodyMethod(parsed.method);
+  }, [parsed.method]);
 
   return {
     // State
@@ -550,8 +514,6 @@ public class GeneratedTest {
     selected,
     editing,
     editedValues,
-    showCodeDialog,
-    generatedCode,
     showAddDialog,
     addDialogSection,
     newKey,
@@ -561,9 +523,12 @@ public class GeneratedTest {
     openSections,
     bodyCollapsed,
     allExpanded,
+    history,
+    historyIndex,
+    canUndo,
+    canRedo,
 
     // Setters
-    setShowCodeDialog,
     setNewKey,
     setNewValue,
     setShowAddDialog,
@@ -581,20 +546,21 @@ public class GeneratedTest {
     deleteSingle,
     handleEditChange,
     exportData,
-    handleGenerateCode,
-    copyCode,
     handleAddEntry,
     saveNewEntry,
     handleAddSection,
     saveNewSection,
     toggleBodyCollapse,
     handleBodyExpandCollapseAll,
+    undo,
+    redo,
 
     // Helpers
     hasValidData,
     hasActiveFlags,
     getActiveFlags,
     getMissingSections,
-    setGeneratedCode
+    getValidSections,
+    isPojoDisabled,
   };
 };
