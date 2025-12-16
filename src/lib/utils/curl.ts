@@ -94,7 +94,6 @@ export const normalizeParsedCurl = (raw: ParsedCurlResponse): ParsedCurl | null 
     url: raw.url || "",
     base_url: baseUrl,
     endpoint,
-    path_template: raw.path_template || endpoint,
     path_parameters: raw.path_parameters || [],
 
     // ---- Request data ----
