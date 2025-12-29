@@ -53,25 +53,25 @@ const getSectionIcon = (key: string) => {
 
 const getSectionColor = (key: string) => {
     const colorMap: Record<string, string> = {
-        request: "from-blue-500 to-blue-600",
-        headers: "from-purple-500 to-purple-600",
-        query_parameters: "from-cyan-500 to-cyan-600",
-        auth: "from-green-500 to-green-600",
-        data: "from-orange-500 to-orange-600",
-        cookies: "from-yellow-500 to-yellow-600",
-        flags: "from-gray-500 to-gray-600",
-        ssl_config: "from-red-500 to-red-600",
+        request: "from-cyan-500 to-teal-600",
+        headers: "from-teal-500 to-emerald-600",
+        query_parameters: "from-cyan-600 to-sky-700",
+        auth: "from-emerald-500 to-green-600",
+        data: "from-orange-500 to-amber-600",
+        cookies: "from-amber-500 to-yellow-600",
+        flags: "from-slate-500 to-slate-600",
+        ssl_config: "from-red-500 to-rose-600",
     };
     return colorMap[key] || "from-slate-500 to-slate-600";
 };
 
 const getMethodColor = (method: string) => {
     const colors: Record<string, string> = {
-        GET: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
-        POST: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+        GET: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+        POST: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400",
         PUT: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
         DELETE: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-        PATCH: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
+        PATCH: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
     };
     return colors[method?.toUpperCase()] || "bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400";
 };

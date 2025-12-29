@@ -125,8 +125,8 @@ export default function CurlPlayground() {
       {/* Header with animated background */}
       <div className="text-center space-y-4 relative py-8">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-0 left-1/4 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl animate-float"></div>
-          <div className="absolute bottom-0 right-1/4 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl animate-float" style={{ animationDelay: '1s' }}></div>
+          <div className="absolute top-0 left-1/4 w-64 h-64 bg-cyan-500/10 rounded-full blur-3xl animate-float"></div>
+          <div className="absolute bottom-0 right-1/4 w-80 h-80 bg-teal-500/10 rounded-full blur-3xl animate-float" style={{ animationDelay: '1s' }}></div>
         </div>
 
         <div className="relative z-10">
@@ -141,10 +141,10 @@ export default function CurlPlayground() {
 
       {/* Main Input Card */}
       <Card className="shadow-xl border-2 animate-slide-in-bottom" style={{ animationDelay: '0.2s' }}>
-        <CardHeader className="border-b-2 bg-gradient-to-r from-primary/5 via-purple-500/5 to-transparent">
+        <CardHeader className="border-b-2 bg-gradient-to-r from-cyan-500/5 via-teal-500/5 to-transparent">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center shadow-lg">
+              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-cyan-600 to-teal-700 flex items-center justify-center shadow-lg">
                 <Code className="w-5 h-5 text-white" />
               </div>
               <div>
@@ -214,7 +214,7 @@ export default function CurlPlayground() {
             <Button
               onClick={handleParse}
               disabled={!curlInput.trim() || loading}
-              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 shadow-lg hover:shadow-xl transition-all duration-300 flex-1 sm:flex-none h-12 px-8 text-base font-semibold"
+              className="bg-gradient-to-r from-cyan-600 to-teal-700 hover:from-teal-700 hover:to-cyan-800 shadow-lg hover:shadow-xl transition-all duration-300 flex-1 sm:flex-none h-12 px-8 text-base font-semibold"
             >
               {loading ? (
                 <>
@@ -292,7 +292,7 @@ export default function CurlPlayground() {
       )}
 
       {/* Quick Tips */}
-      <Card className="bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-950/20 dark:to-purple-950/20 border-2 border-primary/20 shadow-lg animate-slide-in-bottom" style={{ animationDelay: '0.4s' }}>
+      <Card className="bg-gradient-to-br from-cyan-50 to-teal-50 dark:from-cyan-950/20 dark:to-teal-950/20 border-2 border-primary/20 shadow-lg animate-slide-in-bottom" style={{ animationDelay: '0.4s' }}>
         <CardHeader>
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-yellow-500 to-orange-500 flex items-center justify-center shadow-lg">

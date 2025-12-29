@@ -58,7 +58,7 @@ export function EditorActionBar({
             Back
           </Button>
         )}
-        
+
         <Button
           variant="outline"
           onClick={onUndo}
@@ -80,7 +80,7 @@ export function EditorActionBar({
           <Redo className="w-4 h-4" />
           Redo
         </Button>
-        
+
         <Button
           variant="outline"
           onClick={onReset}
@@ -89,7 +89,7 @@ export function EditorActionBar({
           <AlertCircle className="w-4 h-4" />
           Reset
         </Button>
-        
+
         {!showQuickNav && (
           <Button
             variant="outline"
@@ -112,7 +112,7 @@ export function EditorActionBar({
             Save Changes
           </Button>
         )}
-        
+
         <Button
           onClick={onAddSection}
           disabled={missingSectionsCount === 0}
@@ -121,20 +121,20 @@ export function EditorActionBar({
           <FolderPlus className="w-4 h-4" />
           Add Section {missingSectionsCount > 0 && `(${missingSectionsCount})`}
         </Button>
-        
+
         <Button
           onClick={onGenerateCode}
-          className="bg-purple-600 hover:bg-purple-700 text-white gap-2"
+          className="bg-cyan-600 hover:bg-cyan-700 text-white gap-2"
         >
           <Code className="w-4 h-4" />
           Generate Code
         </Button>
-        
+
         <Button variant="outline" onClick={onExport} className="gap-2">
           <Download className="w-4 h-4" />
           Export JSON
         </Button>
-        
+
         <Button
           variant="outline"
           onClick={onClearSelection}
@@ -142,7 +142,7 @@ export function EditorActionBar({
         >
           Clear ({selectedCount})
         </Button>
-        
+
         <Button
           variant="destructive"
           onClick={onDeleteSelected}
