@@ -3,37 +3,37 @@
 @tailwind utilities;
 
 /* ===========================
-   🎨 Enhanced Theme Variables
+   🎨 Enhanced Theme Variables - CYAN/TEAL SYSTEM
 =========================== */
 @layer base {
   :root {
     /* Backgrounds - Light Mode */
-    --background: 240 10% 98%;
+    --background: 0 0% 100%;
     --foreground: 222.2 47.4% 11.2%;
 
     /* Muted Colors */
-    --muted: 220 14% 96%;
-    --muted-foreground: 220 9% 46%;
+    --muted: 210 20% 96%;
+    --muted-foreground: 215 16% 47%;
 
     /* Card */
     --card: 0 0% 100%;
     --card-foreground: 222.2 47.4% 11.2%;
 
     /* Borders & Inputs */
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 221 83% 53%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 180 66% 49%;
 
-    /* Primary - Vibrant Blue */
-    --primary: 221 83% 53%;
-    --primary-foreground: 210 40% 98%;
+    /* Primary - Cyan/Teal (CHANGED FROM PURPLE) */
+    --primary: 180 66% 49%;
+    --primary-foreground: 0 0% 100%;
 
     /* Secondary */
-    --secondary: 220 14% 96%;
+    --secondary: 210 20% 96%;
     --secondary-foreground: 222.2 47.4% 11.2%;
 
     /* Accent */
-    --accent: 220 14% 96%;
+    --accent: 210 20% 96%;
     --accent-foreground: 222.2 47.4% 11.2%;
 
     /* Destructive */
@@ -79,10 +79,10 @@
     /* Borders & Inputs */
     --border: 217 33% 21%;
     --input: 217 33% 21%;
-    --ring: 212 100% 70%;
+    --ring: 180 71% 60%;
 
-    /* Primary - Lighter Blue for Dark Mode */
-    --primary: 212 100% 70%;
+    /* Primary - Lighter Cyan for Dark Mode (CHANGED FROM PURPLE) */
+    --primary: 180 71% 60%;
     --primary-foreground: 222 47% 11%;
 
     /* Secondary */
@@ -192,7 +192,7 @@
 }
 
 /* ===========================
-   ✨ Enhanced Animations
+   ✨ Enhanced Animations - CYAN THEMED
 =========================== */
 @layer utilities {
   @keyframes shimmer {
@@ -271,7 +271,7 @@
     background: linear-gradient(
       to right,
       transparent 0%,
-      hsl(var(--primary) / 0.1) 50%,
+      hsl(180 66% 49% / 0.1) 50%,
       transparent 100%
     );
     background-size: 1000px 100%;
@@ -303,7 +303,7 @@
 }
 
 /* ===========================
-   🎨 Custom Utilities
+   🎨 Custom Utilities - CYAN/TEAL THEMED
 =========================== */
 @layer utilities {
   /* Glass Morphism */
@@ -321,13 +321,13 @@
     border: 1px solid hsl(var(--border) / 0.8);
   }
 
-  /* Gradient Text */
+  /* Gradient Text - CYAN/TEAL (NO PURPLE) */
   .gradient-text {
     @apply bg-clip-text text-transparent;
     background-image: linear-gradient(
       135deg,
-      hsl(var(--primary)),
-      hsl(var(--primary) / 0.8)
+      hsl(180, 66%, 49%),
+      hsl(180, 71%, 45%)
     );
   }
 
@@ -335,9 +335,9 @@
     @apply bg-clip-text text-transparent;
     background-image: linear-gradient(
       135deg,
-      hsl(221, 83%, 53%),
-      hsl(262, 83%, 58%),
-      hsl(338, 83%, 58%)
+      hsl(180, 66%, 49%),
+      hsl(180, 71%, 45%),
+      hsl(160, 84%, 39%)
     );
   }
 
@@ -345,8 +345,8 @@
   .gradient-bg {
     background: linear-gradient(
       135deg,
-      hsl(var(--primary) / 0.1),
-      hsl(var(--primary) / 0.05)
+      hsl(var(--primary) / 0.08),
+      hsl(var(--primary) / 0.03)
     );
   }
 
@@ -355,14 +355,14 @@
     overflow: hidden;
   }
 
-  .gradient-bg-hover::before {
+.gradient-bg-hover::before {
     content: '';
     position: absolute;
     inset: 0;
     background: linear-gradient(
       135deg,
-      hsl(var(--primary) / 0.15),
-      hsl(var(--primary) / 0.05)
+      hsl(180 66% 49% / 0.12),
+      hsl(180 71% 45% / 0.05)
     );
     opacity: 0;
     transition: opacity 0.3s ease;
@@ -427,20 +427,20 @@
     @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background;
   }
 
-  /* Hover Glow Effect */
+  /* Hover Glow Effect - CYAN */
   .hover-glow {
     position: relative;
     transition: all 0.3s ease;
   }
 
-  .hover-glow::after {
+ .hover-glow::after {
     content: '';
     position: absolute;
     inset: -2px;
     background: linear-gradient(
       135deg,
-      hsl(var(--primary) / 0.4),
-      hsl(var(--primary) / 0.1)
+      hsl(180 66% 49% / 0.4),
+      hsl(160 84% 39% / 0.1)
     );
     border-radius: inherit;
     opacity: 0;
@@ -479,7 +479,7 @@
     left: 100%;
   }
 
-  /* Bordered Box with Gradient */
+  /* Bordered Box with Gradient - CYAN */
   .border-gradient {
     position: relative;
     border: 2px solid transparent;
@@ -493,8 +493,8 @@
     inset: -2px;
     background: linear-gradient(
       135deg,
-      hsl(var(--primary)),
-      hsl(var(--primary) / 0.5)
+      hsl(180, 66%, 49%),
+      hsl(180, 71%, 45%)
     );
     border-radius: inherit;
     z-index: -1;

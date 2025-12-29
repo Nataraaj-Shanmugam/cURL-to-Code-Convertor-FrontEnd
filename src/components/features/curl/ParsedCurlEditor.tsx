@@ -194,8 +194,8 @@ export default function ParsedCurlEditor({
 
       {/* Main Editor Card */}
       <Card className="shadow-lg border-2 animate-fade-in">
-        <CardHeader className="border-b-2 bg-gradient-to-r from-primary/5 to-primary/10">
-          <div className="flex items-center justify-between">
+       <CardHeader className="border-b-2 bg-gradient-to-r from-cyan-500/5 to-teal-500/10">
+        <div className="flex items-center justify-between">
             <div>
               <CardTitle className="text-2xl text-primary flex items-center gap-2">
                 <Settings className="w-6 h-6" />
