@@ -156,7 +156,7 @@ function isJsonContent(content: string): boolean {
  */
 function guessFormatFromContext(parsedData: ParsedCurl): "json" | "xml" {
   const url = parsedData.url?.toLowerCase() || '';
-  const method = parsedData.method?.toUpperCase() || '';
+  // const method = parsedData.method?.toUpperCase() || '';
   
   // URL path indicators
   if (url.includes('/xml') || url.includes('.xml')) {
