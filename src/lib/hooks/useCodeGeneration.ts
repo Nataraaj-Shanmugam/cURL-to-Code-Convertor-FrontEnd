@@ -48,6 +48,7 @@ const DEFAULT_CODE_CONFIG: Partial<CodeGenerationConfig> = {
   maxResponseTimeMs: 2000,
   generatePom: false,
   pomConfig: undefined,
+  dataFormat: 'json',
 };
 
 export function useCodeGeneration(parsedData: ParsedCurl) {
