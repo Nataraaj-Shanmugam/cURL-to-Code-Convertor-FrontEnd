@@ -183,6 +183,7 @@ export interface CodeGenerationConfig {
 
   // POM Generation fields
   generatePom: boolean;
+  dataFormat?: "json" | "xml" | "both";
   pomConfig?: PomGenerationConfig;
 }
 

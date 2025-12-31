@@ -1,5 +1,7 @@
 // src/components/features/curl/CodeGenerationDialog.tsx
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { detectDataFormat, getDataFormatLabel, getDataFormatDescription } from "@/lib/utils/dataFormatDetector";
+import { Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -30,6 +32,7 @@ interface CodeGenerationDialogProps {
   isPojoDisabled?: boolean;
 }
 
+
 const defaultPomProjectInfo: PomProjectInfo = {
   groupId: "com.example",
   artifactId: "rest-assured-tests",
@@ -57,8 +60,24 @@ export default function CodeGenerationDialog({
   parsedData,
   isPojoDisabled = false,
 }: CodeGenerationDialogProps) {
+  const [detectedFormat, setDetectedFormat] = useState<"json" | "xml" | "both">("json");
+  const [isFormatAutoDetected, setIsFormatAutoDetected] = useState(false);
   const [currentStep, setCurrentStep] = useState<"type" | "config" | "result">("type");
   const [configTab, setConfigTab] = useState<"basic" | "pom">("basic");
+  useEffect(() => {
+    if (open && parsedData) {
+      const detected = detectDataFormat(parsedData);
+      setDetectedFormat(detected);
+      setIsFormatAutoDetected(true);
+
+      // Set in config
+      setCodeConfig(prev => ({
+        ...prev,
+        dataFormat: detected
+      }));
+    }
+  }, [open, parsedData]);
+
   const [codeConfig, setCodeConfig] = useState<Partial<CodeGenerationConfig>>({
     option: undefined,
     serviceName: "ServiceName",
@@ -76,6 +95,7 @@ export default function CodeGenerationDialog({
     maxResponseTimeMs: 2000,
     generatePom: false,
     pomConfig: undefined,
+    dataFormat: "json",
   });
 
   const [pomConfig, setPomConfig] = useState<PomGenerationConfig>(defaultPomConfig);
@@ -85,6 +105,8 @@ export default function CodeGenerationDialog({
   const [isGenerating, setIsGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState<"test" | "pojo" | "pom">("test");
+
+
 
   const handlePomConfigChange = <K extends keyof PomGenerationConfig>(key: K, value: PomGenerationConfig[K]) => {
     setPomConfig((prev) => ({
@@ -146,11 +168,12 @@ export default function CodeGenerationDialog({
         assertResponseTime: codeConfig.assertResponseTime!,
         maxResponseTimeMs: codeConfig.maxResponseTimeMs,
         generatePom: codeConfig.generatePom!,
+        dataFormat: codeConfig.dataFormat || "json",
         pomConfig: codeConfig.generatePom
           ? {
-              ...pomConfig,
-              pomType: codeConfig.option === "method" ? "dependencies_only" : pomConfig.pomType,
-            }
+            ...pomConfig,
+            pomType: codeConfig.option === "method" ? "dependencies_only" : pomConfig.pomType,
+          }
           : undefined,
       };
 
@@ -192,11 +215,13 @@ export default function CodeGenerationDialog({
     switch (activeTab) {
       case "test":
         codeToDownload = generatedCode;
-        fileName = `${codeConfig.serviceName}.java`;
+        console.log(`Name of the Test file - ${codeConfig.serviceName}`)
+        fileName = `${codeConfig.serviceName}_Test.java`;
         break;
       case "pojo":
         codeToDownload = pojoCode;
-        fileName = `${codeConfig.serviceName}POJO.java`;
+        console.log(`Name of the model file - ${codeConfig.serviceName}`)
+        fileName = `${codeConfig.serviceName}_Model.java`;
         break;
       case "pom":
         codeToDownload = pomDependencies;
@@ -223,15 +248,17 @@ export default function CodeGenerationDialog({
     const files: { name: string; content: string }[] = [];
 
     if (generatedCode) {
+        console.log(`Name of the Test file - ${codeConfig.serviceName}`)
       files.push({
-        name: `${codeConfig.serviceName}.java`,
+        name: `${codeConfig.serviceName}_Test.java`,
         content: generatedCode,
       });
     }
 
     if (pojoCode) {
+        console.log(`Name of the model file - ${codeConfig.serviceName}`)
       files.push({
-        name: `${codeConfig.serviceName}POJO.java`,
+        name: `${codeConfig.serviceName}_Model.java`,
         content: pojoCode,
       });
     }
@@ -322,6 +349,7 @@ export default function CodeGenerationDialog({
       maxResponseTimeMs: 2000,
       generatePom: false,
       pomConfig: undefined,
+      dataFormat: "json",
     });
     setPomConfig(defaultPomConfig);
     setGeneratedCode("");
@@ -376,27 +404,24 @@ export default function CodeGenerationDialog({
             {/* Progress Indicator */}
             <div className="flex items-center gap-2">
               <div
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium ${
-                  currentStep === "type" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-                }`}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium ${currentStep === "type" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                  }`}
               >
                 <div className="w-1.5 h-1.5 rounded-full bg-current"></div>
                 Type
               </div>
               <ChevronRight className="w-4 h-4 text-muted-foreground" />
               <div
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium ${
-                  currentStep === "config" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-                }`}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium ${currentStep === "config" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                  }`}
               >
                 <div className="w-1.5 h-1.5 rounded-full bg-current"></div>
                 Configure
               </div>
               <ChevronRight className="w-4 h-4 text-muted-foreground" />
               <div
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium ${
-                  currentStep === "result" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-                }`}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium ${currentStep === "result" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                  }`}
               >
                 <div className="w-1.5 h-1.5 rounded-full bg-current"></div>
                 Preview
@@ -427,11 +452,10 @@ export default function CodeGenerationDialog({
                   className="sr-only"
                 />
                 <div
-                  className={`h-full p-6 rounded-2xl border-2 transition-all duration-200 ${
-                    codeConfig.option === "full"
+                  className={`h-full p-6 rounded-2xl border-2 transition-all duration-200 ${codeConfig.option === "full"
                       ? "border-primary bg-primary/5 shadow-lg ring-4 ring-primary/20"
                       : "border-border hover:border-primary/50 hover:bg-accent/30 hover:shadow-md"
-                  }`}
+                    }`}
                 >
                   <div className="flex flex-col gap-4 h-full">
                     <div className="flex items-start justify-between">
@@ -489,11 +513,10 @@ export default function CodeGenerationDialog({
                   className="sr-only"
                 />
                 <div
-                  className={`h-full p-6 rounded-2xl border-2 transition-all duration-200 ${
-                    codeConfig.option === "method"
+                  className={`h-full p-6 rounded-2xl border-2 transition-all duration-200 ${codeConfig.option === "method"
                       ? "border-primary bg-primary/5 shadow-lg ring-4 ring-primary/20"
                       : "border-border hover:border-primary/50 hover:bg-accent/30 hover:shadow-md"
-                  }`}
+                    }`}
                 >
                   <div className="flex flex-col gap-4 h-full">
                     <div className="flex items-start justify-between">
@@ -685,9 +708,8 @@ public void apiNameTest() {
 
                   {/* POJO Section */}
                   <div
-                    className={`p-6 border-2 rounded-xl bg-gradient-to-br from-orange-500/5 to-amber-500/3 ${
-                      isPojoDisabled ? "opacity-50 cursor-not-allowed" : ""
-                    }`}
+                    className={`p-6 border-2 rounded-xl bg-gradient-to-br from-orange-500/5 to-amber-500/3 ${isPojoDisabled ? "opacity-50 cursor-not-allowed" : ""
+                      }`}
                   >
                     <label
                       className={`flex items-start gap-4 group ${isPojoDisabled ? "cursor-not-allowed" : "cursor-pointer"}`}
@@ -799,6 +821,8 @@ public void apiNameTest() {
 
                     {codeConfig.generatePom && codeConfig.option === "full" && (
                       <div className="ml-8 pl-6 border-l-2 border-primary/30 space-y-5">
+
+                        {/* POM Type Selection */}
                         <div>
                           <label className="text-sm font-medium mb-2 block">
                             POM Type <span className="text-red-500">*</span>
@@ -815,6 +839,83 @@ public void apiNameTest() {
                               <SelectItem value="dependencies_only">Dependencies Only</SelectItem>
                             </SelectContent>
                           </Select>
+                        </div>
+
+                        <div className="p-5 border-2 rounded-xl bg-gradient-to-br from-blue-500/5 to-cyan-500/3">
+                          <div className="flex items-start justify-between mb-4">
+                            <div>
+                              <h4 className="text-sm font-semibold mb-1 flex items-center gap-2">
+                                Data Format
+                                {isFormatAutoDetected && (
+                                  <Badge variant="secondary" className="text-xs">
+                                    Auto-detected: {getDataFormatLabel(detectedFormat)}
+                                  </Badge>
+                                )}
+                              </h4>
+                              <p className="text-xs text-muted-foreground">
+                                Select which data formats your API uses (affects POM dependencies)
+                              </p>
+                            </div>
+                            {isFormatAutoDetected && (
+                              <button
+                                onClick={() => setIsFormatAutoDetected(false)}
+                                className="text-xs text-primary hover:underline"
+                              >
+                                Override
+                              </button>
+                            )}
+                          </div>
+
+                          <div className="space-y-2">
+                            {(["json", "xml", "both"] as const).map((format) => (
+                              <label
+                                key={format}
+                                className={`flex items-start gap-3 cursor-pointer p-4 rounded-lg border-2 transition-all ${codeConfig.dataFormat === format
+                                    ? "border-primary bg-primary/5 shadow-sm"
+                                    : "border-border hover:border-primary/50 hover:bg-accent/30"
+                                  }`}
+                              >
+                                <input
+                                  type="radio"
+                                  name="dataFormat"
+                                  value={format}
+                                  checked={codeConfig.dataFormat === format}
+                                  onChange={(e) => {
+                                    setCodeConfig({ ...codeConfig, dataFormat: e.target.value as "json" | "xml" | "both" });
+                                    setIsFormatAutoDetected(false);
+                                  }}
+                                  className="mt-1"
+                                />
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className="font-medium text-sm">{getDataFormatLabel(format)}</span>
+                                    {format === detectedFormat && isFormatAutoDetected && (
+                                      <Badge variant="outline" className="text-xs">Detected</Badge>
+                                    )}
+                                  </div>
+                                  <p className="text-xs text-muted-foreground leading-relaxed">
+                                    {getDataFormatDescription(format)}
+                                  </p>
+
+                                  <div className="mt-2 text-xs text-muted-foreground">
+                                    {format === "json" && "Includes: Jackson Databind"}
+                                    {format === "xml" && "Includes: Jackson XML, JAXB (Java 11+)"}
+                                    {format === "both" && "Includes: Jackson Databind + Jackson XML + JAXB"}
+                                  </div>
+                                </div>
+                              </label>
+                            ))}
+                          </div>
+
+                          {codeConfig.dataFormat !== "json" && (
+                            <div className="mt-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg flex gap-2">
+                              <Info className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                              <div className="text-xs text-muted-foreground">
+                                <strong className="text-foreground">XML Dependencies:</strong> JAXB is required for Java 11+
+                                to handle XML binding. It will be auto-included if Java version is 11, 17, or 21.
+                              </div>
+                            </div>
+                          )}
                         </div>
 
                         {pomConfig.pomType === "full" && (
@@ -933,10 +1034,9 @@ public void apiNameTest() {
                 <button
                   onClick={() => setActiveTab("test")}
                   className={`px-5 py-3 text-sm font-semibold rounded-lg transition-all duration-200 flex items-center gap-2 border-2 shadow-sm hover:shadow-md
-                    ${
-                      activeTab === "test"
-                        ? "bg-white dark:bg-slate-800 border-cyan-500 text-cyan-700 dark:text-cyan-400 shadow-md"
-                        : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:text-foreground hover:border-cyan-500/50 hover:bg-slate-50 dark:hover:bg-slate-800"
+                    ${activeTab === "test"
+                      ? "bg-white dark:bg-slate-800 border-cyan-500 text-cyan-700 dark:text-cyan-400 shadow-md"
+                      : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:text-foreground hover:border-cyan-500/50 hover:bg-slate-50 dark:hover:bg-slate-800"
                     }`}
                 >
                   <Code2 className="w-4 h-4" />
@@ -947,10 +1047,9 @@ public void apiNameTest() {
                   <button
                     onClick={() => setActiveTab("pojo")}
                     className={`px-5 py-3 text-sm font-semibold rounded-lg transition-all duration-200 flex items-center gap-2 border-2 shadow-sm hover:shadow-md
-                      ${
-                        activeTab === "pojo"
-                          ? "bg-white dark:bg-slate-800 border-cyan-500 text-cyan-700 dark:text-cyan-400 shadow-md"
-                          : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:text-foreground hover:border-cyan-500/50 hover:bg-slate-50 dark:hover:bg-slate-800"
+                      ${activeTab === "pojo"
+                        ? "bg-white dark:bg-slate-800 border-cyan-500 text-cyan-700 dark:text-cyan-400 shadow-md"
+                        : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:text-foreground hover:border-cyan-500/50 hover:bg-slate-50 dark:hover:bg-slate-800"
                       }`}
                   >
                     <Package className="w-4 h-4" />
@@ -962,10 +1061,9 @@ public void apiNameTest() {
                   <button
                     onClick={() => setActiveTab("pom")}
                     className={`px-5 py-3 text-sm font-semibold rounded-lg transition-all duration-200 flex items-center gap-2 border-2 shadow-sm hover:shadow-md
-                      ${
-                        activeTab === "pom"
-                          ? "bg-white dark:bg-slate-800 border-cyan-500 text-cyan-700 dark:text-cyan-400 shadow-md"
-                          : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:text-foreground hover:border-cyan-500/50 hover:bg-slate-50 dark:hover:bg-slate-800"
+                      ${activeTab === "pom"
+                        ? "bg-white dark:bg-slate-800 border-cyan-500 text-cyan-700 dark:text-cyan-400 shadow-md"
+                        : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:text-foreground hover:border-cyan-500/50 hover:bg-slate-50 dark:hover:bg-slate-800"
                       }`}
                   >
                     <FileText className="w-4 h-4" />

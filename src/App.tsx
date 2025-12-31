@@ -6,6 +6,7 @@ import AppLayout from "@/components/layout/AppLayout";
 import Home from "@/pages/Home";
 import Playground from "@/pages/Playground";
 import EditorPage from "@/pages/EditorPage";
+import Feedback from "@/pages/Feedback";
 
 export default function App() {
   return (
@@ -16,6 +17,8 @@ export default function App() {
             <Route path="/" element={<Home />} />
             <Route path="/playground" element={<Playground />} />
             <Route path="/editor" element={<EditorPage />} />
+             <Route path="/feedback" element={<Feedback />} /> {/* ADD THIS ROUTE */}
+        
           </Routes>
         </AppLayout>
       </BackendStatusProvider>

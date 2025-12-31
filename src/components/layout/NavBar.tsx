@@ -1,7 +1,6 @@
-// src/components/NavBar.tsx
 import { Link, useLocation } from "react-router-dom";
 import { useTheme } from "@/components/ui/theme-provider";
-import { Moon, Sun, Code2, AlertCircle } from "lucide-react";
+import { Moon, Sun, Code2, AlertCircle, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useEffect, useState } from "react";
 import { useBackendStatus } from "@/contexts/BackendStatusContext";
@@ -9,6 +8,7 @@ import { useBackendStatus } from "@/contexts/BackendStatusContext";
 const navLinks = [
   { path: "/", label: "Home" },
   { path: "/playground", label: "Playground", requiresBackend: true },
+  { path: "/feedback", label: "Feedback", icon: MessageSquare }, // ADDED
 ];
 
 export default function NavBar() {
@@ -61,13 +61,11 @@ export default function NavBar() {
           <div className="relative w-10 h-10">
             <div className="absolute inset-0 bg-gradient-to-br from-cyan-500 via-teal-500 to-emerald-600 rounded-xl blur-md opacity-40 group-hover:opacity-70 transition-all duration-300 group-hover:blur-lg animate-pulse-glow"></div>
 
-            {/* CHANGED: cyan-600 to emerald-700 gradient */}
             <div className="relative w-10 h-10 bg-gradient-to-br from-cyan-600 via-teal-600 to-emerald-700 rounded-xl flex items-center justify-center shadow-lg transition-transform duration-300 group-hover:scale-110 group-hover:rotate-2">
               <Code2 className="w-5 h-5 text-white" strokeWidth={2.5} />
             </div>
           </div>
 
-          {/* CHANGED: cyan-600 to emerald-600 gradient */}
           <span className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-600 via-teal-600 to-emerald-600 dark:from-cyan-400 dark:via-teal-400 dark:to-emerald-500 transition-all duration-300 group-hover:scale-105">
             CurlCraft Assured
           </span>
@@ -75,7 +73,7 @@ export default function NavBar() {
 
         {/* Navigation */}
         <nav className="flex items-center gap-1">
-          {navLinks.map(({ path, label, requiresBackend }) => {
+          {navLinks.map(({ path, label, requiresBackend, icon: Icon }) => {
             const isDisabled = requiresBackend && !isBackendReady;
             const isActive = location.pathname === path;
 
@@ -93,6 +91,7 @@ export default function NavBar() {
                 aria-disabled={isDisabled}
               >
                 <span className="relative z-10 flex items-center gap-2">
+                  {Icon && <Icon className="w-4 h-4" />}
                   {label}
                   {isDisabled && <AlertCircle className="w-3 h-3" />}
                 </span>

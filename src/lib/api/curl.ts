@@ -22,7 +22,7 @@ export const curlApi = {
    * Maps to: POST /api/parse
    */
   parse: async (curlCommand: string): Promise<ParseCurlResponse> => {
-    const { data } = await apiClient.post<ParseCurlResponse>("/api/parse", {
+    const { data } = await apiClient.post<ParseCurlResponse>( import.meta.env.VITE_CURL_CRAFT_API_PARSE_ENDPOINT, {
       curl: curlCommand,
     });
     return data;
@@ -37,7 +37,7 @@ export const curlApi = {
     config: CodeGenerationConfig
   ): Promise<CodeGenerationResponse> => {
     const { data } = await apiClient.post<CodeGenerationResponse>(
-      "/api/parse-and-generate",
+       import.meta.env.VITE_CURL_CRAFT_API_PARSE_AND_GENERATE_ENDPOINT,
       {
         curl: curlCommand,
         config,
@@ -57,7 +57,7 @@ export const curlApi = {
     config: CodeGenerationConfig
   ): Promise<CodeGenerationResponse> => {
     const { data } = await apiClient.post<CodeGenerationResponse>(
-      "/api/generate-from-parsed",
+      import.meta.env.VITE_CURL_CRAFT_API_GENERATE_FROM_PARSED_ENDPOINT,
       {
         parsed_data: parsedData,
         config,
