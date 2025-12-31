@@ -15,7 +15,7 @@ export default function Footer() {
           </div>
 
         {/* Tech Stack Tags */}
-        <div className="flex flex-wrap items-center justify-center gap-2 mt-4">
+        {/* <div className="flex flex-wrap items-center justify-center gap-2 mt-4">
           {['React', 'TypeScript', 'Tailwind CSS', 'REST Assured'].map((tech) => (
             <span
               key={tech}
@@ -24,7 +24,7 @@ export default function Footer() {
               {tech}
             </span>
           ))}
-        </div>
+        </div> */}
       </div>
     </footer>
   );
