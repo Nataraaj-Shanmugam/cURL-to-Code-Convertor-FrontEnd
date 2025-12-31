@@ -1,17 +1,13 @@
-YES
-
----
-
-# ðŸš€ CurlCraft Assured - cURL to REST Assured Code Generator
+# 🚀 CurlCraft Assured - Frontend Documentation
 
 [![React](https://img.shields.io/badge/React-18.x-61dafb?style=flat-square&logo=react)](https://reactjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178c6?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.x-38bdf8?style=flat-square&logo=tailwind-css)](https://tailwindcss.com/)
 [![Vite](https://img.shields.io/badge/Vite-5.x-646cff?style=flat-square&logo=vite)](https://vitejs.dev/)
 
-> **Transform cURL commands into production-ready REST Assured+TestNG test code with an intelligent visual editor and automatic POJO generation.**
+> **Transform cURL commands into production-ready REST Assured+TestNG test code with an intelligent visual editor.**
 
-[🎮 Live Demo](#) | [📖 Documentation](#) | [🐛 Report Bug](#) | [✨ Request Feature](#)
+[🎮 Live Demo](#) | [🐛 Report Bug](https://github.com/Nataraaj-Shanmugam/cURL-to-Code-Convertor-FrontEnd/issues) | [✨ Request Feature](https://github.com/Nataraaj-Shanmugam/cURL-to-Code-Convertor-FrontEnd/issues)
 
 ---
 
@@ -21,11 +17,9 @@ YES
 - [Features](#-features)
 - [Tech Stack](#-tech-stack)
 - [Getting Started](#-getting-started)
-- [Architecture](#-architecture)
+- [Project Structure](#-project-structure)
 - [Usage Guide](#-usage-guide)
-- [API Documentation](#-api-documentation)
 - [Configuration](#-configuration)
-- [Deployment](#-deployment)
 - [Contributing](#-contributing)
 
 ---
@@ -49,23 +43,23 @@ YES
 ### 🎯 Core Capabilities
 
 #### **1. Intelligent cURL Parsing**
-- ✅ Parse any cURL command from any source
-- ✅ Support for **all HTTP methods** (GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS)
-- ✅ Comprehensive extraction:
-  - Request URL (automatic base URL + endpoint separation)
-  - HTTP headers (with case-insensitive handling)
-  - Query parameters (URL-encoded and plain)
-  - Request body (JSON, XML, form-data, raw text)
-  - Authentication (Bearer, Basic, custom headers)
-  - Cookies (name-value pairs)
-  - Path parameters (template detection)
-  - Network configurations (timeouts, retries, redirects)
-  - SSL/TLS settings (certificates, versions)
-  - cURL flags (--insecure, --verbose, --compressed, etc.)
+- Parse any cURL command from Chrome DevTools, Postman, or manual input
+- Support for **all HTTP methods** (GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS)
+- Comprehensive extraction:
+  - ✅ Request URL (automatic base URL + endpoint separation)
+  - ✅ HTTP headers (case-insensitive handling)
+  - ✅ Query parameters (URL-encoded and plain)
+  - ✅ Request body (JSON, XML, form-data, raw text)
+  - ✅ Authentication (Bearer, Basic, custom headers)
+  - ✅ Cookies (name-value pairs)
+  - ✅ Path parameters (template detection)
+  - ✅ Network configurations (timeouts, retries, redirects)
+  - ✅ SSL/TLS settings (certificates, versions)
+  - ✅ cURL flags (--insecure, --verbose, --compressed, etc.)
 
 #### **2. Advanced Visual Editor**
 
-##### **Accordion-Based Interface**
+**Accordion-Based Interface**
 - 📂 **Request Details**: Method, URL, base URL, endpoint
 - 📋 **Headers**: Key-value pairs with inline editing
 - 🔍 **Query Parameters**: URL parameters management
@@ -79,141 +73,118 @@ YES
 - 🛣️ **Path Parameters**: Dynamic path segments
 - 🌐 **Client Context**: User-Agent, Referer, Proxy
 
-##### **Editing Features**
-- ✏️ **Inline Editing**: Click any field to edit
-- ✨ **Syntax Highlighting**: Type-based color coding
-- 🎨 **Visual Feedback**: Hover effects, focus states
+**Editing Features**
+- ✏️ **Inline Editing**: Click any field to edit directly
+- ✨ **Syntax Highlighting**: Type-based color coding (strings in green, numbers in blue, booleans in purple)
+- 🎨 **Visual Feedback**: Hover effects, focus states, smooth transitions
 - 🔒 **Protected Fields**: Required fields (method, URL) cannot be deleted
 - 📊 **Count Badges**: See entry counts at a glance
-- 🎯 **Smart Defaults**: Auto-expand sections with data
+- 🎯 **Smart Defaults**: Auto-expand sections containing data
 
 #### **3. Powerful Request Body Editor**
 
-- 🌳 **Hierarchical View**: Nested objects and arrays
-- ⬆️⬇️ **Expand/Collapse**: Individual nodes or all at once
+- 🌳 **Hierarchical View**: Navigate nested objects and arrays easily
+- ⬆️⬇️ **Expand/Collapse**: Control individual nodes or all at once
 - 📍 **Path Visualization**: Clear nested path display (`data.user.address.city`)
 - 🎨 **Type Indicators**:
-  - 🟢 Strings (green)
-  - 🔵 Numbers (blue)
-  - 🟣 Booleans (purple)
-  - 📦 Objects (with key count)
-  - 📚 Arrays (with item count)
-- ✏️ **Inline Value Editing**: Edit primitives directly
-- 🔍 **Deep Nesting Support**: Handle complex payloads
+  - 🟢 Strings (green text)
+  - 🔵 Numbers (blue text)
+  - 🟣 Booleans (purple text)
+  - 📦 Objects (with key count badge)
+  - 📚 Arrays (with item count badge)
+- ✏️ **Inline Value Editing**: Edit primitive values directly
+- 🔍 **Deep Nesting Support**: Handle complex API payloads
 
-#### **4. Comprehensive Section Management**
+#### **4. Section Management**
 
 - ➕ **Add Missing Sections**: Dynamically add any valid cURL section
 - 🗑️ **Delete Sections**: Remove entire sections (with confirmation)
-- ➕ **Add Entries**: Add headers, params, cookies, flags
-- ❌ **Delete Entries**: Remove individual fields
+- ➕ **Add Entries**: Add new headers, query params, cookies, flags
+- ❌ **Delete Entries**: Remove individual fields with hover actions
 - ☑️ **Bulk Selection**: Select multiple entries for batch deletion
-- 🔄 **Reset to Original**: Revert all changes
-- 💾 **Export JSON**: Download edited data
+- 🔄 **Reset to Original**: Revert all changes to initial parsed state
+- 💾 **Export JSON**: Download edited data as JSON file
 
-#### **5. Advanced Code Generation**
+#### **5. Advanced Code Generation Wizard**
 
-##### **Step 1: Choose Generation Type**
+**Step 1: Choose Generation Type**
 ```
 ┌─────────────────────────────────────────┐
-│ 🎯Full Test Class                       │
+│ 📦 Full Test Class                      │
 │ • Complete Java class                   │
 │ • All imports included                  │
-│ • @BeforeClass setup                    │
+│ • @BeforeClass setup method             │
 │ • @Test annotations                     │
 │ • Ready to run (~70-100 lines)          │
 └─────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────┐
-│ 🎯Test Method Only                      │
+│ 🎯 Test Method Only                     │
 │ • Just the @Test method                 │
 │ • Minimal imports                       │
 │ • Quick integration (~30-50 lines)      │
+│ • Easy to add to existing test classes  │
 └─────────────────────────────────────────┘
 ```
 
-##### **Step 2: Configure Generation**
+**Step 2: Basic Configuration**
 
-**Basic Configuration**:
-- 📝 API Service Name (class name)
-- 🔤 Method Name
-- ✅ Include Assertions (validate status code)
-- 📊 Expected Status Code (200, 201, 404, etc.)
-- 📋 Include Logging (request/response details)
-- 📦 Generate POJOs (automatic from request body)
-- ⏱️ Assert Response Time (performance validation)
-- ⏲️ Max Response Time (milliseconds)
+- 📝 **API Service Name**: Custom class name (e.g., `UserApiTest`)
+- 🔤 **Method Name**: Custom test method name (e.g., `testCreateUser`)
+- ✅ **Include Assertions**: Validate response status code
+- 📊 **Expected Status Code**: 200, 201, 404, etc.
+- 📋 **Include Logging**: Add request/response logging
+- 📦 **Generate POJOs**: Automatic POJO creation from request body
+  - 🚫 Automatically disabled for GET/DELETE/HEAD methods
+  - 🤖 Creates Lombok-based classes with `@Data` and `@Builder`
+  - 🏗️ Supports nested objects and arrays
+- ⏱️ **Assert Response Time**: Performance validation
+- ⏲️ **Max Response Time**: Time limit in milliseconds
 
-**POM.xml Generation**:
-- 📦 Full POM (complete Maven project file)
-- 📋 Dependencies Only (just the `<dependencies>` block)
-- 🔧 Auto-detect Data Format:
-  - JSON (Jackson Databind)
-  - XML (Jackson XML + JAXB for Java 11+)
-  - Both (all dependencies)
-- ☕ Java Version Selection (8, 11, 17, 21)
-- 📚 Optional Dependencies:
+**Step 3: POM Configuration (Full Test Class Only)**
+
+- 📦 **POM Type**:
+  - Full POM: Complete Maven project file
+  - Dependencies Only: Just the `<dependencies>` block
+- 🔍 **Auto-detect Data Format**:
+  - Analyzes Content-Type headers
+  - Inspects request body content
+  - Detects JSON/XML/Both
+  - Includes appropriate Jackson dependencies
+- ☕ **Java Version**: 8, 11, 17, or 21
+- 📚 **Optional Dependencies**:
   - JUnit Jupiter
   - Allure Reports
   - Extent Reports
   - Apache POI (Excel)
   - JavaFaker
-  - Logback
+  - Logback Logging
   - Commons IO
+- 🏢 **Project Information** (for full POM):
+  - Group ID
+  - Artifact ID
+  - Version
+  - Project Name & Description
 
-**Project Information** (for full POM):
-- 🏢 Group ID (`com.example`)
-- 📦 Artifact ID (`rest-assured-tests`)
-- 🔢 Version (`1.0-SNAPSHOT`)
-- 📝 Name & Description
+**Step 4: Preview & Download**
 
-##### **Step 3: Preview & Download**
+- 📑 **Tabbed Interface**:
+  - `Test Code`: Generated REST Assured test
+  - `POJO Classes`: Generated data models (when enabled)
+  - `POM.xml`: Maven dependencies
+- 📋 **Copy to Clipboard**: One-click copy
+- ⬇️ **Download Individual Files**: `.java` or `.xml`
+- 📦 **Download All Files**: Bulk export with staggered downloads
 
-**Tabbed Interface**:
-```
-┌─────────────────────────────────────────┐
-│ [Test Code] [POJO Classes] [POM.xml]    │
-├─────────────────────────────────────────┤
-│                                         │
-│  import io.restassured.RestAssured;     │
-│  import org.testng.annotations.*;       │
-│                                         │
-│  public class ServiceName {             │
-│      @BeforeClass                       │
-│      public void setup() { ... }        │
-│                                         │
-│      @Test                              │
-│      public void apiNameTest() { ... }  │
-│  }                                      │
-│                                         │
-└─────────────────────────────────────────┘
-```
-
-**Actions**:
-- 📋 Copy to Clipboard
-- ⬇️ Download Individual Files
-- 📦 Download All Files (bulk export)
-- 🔍 Syntax-Highlighted Preview
-
-##### **POJO Generation Features**
-
-- 🤖 **Automatic Detection**: Analyzes request body structure
-- 🏗️ **Nested Classes**: Supports deep object hierarchies
-- 📦 **Lombok Integration**: `@Data` and `@Builder` annotations
-- 🎯 **Smart Naming**: Converts JSON keys to Java naming conventions
-- 📝 **Type Inference**: Detects String, Integer, Boolean, nested objects
-- 🔄 **Array Handling**: Generates `List<T>` for arrays
-- 🎨 **Custom Class Names**: Override default naming
-- 🚫 **Disabled for GET/DELETE/HEAD**: POJOs only for requests with body
-
-**Example POJO Output**:
+**POJO Generation Features**
 ```java
+// Example generated POJO
 import lombok.Builder;
 import lombok.Data;
 
 @Data
 @Builder
-public class ServiceName_Model {
+public class UserApiTest_Model {
     private String name;
     private String email;
     private Integer age;
@@ -228,136 +199,166 @@ public class ServiceName_Model {
 }
 ```
 
+- 🤖 **Automatic Detection**: Analyzes request body structure
+- 🏗️ **Nested Classes**: Supports deep object hierarchies
+- 📦 **Lombok Integration**: `@Data` and `@Builder` annotations
+- 🎯 **Smart Naming**: Converts JSON keys to Java conventions
+- 📝 **Type Inference**: String, Integer, Boolean, nested objects
+- 🔄 **Array Handling**: Generates `List<T>` for arrays
+
 #### **6. Backend Status Management**
 
-- 🔄 **Auto-Retry System**: Configurable warmup attempts (default: 3)
-- ⏱️ **Wait Time Tracking**: Visual countdown timer
-- 📊 **Progress Indicators**: Real-time warmup progress
+- 🔄 **Auto-Retry System**: Configurable warmup attempts (env: `VITE_BE_WARMUP_MAX_RETRIES`)
+- ⏱️ **Wait Time Tracking**: Visual countdown timer (env: `VITE_BE_WARMUP_WAIT_MINS`)
+- 📊 **Progress Indicators**: Real-time warmup progress with animated bar
 - 🚦 **Status Display**:
-  - ✅ Ready (green)
-  - ⚠️ Warning/Warming (orange)
-  - ❌ Down (red)
+  - ✅ **Ready** (green): Backend is up, playground unlocked
+  - ⚠️ **Warning/Warming** (orange): Backend warming up, auto-retrying
+  - ❌ **Down** (red): Backend offline after max retries
 - 🔒 **Smart Blocking**: Playground locked until backend ready
-- 📱 **Responsive Alerts**: User-friendly status messages
+- 📱 **Responsive Alerts**: User-friendly status messages with attempt counter
+- 🔁 **Health Check Polling**: Every 30 seconds
 
-#### **7. Theme System**
+#### **7. Undo/Redo System** ⭐
+
+- ⏪ **Undo**: Revert recent changes (`Ctrl/Cmd+Z`)
+- ⏩ **Redo**: Restore undone changes (`Ctrl/Cmd+Y`)
+- 📚 **History Stack**: Last 5 operations tracked
+- 🎯 **Smart Tracking**: Only tracks meaningful state changes
+- 🔘 **Visual Indicators**: Buttons show enabled/disabled state
+- ⌨️ **Keyboard Shortcuts**: Standard OS conventions
+
+#### **8. Data Format Auto-Detection**
+
+Intelligent detection algorithm:
+
+1. **Content-Type Header** (highest priority)
+   - `application/json` → JSON
+   - `application/xml`, `text/xml` → XML
+   - Both present → Both
+
+2. **Request Body Content**
+   - Starts with `{` or `[` → JSON
+   - Starts with `<?xml` or `<` → XML
+
+3. **Accept Header** (secondary indicator)
+
+4. **URL Patterns** (context clues)
+   - `/api/`, `.json` → JSON
+   - `.xml`, `/soap` → XML
+
+**Supported Formats**:
+- 📘 **JSON**: Includes Jackson Databind
+- 📙 **XML**: Includes Jackson XML + JAXB (auto-added for Java 11+)
+- 📗 **Both**: All dependencies included
+
+#### **9. Theme System**
 
 - 🌙 **Dark Mode**: OLED-friendly dark theme
 - ☀️ **Light Mode**: Clean, professional light theme
-- 🎨 **Cyan/Teal Color Scheme**: Modern, vibrant gradients
-- 🔄 **Auto-Detection**: System preference support
-- 🎭 **Smooth Transitions**: Seamless theme switching
-- 💾 **Persistence**: Theme choice saved locally
-
-#### **8. Undo/Redo System** ⭐ NEW
-
-- ⏪ **Undo**: Revert recent changes (Ctrl/Cmd+Z)
-- ⏩ **Redo**: Restore undone changes (Ctrl/Cmd+Y)
-- 📚 **History Stack**: Last 5 operations tracked
-- 🎯 **Smart Tracking**: Only tracks meaningful changes
-- 🔘 **Visual Indicators**: Enabled/disabled button states
-- ⌨️ **Keyboard Shortcuts**: Standard OS shortcuts
-
-#### **9. Data Format Auto-Detection**
-
-Intelligent detection based on:
-- 📋 **Content-Type Header** (highest priority)
-- 📄 **Request Body Content** (XML tags, JSON braces)
-- 🎯 **Accept Header** (secondary indicator)
-- 🔗 **URL Patterns** (`/api/`, `.json`, `.xml`)
-- 🧠 **Context Clues** (SOAP, REST indicators)
-
-**Supported Formats**:
-- 📘 JSON (default for modern APIs)
-- 📙 XML (SOAP, legacy APIs)
-- 📗 Both (hybrid APIs)
+- 🎨 **Cyan/Teal Color Scheme**: Modern, vibrant gradients (no purple!)
+- 🔄 **Auto-Detection**: Respects system preference
+- 🎭 **Smooth Transitions**: Seamless theme switching (300ms cubic-bezier)
+- 💾 **Persistence**: Theme choice saved to localStorage
 
 #### **10. Enhanced User Experience**
 
-##### **Loading States**
-- 🔄 Parsing spinner
-- ⏳ Generation progress
-- 🎬 Smooth animations
-- ⚡ Optimistic updates
+**Loading States**
+- 🔄 Parsing spinner with animation
+- ⏳ Code generation progress indicator
+- 🎬 Smooth enter/exit animations
+- ⚡ Optimistic UI updates
 
-##### **Error Handling**
-- 🚨 Graceful error messages
-- 🔍 Detailed error descriptions
-- 🔄 Retry suggestions
-- 📋 Error logging for debugging
+**Error Handling**
+- 🚨 Graceful error messages in alert dialogs
+- 🔍 Detailed error descriptions from backend
+- 🔄 Helpful retry suggestions
+- 📋 Console error logging for debugging
 
-##### **Visual Feedback**
-- ✅ Success toasts
+**Visual Feedback**
+- ✅ Success confirmations (copy, download)
 - ⚠️ Warning notifications
 - ❌ Error alerts
-- 📋 Copy confirmations
-- 🎯 Hover states
-- 💡 Tooltips
+- 📋 Copy confirmation (2-second toast)
+- 🎯 Hover states on all interactive elements
+- 💡 Contextual tooltips
 
-##### **Keyboard Shortcuts**
+**Keyboard Shortcuts**
 ```
 Ctrl/Cmd + Z     → Undo
 Ctrl/Cmd + Y     → Redo
-Ctrl/Cmd + S     → Save Changes
-Ctrl/Cmd + G     → Generate Code
+Ctrl/Cmd + S     → Save Changes (if callback provided)
+Ctrl/Cmd + G     → Open Code Generation Dialog
 ```
 
-##### **Responsive Design**
+**Responsive Design**
 - 📱 Mobile-friendly (320px+)
 - 📲 Tablet-optimized (768px+)
 - 💻 Desktop-first (1024px+)
 - 🖥️ Wide-screen support (1920px+)
+
+**Quick Start Templates**
+- 📚 6 pre-built cURL templates
+- 🎯 GET with Headers
+- 📝 POST with JSON
+- ✏️ PUT with XML
+- 🌳 Nested JSON (POJO testing)
+- 📤 Form Data Upload
+- 🔗 Query Parameters
 
 ---
 
 ## 🛠 Tech Stack
 
 ### **Core Technologies**
-```
-React 18.2       → UI library with hooks
-TypeScript 5.2   → Type-safe development
-Vite 5.0         → Lightning-fast build tool
-```
+
+| Technology | Version | Purpose |
+|------------|---------|---------|
+| React | 18.2 | UI library with hooks |
+| TypeScript | 5.2 | Type-safe development |
+| Vite | 5.0 | Lightning-fast build tool & dev server |
 
 ### **Styling & UI**
-```
-Tailwind CSS 3.4    → Utility-first CSS framework
-shadcn/ui (Latest)  → High-quality React components
-Radix UI            → Accessible component primitives
-Framer Motion 10.16 → Fluid animations
-Lucide React 0.294  → Beautiful icon library
-```
+
+| Library | Version | Purpose |
+|---------|---------|---------|
+| Tailwind CSS | 3.4 | Utility-first CSS framework |
+| shadcn/ui | Latest | High-quality React components |
+| Radix UI | Latest | Accessible component primitives |
+| Framer Motion | 10.16 | Fluid animations |
+| Lucide React | 0.294 | Beautiful icon library |
 
 ### **State & Routing**
-```
-React Router 6.20   → Client-side routing
-Custom Hooks        → Encapsulated business logic
-Context API         → Global state (theme, backend status)
-```
+
+| Library | Version | Purpose |
+|---------|---------|---------|
+| React Router | 6.20 | Client-side routing |
+| Custom Hooks | - | Encapsulated business logic |
+| Context API | - | Global state (theme, backend status) |
 
 ### **HTTP & Data**
-```
-Axios 1.6          → HTTP client
-JSON Normalization → Consistent data shapes
-Type Guards        → Runtime type validation
-```
+
+| Library | Version | Purpose |
+|---------|---------|---------|
+| Axios | 1.6 | HTTP client with interceptors |
 
 ### **Development Tools**
-```
-ESLint 8.55             → Code linting
-TypeScript Compiler     → Type checking
-Autoprefixer 10.4       → CSS vendor prefixes
-PostCSS 8.4             → CSS processing
-```
 
-### **UI Component Library**
-```
-@radix-ui/react-accordion  → Collapsible sections
-@radix-ui/react-checkbox   → Checkboxes
-@radix-ui/react-dialog     → Modal dialogs
-@radix-ui/react-select     → Dropdown selects
-@radix-ui/react-tabs       → Tab navigation
-@radix-ui/react-slot       → Component composition
+| Tool | Version | Purpose |
+|------|---------|---------|
+| ESLint | 8.55 | Code linting |
+| TypeScript Compiler | 5.2 | Type checking |
+| Autoprefixer | 10.4 | CSS vendor prefixes |
+| PostCSS | 8.4 | CSS processing |
+
+### **UI Component Library (Radix UI)**
+```typescript
+@radix-ui/react-accordion    // Collapsible sections
+@radix-ui/react-checkbox     // Checkboxes
+@radix-ui/react-dialog       // Modal dialogs
+@radix-ui/react-select       // Dropdown selects
+@radix-ui/react-tabs         // Tab navigation
+@radix-ui/react-slot         // Component composition
 ```
 
 ---
@@ -365,7 +366,6 @@ PostCSS 8.4             → CSS processing
 ## 🚀 Getting Started
 
 ### Prerequisites
-
 ```bash
 Node.js >= 18.0.0
 npm >= 9.0.0
@@ -373,21 +373,22 @@ npm >= 9.0.0
 
 ### Installation
 
-1. **Clone the repository**
+**1. Clone the repository**
 ```bash
 git clone https://github.com/Nataraaj-Shanmugam/cURL-to-Code-Convertor-FrontEnd.git
 cd cURL-to-Code-Convertor-FrontEnd
 ```
 
-2. **Install dependencies**
+**2. Install dependencies**
 ```bash
 npm install
 ```
 
-3. **Configure environment variables**
+**3. Configure environment variables**
 
-Create `.env.development` for local development:
+Create `.env.development`:
 ```env
+# Backend API Configuration
 VITE_CURL_CRAFT_API_URL=http://127.0.0.1:8000
 VITE_CURL_CRAFT_API_PARSE_ENDPOINT=/api/parse
 VITE_CURL_CRAFT_API_PARSE_AND_GENERATE_ENDPOINT=/api/parse-and-generate
@@ -399,69 +400,72 @@ VITE_BE_WARMUP_WAIT_MINS=5
 VITE_BE_WARMUP_MAX_RETRIES=3
 ```
 
-Create `.env.production` for production:
+Create `.env.production`:
 ```env
-VITE_CURL_CRAFT_API_URL=https://your-api-domain.com
+VITE_CURL_CRAFT_API_URL=https://your-production-api.com
 # ... same endpoints as above
+VITE_BE_WARMUP_WAIT_MINS=5
+VITE_BE_WARMUP_MAX_RETRIES=3
 ```
 
-4. **Start development server**
+**4. Start development server**
 ```bash
 npm run dev
 ```
 
-Application will open at `http://localhost:5173`
+Application opens at `http://localhost:5173`
 
-5. **Build for production**
+**5. Build for production**
 ```bash
 npm run build
 ```
 
 Output: `dist/` folder ready for deployment
 
-6. **Preview production build**
+**6. Preview production build**
 ```bash
 npm run preview
 ```
 
-### Additional Scripts
-
+### Available Scripts
 ```bash
-npm run lint          # Run ESLint
-npm run lint:fix      # Fix linting issues
-npm run type-check    # TypeScript type checking
-npm run format        # Format code with Prettier
+npm run dev          # Start development server (uses .env.development)
+npm run dev:prod     # Start dev server with production env
+npm run preprod      # Build for pre-production
+npm run build        # Build for production
+npm run preview      # Preview production build
+npm run lint         # Run ESLint
+npm run lint:fix     # Fix linting issues automatically
+npm run type-check   # TypeScript type checking only (no build)
+npm run format       # Format code with Prettier
 ```
 
 ---
 
-## 🏗 Architecture
-
-### Project Structure
-
+## 🏗 Project Structure
 ```
 src/
 ├── components/
 │   ├── features/
 │   │   └── curl/
-│   │       ├── CurlPlayground.tsx           # cURL input interface
-│   │       ├── ParsedCurlEditor.tsx         # Main visual editor
-│   │       ├── CodeGenerationDialog.tsx     # Code generation wizard
+│   │       ├── CurlPlayground.tsx              # cURL input & templates
+│   │       ├── ParsedCurlEditor.tsx            # Main visual editor
+│   │       ├── CodeGenerationDialog.tsx        # 3-step code wizard
 │   │       └── editor/
-│   │           ├── EditorHeader.tsx         # Original cURL display
-│   │           ├── EditorActionBar.tsx      # Toolbar with actions
-│   │           ├── AddEntryDialog.tsx       # Add header/param dialog
-│   │           ├── AddSectionDialog.tsx     # Add section dialog
-│   │           ├── EditableField.tsx        # Inline editable field
-│   │           ├── BodyField.tsx            # Request body editor
-│   │           └── SectionRenderer.tsx      # Accordion section renderer
+│   │           ├── EditorHeader.tsx            # Original cURL display
+│   │           ├── EditorActionBar.tsx         # Toolbar (undo/redo/export)
+│   │           ├── AddEntryDialog.tsx          # Add header/param modal
+│   │           ├── AddSectionDialog.tsx        # Add section modal
+│   │           ├── EditableField.tsx           # Inline editable field
+│   │           ├── BodyField.tsx               # Nested body tree editor
+│   │           └── SectionRenderer.tsx         # Accordion section logic
 │   │
 │   ├── layout/
-│   │   ├── AppLayout.tsx                    # Main app wrapper
-│   │   ├── NavBar.tsx                       # Top navigation
-│   │   └── Footer.tsx                       # Footer with tech stack
+│   │   ├── AppLayout.tsx                       # App wrapper (navbar + footer)
+│   │   ├── NavBar.tsx                          # Top navigation with theme toggle
+│   │   └── Footer.tsx                          # Footer with tech stack badges
 │   │
-│   └── ui/                                   # shadcn/ui components
+│   └── ui/                                      # shadcn/ui components
 │       ├── accordion.tsx
 │       ├── badge.tsx
 │       ├── button.tsx
@@ -475,105 +479,34 @@ src/
 │       └── theme-provider.tsx
 │
 ├── contexts/
-│   └── BackendStatusContext.tsx             # Backend health monitoring
+│   └── BackendStatusContext.tsx                # Backend health monitoring
 │
 ├── lib/
 │   ├── api/
-│   │   ├── apiClient.ts                     # Axios instance with interceptors
-│   │   └── curl.ts                          # cURL API service methods
+│   │   ├── apiClient.ts                        # Axios instance with interceptors
+│   │   └── curl.ts                             # cURL API service methods
 │   │
 │   ├── hooks/
-│   │   ├── useCurlParser.ts                 # cURL parsing logic
-│   │   ├── useParsedCurlEditor.ts           # Editor state management
-│   │   └── useCodeGeneration.ts             # Code generation logic
+│   │   ├── useCurlParser.ts                    # Parsing logic & state
+│   │   ├── useParsedCurlEditor.ts              # Editor state (undo/redo)
+│   │   └── useCodeGeneration.ts                # Code generation logic
 │   │
 │   └── utils/
-│       ├── curl.ts                          # cURL data utilities
-│       ├── dataFormatDetector.ts            # Format auto-detection
-│       └── utils.ts                         # General utilities (cn)
+│       ├── curl.ts                             # Data normalization utilities
+│       ├── dataFormatDetector.ts               # JSON/XML auto-detection
+│       └── utils.ts                            # General utilities (cn helper)
 │
 ├── pages/
-│   ├── Home.tsx                              # Landing page
-│   ├── Playground.tsx                        # cURL input page
-│   └── EditorPage.tsx                        # Visual editor page
+│   ├── Home.tsx                                 # Landing page with features
+│   ├── Playground.tsx                           # cURL input page
+│   └── EditorPage.tsx                           # Visual editor page
 │
 ├── types/
-│   └── curl.ts                               # TypeScript type definitions
+│   └── curl.ts                                  # TypeScript interfaces
 │
-├── App.tsx                                   # Root component with routing
-├── main.tsx                                  # Application entry point
-└── index.css                                 # Global styles & Tailwind
-```
-
-### Data Flow
-
-```
-┌─────────────────┐
-│  User pastes    │
-│  cURL command   │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  useCurlParser  │  ──► Parse cURL
-│  hook           │      ├─ Axios POST /api/parse
-└────────┬────────┘      ├─ Error handling
-         │               └─ Data normalization
-         ▼
-┌─────────────────┐
-│  Navigate to    │
-│  EditorPage     │
-│  with state     │
-└────────┬────────┘
-         │
-         ▼
-┌──────────────────────────┐
-│  ParsedCurlEditor        │
-│  ┌────────────────────┐  │
-│  │ useParsedCurlEditor│  │  ──► Manage editor state
-│  │ hook               │  │      ├─ Undo/redo history
-│  └────────────────────┘  │      ├─ CRUD operations
-│                          │      ├─ Section visibility
-└──────────┬───────────────┘      └─ Export/reset
-           │
-           ▼
-┌──────────────────────────┐
-│  User edits data         │
-│  ├─ Inline editing       │
-│  ├─ Add/delete sections  │
-│  └─ Bulk operations      │
-└──────────┬───────────────┘
-           │
-           ▼
-┌──────────────────────────┐
-│  Click "Generate Code"   │
-└──────────┬───────────────┘
-           │
-           ▼
-┌──────────────────────────┐
-│  CodeGenerationDialog    │
-│  ┌────────────────────┐  │
-│  │ useCodeGeneration  │  │  ──► Generate code
-│  │ hook               │  │      ├─ Configuration
-│  └────────────────────┘  │      ├─ API call
-│                          │      └─ Preview/download
-└──────────────────────────┘
-```
-
-### State Management Pattern
-
-```typescript
-// Editor state (useParsedCurlEditor)
-{
-  parsed: ParsedCurl,              // Current edited data
-  history: HistoryEntry[],         // Undo/redo stack
-  historyIndex: number,            // Current position
-  selected: Set<string>,           // Selected fields
-  editing: Record<string, boolean>, // Editing mode per field
-  editedValues: Record<string, any>, // Temporary values
-  openSections: string[],          // Expanded accordions
-  bodyCollapsed: Record<string, boolean> // Body tree state
-}
+├── App.tsx                                      # Root component with routes
+├── main.tsx                                     # Application entry point
+└── index.css                                    # Global styles + Tailwind
 ```
 
 ---
@@ -584,11 +517,12 @@ src/
 
 #### **Step 1: Parse cURL**
 
-1. Navigate to **Playground** (`/playground`)
-2. Paste your cURL command (get it from Chrome DevTools, Postman, etc.)
-3. Click **"Parse & Edit"**
+1. Navigate to **Home** → Click **"Get Started"**
+2. Or go directly to **Playground** (`/playground`)
+3. Paste your cURL command
+4. Click **"Parse & Edit"**
 
-**Example cURL**:
+**Example cURL:**
 ```bash
 curl -X POST "https://api.example.com/users" \
   -H "Content-Type: application/json" \
@@ -596,256 +530,82 @@ curl -X POST "https://api.example.com/users" \
   -d '{"name":"John Doe","email":"john@example.com","age":30}'
 ```
 
-#### **Step 2: Edit (Optional)**
+**Get cURL from:**
+- Chrome DevTools: `Network tab` → Right-click request → `Copy as cURL (bash)`
+- Postman: Request → `Code` → `cURL`
+- Manual construction
 
-Automatically navigated to Editor:
-- ✏️ Click any field to edit
-- ➕ Add new headers/params
-- 🗑️ Delete unwanted fields
-- 🌳 Expand/collapse body tree
-- ⏪ Undo/redo changes
+#### **Step 2: Edit Parsed Data (Optional)**
+
+Auto-navigates to `/editor`:
+
+- ✏️ **Click field to edit**: Change any value inline
+- ➕ **Add entries**: Click "Add Entry" in any section
+- 🗑️ **Delete fields**: Hover → Click trash icon
+- 🌳 **Navigate body**: Expand/collapse nested objects
+- ⏪ **Undo/Redo**: `Ctrl+Z` / `Ctrl+Y`
+- 💾 **Export**: Download as JSON
 
 #### **Step 3: Generate Code**
 
 1. Click **"Generate Code"** button
-2. Choose **Full Test Class** or **Test Method Only**
-3. Configure:
-   - Class name: `UserApiTest`
-   - Method name: `testCreateUser`
-   - Enable assertions (status 200)
+2. **Choose type**: Full Test Class or Method Only
+3. **Basic config**:
+   - Service Name: `UserApiTest`
+   - Method Name: `testCreateUser`
+   - Enable assertions: ✅ (status 200)
    - Generate POJOs: ✅
-4. Click **"Generate Code"**
-5. Preview in tabs, then **Copy** or **Download**
+4. **POM config** (if Full Test Class):
+   - POM Type: Full POM
+   - Data Format: Auto-detected (JSON)
+   - Java Version: 11
+5. Click **"Generate Code"**
+6. **Preview** in tabs → **Copy** or **Download**
 
 ---
 
 ### Advanced Features
 
-#### **Using Templates** 🎯
+#### **Using Templates**
 
-Playground offers 6 pre-built templates:
-- GET with Headers
-- POST with JSON
-- PUT with XML
-- Nested JSON body (for POJO testing)
-- Form Data Upload
-- Query Parameters
+1. Click **"Show Templates"** in Playground
+2. Select from 6 pre-built templates:
+   - GET with Headers
+   - POST with JSON
+   - PUT with XML
+   - Nested JSON (for POJO testing)
+   - Form Data Upload
+   - Query Parameters
+3. Template auto-fills textarea
+4. Click **"Parse & Edit"**
 
-Click **"Show Templates"** to use them.
+#### **Bulk Operations**
 
-#### **Bulk Operations** ☑️
+1. In Editor, check multiple field checkboxes
+2. Toolbar shows count: `Delete (N)`
+3. Click **"Delete (N)"**
+4. Confirm bulk deletion
 
-1. Select multiple checkboxes
-2. Click **"Delete (N)"** in toolbar
-3. Confirm bulk deletion
+#### **Keyboard Shortcuts**
 
-#### **Exporting Data** 💾
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl/Cmd + Z` | Undo last change |
+| `Ctrl/Cmd + Y` | Redo undone change |
+| `Ctrl/Cmd + S` | Save changes (if callback provided) |
+| `Ctrl/Cmd + G` | Open code generation dialog |
 
-- **Export JSON**: Download edited cURL data as JSON
-- **Download Code**: Save individual `.java` files
-- **Download All**: Bulk export all generated files
+#### **Exporting Data**
 
-#### **Keyboard Productivity** ⌨️
+- **Export JSON**: Toolbar → "Export JSON" → Downloads timestamped file
+- **Download Code**: After generation → "Download" button per tab
+- **Download All**: After generation → "Download All" (bulk export)
 
-- `Ctrl/Cmd + Z` → Undo last change
-- `Ctrl/Cmd + Y` → Redo undone change
-- `Ctrl/Cmd + S` → Save changes (if callback provided)
-- `Ctrl/Cmd + G` → Open code generation dialog
+#### **Dark Mode**
 
-#### **Dark Mode Toggle** 🌙
-
-Click theme icon in navigation bar (auto-detects system preference).
-
----
-
-## 🔌 API Documentation
-
-### Backend Endpoints Required
-
-#### **1. Health Check**
-```http
-GET /health
-```
-**Response:**
-```json
-{
-  "status": "ok"
-}
-```
-*Returns 200 when backend is ready*
-
----
-
-#### **2. Parse cURL**
-```http
-POST /api/parse
-Content-Type: application/json
-```
-
-**Request Body:**
-```json
-{
-  "curl": "curl -X GET https://api.example.com/users"
-}
-```
-
-**Success Response (200):**
-```json
-{
-  "success": true,
-  "data": {
-    "method": "GET",
-    "url": "https://api.example.com/users",
-    "base_url": "https://api.example.com",
-    "endpoint": "/users",
-    "headers": {},
-    "query_params": {},
-    "data": null,
-    "cookies": {},
-    "auth": null,
-    "flags": {},
-    "network_config": {
-      "timeout": null,
-      "connect_timeout": null,
-      "max_time": null
-    },
-    "ssl_config": {
-      "cert": null,
-      "key": null
-    },
-    "meta": {
-      "timestamp": "2025-01-01T12:00:00Z"
-    }
-  },
-  "meta": {
-    "timestamp": "2025-01-01T12:00:00Z",
-    "request_id": "abc123"
-  }
-}
-```
-
-**Error Response (400/500):**
-```json
-{
-  "success": false,
-  "error": {
-    "code": "PARSE_ERROR",
-    "message": "Invalid cURL command",
-    "details": ["Unexpected token at position 5"]
-  },
-  "meta": {
-    "timestamp": "2025-01-01T12:00:00Z",
-    "request_id": "abc123"
-  }
-}
-```
-
----
-
-#### **3. Generate Code from Parsed Data**
-```http
-POST /api/generate-from-parsed
-Content-Type: application/json
-```
-
-**Request Body:**
-```json
-{
-  "parsed_data": {
-    "method": "POST",
-    "url": "https://api.example.com/users",
-    "headers": {
-      "Content-Type": "application/json"
-    },
-    "data": {
-      "name": "John",
-      "email": "john@example.com"
-    }
-  },
-  "config": {
-    "option": "full",
-    "serviceName": "UserApiTest",
-    "methodName": "testCreateUser",
-    "assertionRequired": true,
-    "statusCode": "200",
-    "loggingRequired": true,
-    "needPojo": true,
-    "useFluentApi": true,
-    "includeRetry": false,
-    "testGroups": ["smoke"],
-    "testPriority": 1,
-    "testDescription": "Test user creation",
-    "assertResponseTime": true,
-    "maxResponseTimeMs": 2000,
-    "generatePom": true,
-    "dataFormat": "json",
-    "pomConfig": {
-      "pomType": "full",
-      "projectInfo": {
-        "groupId": "com.example",
-        "artifactId": "rest-assured-tests",
-        "version": "1.0-SNAPSHOT",
-        "name": "REST Assured Test Project",
-        "description": "Automated REST API tests"
-      },
-      "includeJunit": false,
-      "includeAllure": false,
-      "includeExtent": false,
-      "includeExcel": false,
-      "includeFaker": false,
-      "includeLogging": true,
-      "includeCommonsIo": false,
-      "javaVersion": "11"
-    }
-  }
-}
-```
-
-**Success Response (200):**
-```json
-{
-  "success": true,
-  "generated_code": "import io.restassured.RestAssured;\n...",
-  "pojo_code": "import lombok.Data;\n@Data\npublic class UserApiTest_Model {...}",
-  "pomXml": "<?xml version=\"1.0\"?>\n<project>...</project>",
-  "language": "java-restassured",
-  "meta": {
-    "timestamp": "2025-01-01T12:00:00Z",
-    "request_id": "xyz789"
-  }
-}
-```
-
----
-
-#### **4. Parse and Generate (One-Shot)**
-```http
-POST /api/parse-and-generate
-Content-Type: application/json
-```
-
-**Request Body:**
-```json
-{
-  "curl": "curl -X POST ...",
-  "config": {
-    // Same as /api/generate-from-parsed
-  }
-}
-```
-
-**Response:** Same as `/api/generate-from-parsed`
-
----
-
-### Error Codes
-
-| Code | Description |
-|------|-------------|
-| `PARSE_ERROR` | Invalid cURL syntax |
-| `VALIDATION_ERROR` | Missing required fields |
-| `GENERATION_ERROR` | Code generation failed |
-| `NETWORK_ERROR` | Backend unreachable |
+- Click moon/sun icon in navbar
+- Auto-detects system preference on first load
+- Preference saved to localStorage
 
 ---
 
@@ -853,43 +613,194 @@ Content-Type: application/json
 
 ### Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `VITE_CURL_CRAFT_API_URL` | Backend API base URL | `http://127.0.0.1:8000` |
-| `VITE_CURL_CRAFT_API_PARSE_ENDPOINT` | Parse endpoint path | `/api/parse` |
-| `VITE_CURL_CRAFT_API_PARSE_AND_GENERATE_ENDPOINT` | One-shot endpoint | `/api/parse-and-generate` |
-| `VITE_CURL_CRAFT_API_GENERATE_FROM_PARSED_ENDPOINT` | Generate endpoint | `/api/generate-from-parsed` |
-| `VITE_CURL_CRAFT_API_HEALTH_ENDPOINT` | Health check endpoint | `/health` |
-| `VITE_BE_WARMUP_WAIT_MINS` | Backend warmup wait time (minutes) | `5` |
-| `VITE_BE_WARMUP_MAX_RETRIES` | Max warmup retry attempts | `3` |
+| Variable | Description | Default | Required |
+|----------|-------------|---------|----------|
+| `VITE_CURL_CRAFT_API_URL` | Backend API base URL | `http://127.0.0.1:8000` | ✅ |
+| `VITE_CURL_CRAFT_API_PARSE_ENDPOINT` | Parse endpoint path | `/api/parse` | ✅ |
+| `VITE_CURL_CRAFT_API_PARSE_AND_GENERATE_ENDPOINT` | One-shot parse+generate | `/api/parse-and-generate` | ✅ |
+| `VITE_CURL_CRAFT_API_GENERATE_FROM_PARSED_ENDPOINT` | Generate from parsed data | `/api/generate-from-parsed` | ✅ |
+| `VITE_CURL_CRAFT_API_HEALTH_ENDPOINT` | Health check endpoint | `/health` | ✅ |
+| `VITE_BE_WARMUP_WAIT_MINS` | Backend warmup wait (minutes) | `5` | ❌ |
+| `VITE_BE_WARMUP_MAX_RETRIES` | Max warmup retry attempts | `3` | ❌ |
 
 ### Customizing Theme
 
-Edit `src/index.css`:
+**Colors**
 
+Edit `src/index.css`:
 ```css
 :root {
-  /* Primary colors (Cyan/Teal) */
-  --primary: 180 66% 49%;        /* hsl(180, 66%, 49%) - Cyan */
+  /* Primary cyan/teal */
+  --primary: 180 66% 49%;
   --primary-foreground: 0 0% 100%;
   
-  /* To change to another color scheme: */
-  /* Purple: 270 91% 65% */
-  /* Blue: 217 91% 60% */
-  /* Green: 142 76% 36% */
+  /* Background */
+  --background: 0 0% 100%;
+  --foreground: 222.2 47.4% 11.2%;
+}
+
+.dark {
+  --primary: 180 71% 60%;        /* Lighter in dark mode */
+  --background: 222 47% 11%;
+  --foreground: 210 40% 98%;
 }
 ```
 
-### Tailwind Configuration
+**Animations**
 
-Extend in `tailwind.config.ts`:
+Already included in `index.css`:
+- `animate-float`
+- `animate-pulse-glow`
+- `animate-shimmer`
+- `animate-slide-in-top`
+- `animate-slide-in-bottom`
+- `animate-fade-in`
+- `animate-scale-in`
 
-<!-- ```typescript
-export default {
-  theme: {
-    extend: {
-      colors: {
-        // Add custom colors
-        brand: {
-          cyan: '#06b6d4',
-          teal: '#14b8a6' -->
+**Custom Utilities**
+
+Available classes:
+- `.glass` - Glass morphism effect
+- `.glass-strong` - Stronger glass effect
+- `.gradient-text` - Cyan/teal gradient text
+- `.gradient-bg-hover` - Hover gradient background
+- `.shadow-elevated` - Elevated shadow with hover lift
+
+---
+
+## 🤝 Contributing
+
+### Development Workflow
+
+1. **Fork** the repository
+2. **Create** a feature branch:
+```bash
+   git checkout -b feature/amazing-feature
+```
+3. **Commit** changes:
+```bash
+   git commit -m 'feat: Add amazing feature'
+```
+4. **Push** to branch:
+```bash
+   git push origin feature/amazing-feature
+```
+5. **Open** a Pull Request
+
+### Code Standards
+
+#### **TypeScript**
+- ✅ All new code must be typed
+- ✅ Avoid `any` types (use `unknown` if needed)
+- ✅ Export types from `src/types/curl.ts`
+
+#### **Component Structure**
+```typescript
+// Good: Functional component with TypeScript
+interface MyComponentProps {
+  title: string;
+  onSave: () => void;
+}
+
+export default function MyComponent({ title, onSave }: MyComponentProps) {
+  // Implementation
+}
+```
+
+#### **Styling**
+- ✅ Use Tailwind utility classes
+- ✅ Follow existing component patterns
+- ✅ Use `cn()` helper for conditional classes:
+```typescript
+  className={cn(
+    "base-classes",
+    condition && "conditional-classes"
+  )}
+```
+
+#### **Naming Conventions**
+- **Files**: `PascalCase.tsx` for components, `camelCase.ts` for utilities
+- **Components**: `PascalCase`
+- **Hooks**: `useCamelCase`
+- **Functions**: `camelCase`
+- **Constants**: `UPPER_SNAKE_CASE`
+
+#### **Error Handling**
+```typescript
+// Good: Try-catch with user-friendly message
+try {
+  const result = await apiCall();
+} catch (error: any) {
+  console.error('Detailed error:', error);
+  alert('User-friendly message');
+}
+```
+
+### Commit Message Convention
+```
+feat: Add new feature
+fix: Bug fix
+docs: Documentation update
+style: Code formatting (no logic change)
+refactor: Code restructuring
+test: Adding tests
+chore: Maintenance (dependencies, config)
+```
+
+**Examples:**
+```
+feat: Add undo/redo functionality to editor
+fix: Prevent POJO generation for GET requests
+docs: Update README with new features
+refactor: Extract body editor to separate component
+```
+
+---
+
+## 🐛 Known Issues
+
+1. **Large Nested Objects**: Deep nesting (10+ levels) may impact UI performance
+2. **Direct Editor Access**: Navigating directly to `/editor` without state from `/playground` redirects to home
+3. **Backend Warmup**: Cold start can take 2-5 minutes (configurable retry system in place)
+4. **No localStorage for Data**: By design (Claude.ai compatibility) - all edits lost on refresh
+
+---
+
+## 🗺️ Roadmap
+
+- [ ] Request history management (save parsed cURLs)
+- [ ] Multiple code templates (JUnit 5, Cucumber, Karate)
+- [ ] Import from Postman collections
+- [ ] Import from Swagger/OpenAPI specs
+- [ ] Batch cURL processing (multiple cURLs → multiple tests)
+- [ ] Request execution & testing (run tests in browser)
+- [ ] Response mocking for testing
+- [ ] API documentation generation
+- [ ] Collaborative editing (share cURL edits)
+- [ ] Code snippets library (reusable test components)
+
+<!-- ---
+
+## 📄 License
+
+MIT License - See [LICENSE](LICENSE) file for details
+
+---
+
+## 🙏 Acknowledgments
+
+- **shadcn/ui** for beautiful component primitives
+- **Radix UI** for accessible headless components
+- **Tailwind CSS** for utility-first styling
+- **Lucide** for consistent iconography
+- **React Router** for seamless navigation
+- **Vite** for blazing-fast development experience -->
+
+---
+
+## 📞 Support
+
+- 🐛 **Bug Reports**: [GitHub Issues](https://github.com/Nataraaj-Shanmugam/cURL-to-Code-Convertor-FrontEnd/issues)
+- ✨ **Feature Requests**: [GitHub Issues](https://github.com/Nataraaj-Shanmugam/cURL-to-Code-Convertor-FrontEnd/issues)
+- 💬 **Discussions**: [GitHub Discussions](#)
+- 📧 **Feedbacks**: [Contact](https://curlcraftassured.vercel.app/feedback)
