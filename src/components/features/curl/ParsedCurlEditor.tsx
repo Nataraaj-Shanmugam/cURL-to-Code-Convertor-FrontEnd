@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Edit2, Trash2, Save, Download, Code, Plus, FolderPlus, ChevronDown, ChevronRight, Maximize2, Minimize2 } from "lucide-react";
+import { Edit2, Trash2, Save, Download, Code, Plus, FolderPlus, ChevronDown, ChevronRight, Maximize2, Minimize2, RotateCcw, Globe, FileText, List, Shield, Flag, Settings, Link2, Cookie } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -10,12 +10,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useParsedCurlEditor, VALID_SECTIONS } from "@/lib/hooks/useParsedCurlEditor";
 import { useState } from "react";
 import CodeGenerationDialog from "./CodeGenerationDialog";
+import type { ParsedCurl } from "@/types/curl";
 
 interface ParsedCurlEditorProps {
-  initialData: any;
+  initialData: ParsedCurl;
   originalCurl?: string;
   onBack?: () => void;
-  onSave?: (data: any) => void;
+  onSave?: (data: ParsedCurl) => void;
 }
 
 export default function ParsedCurlEditor({ initialData, originalCurl, onBack, onSave }: ParsedCurlEditorProps) {
@@ -57,7 +58,46 @@ export default function ParsedCurlEditor({ initialData, originalCurl, onBack, on
     hasActiveFlags,
     getActiveFlags,
     getMissingSections,
+    hasValidData,
   } = useParsedCurlEditor(initialData);
+
+  // Filter out default/empty values from config sections for display
+  const filterMeaningfulEntries = (data: any): any => {
+    if (!data || typeof data !== 'object') return data;
+    if (Array.isArray(data)) return data;
+    const filtered: Record<string, any> = {};
+    for (const [k, v] of Object.entries(data)) {
+      if (v === null || v === undefined || v === false || v === 0) continue;
+      if (typeof v === 'string' && v.trim() === '') continue;
+      if (Array.isArray(v) && v.length === 0) continue;
+      if (typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length === 0) continue;
+      filtered[k] = v;
+    }
+    return filtered;
+  };
+
+  // Section styling config
+  const sectionStyles: Record<string, { icon: typeof Globe; borderColor: string }> = {
+    request: { icon: Globe, borderColor: "border-l-primary" },
+    headers: { icon: FileText, borderColor: "border-l-blue-500" },
+    query_params: { icon: List, borderColor: "border-l-amber-500" },
+    cookies: { icon: Cookie, borderColor: "border-l-orange-500" },
+    auth: { icon: Shield, borderColor: "border-l-emerald-500" },
+    auth_config: { icon: Shield, borderColor: "border-l-emerald-500" },
+    flags: { icon: Flag, borderColor: "border-l-violet-500" },
+    misc_flags: { icon: Flag, borderColor: "border-l-violet-400" },
+    ssl_config: { icon: Shield, borderColor: "border-l-rose-500" },
+    proxy_config: { icon: Globe, borderColor: "border-l-yellow-500" },
+    network_config: { icon: Settings, borderColor: "border-l-teal-500" },
+    transfer_config: { icon: Settings, borderColor: "border-l-sky-500" },
+    protocol_config: { icon: Settings, borderColor: "border-l-lime-500" },
+    output_config: { icon: FileText, borderColor: "border-l-fuchsia-500" },
+    ftp_config: { icon: Globe, borderColor: "border-l-pink-500" },
+    mail_config: { icon: FileText, borderColor: "border-l-red-500" },
+    path_parameters: { icon: Link2, borderColor: "border-l-cyan-500" },
+    context: { icon: Settings, borderColor: "border-l-slate-500" },
+    data: { icon: FileText, borderColor: "border-l-indigo-500" },
+  };
 
   // Code generation dialog state
   const [showCodeDialog, setShowCodeDialog] = useState(false);
@@ -110,7 +150,7 @@ export default function ParsedCurlEditor({ initialData, originalCurl, onBack, on
               </span>
             </span>
 
-            <div className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="ml-auto flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
               <Button
                 variant="ghost"
                 size="icon"
@@ -119,6 +159,15 @@ export default function ParsedCurlEditor({ initialData, originalCurl, onBack, on
                 title={isEditing ? "Save" : "Edit"}
               >
                 {isEditing ? <Save className="h-3 w-3" /> : <Edit2 className="h-3 w-3" />}
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 text-destructive hover:text-destructive hover:bg-destructive/10"
+                onClick={() => deleteSingle(path)}
+                title="Delete"
+              >
+                <Trash2 className="h-3 w-3" />
               </Button>
             </div>
           </div>
@@ -157,7 +206,7 @@ export default function ParsedCurlEditor({ initialData, originalCurl, onBack, on
             )}
           </div>
 
-          <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
             <Button
               variant="ghost"
               size="icon"
@@ -166,6 +215,15 @@ export default function ParsedCurlEditor({ initialData, originalCurl, onBack, on
               title={isEditing ? "Save" : "Edit"}
             >
               {isEditing ? <Save className="h-3 w-3" /> : <Edit2 className="h-3 w-3" />}
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-destructive hover:text-destructive hover:bg-destructive/10"
+              onClick={() => deleteSingle(path)}
+              title="Delete"
+            >
+              <Trash2 className="h-3 w-3" />
             </Button>
           </div>
         </div>
@@ -192,7 +250,7 @@ export default function ParsedCurlEditor({ initialData, originalCurl, onBack, on
           <div className="flex items-center gap-2 mb-1">
             <span className="font-semibold text-sm text-foreground">{label}</span>
             {isNonDeletable && (
-              <span className="text-xs px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded">
+              <span className="text-xs px-1.5 py-0.5 bg-accent text-accent-foreground rounded">
                 Required
               </span>
             )}
@@ -239,7 +297,7 @@ export default function ParsedCurlEditor({ initialData, originalCurl, onBack, on
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
+              className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
               onClick={() => deleteSingle(path)}
               title="Delete"
             >
@@ -259,14 +317,21 @@ export default function ParsedCurlEditor({ initialData, originalCurl, onBack, on
     const isFlagType = isFlagsSection || basePath === 'ssl_config';
     const hasNoFlags = isFlagType && (!data || (!hasActiveFlags(data) && Object.keys(data || {}).length === 0));
 
+    const style = sectionStyles[basePath] || { icon: FileText, borderColor: "border-l-muted-foreground" };
+    const SectionIcon = style.icon;
+
     return (
-      <AccordionItem value={basePath} key={basePath}>
+      <AccordionItem value={basePath} key={basePath} className={`border-l-2 ${style.borderColor} pl-2`}>
         <AccordionTrigger>
           <div className="flex items-center justify-between w-full pr-2">
-            <span>{title}</span>
+            <span className="flex items-center gap-2">
+              <SectionIcon className="w-4 h-4 text-muted-foreground" />
+              {title}
+            </span>
             <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
-              <span
-                className="h-7 px-3 inline-flex items-center justify-center rounded-md text-xs font-medium hover:bg-accent hover:text-accent-foreground cursor-pointer"
+              <button
+                type="button"
+                className="h-7 px-3 inline-flex items-center justify-center rounded-md text-xs font-medium hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 onClick={(e) => {
                   e.stopPropagation();
                   handleAddEntry(basePath);
@@ -274,10 +339,11 @@ export default function ParsedCurlEditor({ initialData, originalCurl, onBack, on
               >
                 <Plus className="h-3 w-3 mr-1" />
                 {isFlagType ? 'Add Flag' : 'Add Entry'}
-              </span>
+              </button>
               {!isTopLevel && (
-                <span
-                  className="h-7 px-3 inline-flex items-center justify-center rounded-md text-xs font-medium text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950 cursor-pointer"
+                <button
+                  type="button"
+                  className="h-7 px-3 inline-flex items-center justify-center rounded-md text-xs font-medium text-destructive hover:text-destructive hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   onClick={(e) => {
                     e.stopPropagation();
                     deleteSection(basePath);
@@ -285,7 +351,7 @@ export default function ParsedCurlEditor({ initialData, originalCurl, onBack, on
                 >
                   <Trash2 className="h-3 w-3 mr-1" />
                   Delete Section
-                </span>
+                </button>
               )}
             </div>
           </div>
@@ -297,8 +363,8 @@ export default function ParsedCurlEditor({ initialData, originalCurl, onBack, on
             ) : (
               <div className="flex flex-wrap gap-2">
                 {(isFlagsSection ? getActiveFlags(data) : Object.keys(data || {}).filter(k => data[k])).map((flag) => (
-                  <div key={flag} className="flex items-center gap-2 px-3 py-1.5 bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-full text-sm">
-                    <span className="w-2 h-2 rounded-full bg-green-500" />
+                  <div key={flag} className="flex items-center gap-2 px-3 py-1.5 bg-accent text-accent-foreground rounded-full text-sm">
+                    <span className="w-2 h-2 rounded-full bg-primary" />
                     <span className="font-mono">{flag}</span>
                     <Button
                       variant="ghost"
@@ -306,7 +372,7 @@ export default function ParsedCurlEditor({ initialData, originalCurl, onBack, on
                       className="h-4 w-4 ml-1"
                       onClick={() => deleteSingle(`${basePath}.${flag}`)}
                     >
-                      <Trash2 className="h-3 w-3 text-red-500" />
+                      <Trash2 className="h-3 w-3 text-destructive" />
                     </Button>
                   </div>
                 ))}
@@ -366,10 +432,13 @@ export default function ParsedCurlEditor({ initialData, originalCurl, onBack, on
       sections.push({ key: 'request', title: 'Request Details', data: requestData });
     }
 
+    // Sections that are flag-like (show only true values as chips)
+    const flagSections = ['flags', 'misc_flags'];
+    // Sections skipped from top-level iteration
+    const skipKeys = [...fixedSections, 'data', 'raw_data', 'all_options', 'meta', 'user_agent', 'referer', 'proxy'];
+
     Object.keys(parsed).forEach(key => {
-      if (fixedSections.includes(key) || key === 'data' || key === 'raw_data' || key === 'all_options' || key === 'meta') {
-        return;
-      }
+      if (skipKeys.includes(key)) return;
 
       const value = parsed[key];
 
@@ -377,11 +446,8 @@ export default function ParsedCurlEditor({ initialData, originalCurl, onBack, on
         return;
       }
 
-      if (['user_agent', 'referer', 'proxy'].includes(key)) {
-        return;
-      }
-
-      if (key === 'flags') {
+      // Flag-like sections (flags, misc_flags)
+      if (flagSections.includes(key)) {
         if (hasActiveFlags(value) || openSections.includes(key)) {
           sections.push({
             key,
@@ -393,9 +459,9 @@ export default function ParsedCurlEditor({ initialData, originalCurl, onBack, on
         return;
       }
 
+      // SSL config (flag-like display)
       if (key === 'ssl_config') {
-        const hasConfig = value && typeof value === 'object' && Object.keys(value).some(k => value[k] === true);
-        if (hasConfig || openSections.includes(key)) {
+        if (hasValidData(value) || openSections.includes(key)) {
           sections.push({
             key,
             title: getSectionDisplayName(key),
@@ -413,11 +479,13 @@ export default function ParsedCurlEditor({ initialData, originalCurl, onBack, on
         return;
       }
 
+      // For all other object sections, use hasValidData to filter out sections
+      // where all values are defaults (null, false, 0, empty string)
       if (typeof value === 'object') {
-        const isEmpty = Array.isArray(value) ? value.length === 0 : Object.keys(value || {}).length === 0;
-
-        if (!isEmpty || openSections.includes(key)) {
-          sections.push({ key, title: getSectionDisplayName(key), data: value || {} });
+        if (hasValidData(value) || openSections.includes(key)) {
+          // Only include entries with meaningful values for display
+          const filteredData = filterMeaningfulEntries(value);
+          sections.push({ key, title: getSectionDisplayName(key), data: filteredData });
         }
       } else if (value || openSections.includes(key)) {
         sections.push({ key, title: getSectionDisplayName(key), data: value });
@@ -430,7 +498,7 @@ export default function ParsedCurlEditor({ initialData, originalCurl, onBack, on
   const sectionsToRender = getSectionsToRender();
 
   return (
-    <div className="p-4 space-y-4 max-w-6xl mx-auto">
+    <div className="p-4 space-y-4 max-w-6xl mx-auto bg-grid min-h-[calc(100vh-12rem)]">
       {originalCurl && (
         <Card className="bg-muted/30">
           <CardHeader>
@@ -444,63 +512,61 @@ export default function ParsedCurlEditor({ initialData, originalCurl, onBack, on
         </Card>
       )}
 
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div className="flex gap-2 flex-wrap">
+      {/* Toolbar */}
+      <div className="flex items-center justify-between flex-wrap gap-3 p-3 rounded-lg border bg-muted/30">
+        {/* Left: Navigation */}
+        <div className="flex gap-2 items-center">
           {onBack && (
-            <Button variant="outline" onClick={onBack}>
+            <Button variant="ghost" size="sm" onClick={onBack} className="gap-1.5">
               ← Back
             </Button>
           )}
-          <Button
-            variant="outline"
-            onClick={handleReset}
-            className="text-orange-600 hover:text-orange-700"
-          >
+          <Button variant="ghost" size="sm" onClick={handleReset} className="gap-1.5 text-muted-foreground hover:text-foreground">
+            <RotateCcw className="w-3.5 h-3.5" />
             Reset
           </Button>
         </div>
 
-        <div className="flex gap-2 flex-wrap">
-          {onSave && (
-            <Button onClick={handleSave} className="bg-blue-600 hover:bg-blue-700 text-white">
-              <Save className="w-4 h-4 mr-2" />
-              Save Changes
-            </Button>
-          )}
-          <Button
-            onClick={handleAddSection}
-            disabled={missingSections.length === 0}
-            className="bg-green-600 hover:bg-green-700 text-white disabled:bg-gray-400"
-          >
-            <FolderPlus className="w-4 h-4 mr-2" />
-            Add Section {missingSections.length > 0 && `(${missingSections.length})`}
-          </Button>
-          <Button
-            onClick={handleGenerateCode}
-            className="bg-purple-600 hover:bg-purple-700 text-white"
-          >
-            <Code className="w-4 h-4 mr-2" />
+        {/* Right: Actions grouped */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {/* Primary action */}
+          <Button onClick={handleGenerateCode} size="sm" className="gap-1.5">
+            <Code className="w-3.5 h-3.5" />
             Generate Code
           </Button>
-          <Button variant="outline" onClick={exportData}>
-            <Download className="w-4 h-4 mr-2" />
-            Export JSON
+
+          <div className="w-px h-6 bg-border mx-1 hidden sm:block" />
+
+          {/* Edit actions */}
+          <Button variant="outline" size="sm" onClick={handleAddSection} disabled={missingSections.length === 0} className="gap-1.5">
+            <FolderPlus className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Add Section</span>
+            {missingSections.length > 0 && <span className="text-xs text-muted-foreground">({missingSections.length})</span>}
           </Button>
-          <Button
-            variant="outline"
-            onClick={() => setSelected(new Set())}
-            disabled={selected.size === 0}
-          >
-            Clear ({selected.size})
+          {onSave && (
+            <Button variant="outline" size="sm" onClick={handleSave} className="gap-1.5">
+              <Save className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Save</span>
+            </Button>
+          )}
+          <Button variant="outline" size="sm" onClick={exportData} className="gap-1.5">
+            <Download className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Export</span>
           </Button>
-          <Button
-            variant="destructive"
-            onClick={deleteSelected}
-            disabled={selected.size === 0}
-          >
-            <Trash2 className="w-4 h-4 mr-2" />
-            Delete ({selected.size})
-          </Button>
+
+          {/* Selection actions - only show when items selected */}
+          {selected.size > 0 && (
+            <>
+              <div className="w-px h-6 bg-border mx-1" />
+              <Button variant="ghost" size="sm" onClick={() => setSelected(new Set())} className="gap-1.5 text-muted-foreground">
+                Clear ({selected.size})
+              </Button>
+              <Button variant="destructive" size="sm" onClick={deleteSelected} className="gap-1.5">
+                <Trash2 className="w-3.5 h-3.5" />
+                Delete ({selected.size})
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
@@ -614,10 +680,13 @@ export default function ParsedCurlEditor({ initialData, originalCurl, onBack, on
                 ? (Array.isArray(parsed.data) ? parsed.data.length > 0 : Object.keys(parsed.data).length > 0)
                 : parsed.data
             ) && (
-                <AccordionItem value="data" key="data">
+                <AccordionItem value="data" key="data" className="border-l-2 border-l-indigo-500 pl-2">
                   <AccordionTrigger>
                     <div className="flex items-center justify-between w-full pr-2">
-                      <span>Request Body</span>
+                      <span className="flex items-center gap-2">
+                        <FileText className="w-4 h-4 text-muted-foreground" />
+                        Request Body
+                      </span>
                       <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
                         <span
                           className="h-7 px-3 inline-flex items-center justify-center rounded-md text-xs font-medium hover:bg-accent hover:text-accent-foreground cursor-pointer"
@@ -648,9 +717,51 @@ export default function ParsedCurlEditor({ initialData, originalCurl, onBack, on
                           renderBodyField(key, value, `data.${key}`, 0)
                         )
                       ) : (
-                        <pre className="text-xs whitespace-pre-wrap break-all">
-                          {typeof parsed.data === 'string' ? parsed.data : JSON.stringify(parsed.data, null, 2)}
-                        </pre>
+                        <div className="group">
+                          {editing['data'] ? (
+                            <div className="space-y-2">
+                              <Textarea
+                                value={String(editedValues['data'] ?? parsed.data ?? '')}
+                                onChange={(e) => handleEditChange('data', e.target.value)}
+                                className="font-mono text-xs min-h-[120px] resize-y"
+                              />
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => toggleEdit('data', parsed.data)}
+                              >
+                                <Save className="h-3 w-3 mr-1" />
+                                Save
+                              </Button>
+                            </div>
+                          ) : (
+                            <div className="flex items-start gap-2">
+                              <pre className="text-xs whitespace-pre-wrap break-all flex-1">
+                                {typeof parsed.data === 'string' ? parsed.data : JSON.stringify(parsed.data, null, 2)}
+                              </pre>
+                              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7"
+                                  onClick={() => toggleEdit('data', parsed.data)}
+                                  title="Edit"
+                                >
+                                  <Edit2 className="h-3 w-3" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                  onClick={() => deleteSingle('data')}
+                                  title="Delete body"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
                   </AccordionContent>

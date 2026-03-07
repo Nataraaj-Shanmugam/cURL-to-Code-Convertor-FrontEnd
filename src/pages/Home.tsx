@@ -7,64 +7,71 @@ import {
   CheckCircle2,
   ArrowRight,
   Sparkles,
-  GitBranch,
   Download,
   Eye,
   Settings,
   Copy,
+  GitBranch,
+  Package,
 } from "lucide-react";
 import { useNavigate } from 'react-router-dom';
+import { apiClient } from "@/lib/api/apiClient";
+import { Button } from "@/components/ui/button";
+import { motion } from "framer-motion";
 
+function FadeInSection({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 24 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-60px" }}
+      transition={{ duration: 0.5, delay, ease: "easeOut" }}
+      className={className}
+    >
+      {children}
+    </motion.div>
+  );
+}
 
 export default function Home() {
   const navigate = useNavigate();
-
   const [_isBackendReady, setIsBackendReady] = useState(false);
 
   useEffect(() => {
-    const checkBackendHealth = async () => {
-      try {
-        const response = await fetch(`${import.meta.env.VITE_CURL_CRAFT_API_URL}`, {
-          method: 'GET',
-        });
-        if (response.ok) {
-          setIsBackendReady(true);
-        }
-      } catch (error) {
-        console.log('Backend is warming up...');
-        // Optionally retry after a delay
-      }
-    };
-
-    checkBackendHealth();
+    apiClient.get("/api/health").then(() => setIsBackendReady(true)).catch(() => {});
   }, []);
-  const [showLogo, setShowLogo] = useState(true);
 
   const features = [
     {
       icon: Code2,
       title: "Smart cURL Parsing",
       description: "Paste any cURL command and instantly parse it into structured, editable components with full support for headers, body, auth, and more.",
-      color: "from-blue-500 to-cyan-500"
     },
     {
       icon: Edit3,
       title: "Visual Editor",
       description: "Edit every aspect of your request through an intuitive accordion-based interface. Modify headers, query params, request body, and configurations inline.",
-      color: "from-purple-500 to-pink-500"
     },
     {
       icon: Zap,
       title: "Code Generation",
       description: "Generate production-ready REST Assured test code with custom class names, assertions, logging, and automatic POJO creation from your request body.",
-      color: "from-orange-500 to-red-500"
     },
     {
       icon: FileJson,
       title: "Advanced Body Editor",
       description: "Navigate complex nested JSON structures with expandable/collapsible views, path visualization, and inline editing for all data types.",
-      color: "from-green-500 to-emerald-500"
-    }
+    },
+    {
+      icon: GitBranch,
+      title: "POJO Generation",
+      description: "Automatically create Java POJOs from your request body with Lombok annotations, ready to use in your generated test classes.",
+    },
+    {
+      icon: Package,
+      title: "Maven Dependencies",
+      description: "Get a complete pom.xml with all required REST Assured, Jackson, and Lombok dependencies — copy and paste into your project.",
+    },
   ];
 
   const steps = [
@@ -87,162 +94,175 @@ export default function Home() {
     "Export to JSON for backup"
   ];
 
-  const handleGetStarted = () => {
-    navigate('/playground');
-  };
+  const handleGetStarted = () => navigate('/playground');
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background via-background to-muted/20">
+    <div className="min-h-screen">
       {/* Hero Section */}
-      <section className="container mx-auto px-4 py-16 md:py-24">
-        <div className="flex flex-col items-center text-center space-y-8 max-w-4xl mx-auto">
-          {/* Logo */}
-          {showLogo && (
-            <div className="relative animate-in fade-in slide-in-from-top-4 duration-500">
-              <div className="relative w-24 h-24 mb-4">
-                <div className="absolute inset-0 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 rounded-2xl blur-xl opacity-50 animate-pulse"></div>
-                <div className="relative w-24 h-24 bg-gradient-to-br from-blue-600 via-purple-600 to-pink-600 rounded-2xl flex items-center justify-center shadow-2xl">
-                  <Code2 className="w-12 h-12 text-white" strokeWidth={2.5} />
+      <section className="relative overflow-hidden bg-noise">
+        <div className="absolute inset-0 bg-grid opacity-50 dark:opacity-30"></div>
+        {/* Gradient mesh blob */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[400px] bg-primary/10 rounded-full blur-[120px] pointer-events-none" />
+        <div className="relative container mx-auto px-4 py-20 md:py-28">
+          <div className="grid md:grid-cols-2 gap-12 items-center max-w-6xl mx-auto">
+            {/* Left: Text */}
+            <motion.div
+              initial={{ opacity: 0, x: -24 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.6, ease: "easeOut" }}
+              className="space-y-6"
+            >
+              <div className="w-14 h-14 bg-primary rounded-2xl flex items-center justify-center shadow-lg shadow-primary/25">
+                <Code2 className="w-7 h-7 text-primary-foreground" strokeWidth={2.5} />
+              </div>
+
+              <div className="space-y-4">
+                <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight font-mono">
+                  <span className="text-foreground">cURLCraft</span>{" "}
+                  <span className="text-primary">Assured</span>
+                </h1>
+
+                <p className="text-lg md:text-xl text-muted-foreground max-w-lg font-sans">
+                  Transform cURL commands into production-ready REST Assured tests with an intelligent visual editor
+                </p>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                <Button onClick={handleGetStarted} size="lg" className="gap-2 text-base group">
+                  Get Started
+                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                </Button>
+              </div>
+            </motion.div>
+
+            {/* Right: Terminal preview */}
+            <motion.div
+              initial={{ opacity: 0, x: 24 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.6, delay: 0.2, ease: "easeOut" }}
+              className="hidden md:block"
+            >
+              <div className="rounded-xl border border-border bg-card shadow-2xl shadow-primary/5 overflow-hidden">
+                <div className="flex items-center gap-2 px-4 py-2.5 bg-muted/60 border-b border-border">
+                  <div className="flex gap-1.5">
+                    <span className="w-3 h-3 rounded-full bg-red-400/70" />
+                    <span className="w-3 h-3 rounded-full bg-yellow-400/70" />
+                    <span className="w-3 h-3 rounded-full bg-green-400/70" />
+                  </div>
+                  <span className="text-xs text-muted-foreground font-mono ml-2">terminal</span>
+                </div>
+                <div className="p-5 font-mono text-sm leading-relaxed text-muted-foreground">
+                  <p><span className="text-primary">$</span> curl -X POST \</p>
+                  <p className="pl-4">"https://api.example.com/users" \</p>
+                  <p className="pl-4">-H <span className="text-accent-foreground">"Content-Type: application/json"</span> \</p>
+                  <p className="pl-4">-H <span className="text-accent-foreground">"Authorization: Bearer token"</span> \</p>
+                  <p className="pl-4">-d <span className="text-accent-foreground">'{`{"name": "John"}`}'</span></p>
+                  <p className="mt-3 text-xs text-muted-foreground/60">→ Generates REST Assured test code instantly</p>
                 </div>
               </div>
-            </div>
-          )}
-
-          {!showLogo && (
-            <button
-              onClick={() => setShowLogo(true)}
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors animate-in fade-in duration-300"
-            >
-              Show logo
-            </button>
-          )}
-
-          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-200">
-            <h1 className="text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight">
-              <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 dark:from-blue-400 dark:via-purple-400 dark:to-pink-400">
-                cURLCraft Assured
-              </span>
-            </h1>
-
-            <p className="text-xl md:text-2xl text-muted-foreground max-w-2xl">
-              Transform cURL commands into production-ready REST Assured tests with an intelligent visual editor
-            </p>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300">
-            <button
-              onClick={handleGetStarted}
-              className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-11 px-8 text-lg py-6 group"
-            >
-              Get Started
-              <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
-            </button>
-            <button className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-11 px-8 text-lg py-6">
-              <GitBranch className="mr-2 w-5 h-5" />
-              View Documentation
-            </button>
+            </motion.div>
           </div>
         </div>
       </section>
 
       {/* Features Grid */}
-      <section className="container mx-auto px-4 py-16">
-        <div className="text-center mb-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">
-            Powerful Features
-          </h2>
-          <p className="text-muted-foreground text-lg">
-            Everything you need to convert cURL to REST Assured
-          </p>
-        </div>
+      <FadeInSection>
+        <section className="container mx-auto px-4 py-16">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold mb-3">
+              Powerful Features
+            </h2>
+            <p className="text-muted-foreground text-lg font-sans">
+              Everything you need to convert cURL to REST Assured
+            </p>
+          </div>
 
-        <div className="grid md:grid-cols-2 gap-6 max-w-5xl mx-auto">
-          {features.map((feature, index) => {
-            const Icon = feature.icon;
-            return (
-              <div
-                key={index}
-                className="animate-in fade-in slide-in-from-bottom-4 duration-700"
-                style={{ animationDelay: `${index * 100}ms` }}
-              >
-                <div className="h-full rounded-lg border-2 bg-card text-card-foreground shadow-sm hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
-                  <div className="p-6">
-                    <div className={`w-12 h-12 rounded-lg bg-gradient-to-br ${feature.color} flex items-center justify-center mb-4`}>
-                      <Icon className="w-6 h-6 text-white" />
-                    </div>
-                    <h3 className="text-xl font-semibold mb-2">{feature.title}</h3>
-                    <p className="text-muted-foreground">{feature.description}</p>
+          <div className="grid grid-cols-2 gap-4 max-w-4xl mx-auto">
+            {features.map((feature, index) => {
+              const Icon = feature.icon;
+              return (
+                <motion.div
+                  key={index}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.4, delay: index * 0.07 }}
+                  className="group rounded-xl border bg-card p-6 hover:border-primary/40 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 flex flex-col gap-4"
+                >
+                  <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                    <Icon className="w-5 h-5 text-primary" />
                   </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </section>
+                  <div>
+                    <h3 className="text-sm font-semibold mb-1.5 font-mono text-foreground">{feature.title}</h3>
+                    <p className="text-muted-foreground text-xs font-sans leading-relaxed">{feature.description}</p>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+        </section>
+      </FadeInSection>
 
       {/* How It Works */}
+      <FadeInSection>
       <section className="container mx-auto px-4 py-16">
-        <div className="bg-muted/30 rounded-3xl p-8 md:p-12">
-          <div className="text-center mb-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">
+        <div className="bg-muted/40 rounded-2xl p-8 md:p-12">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold mb-3">
               How It Works
             </h2>
-            <p className="text-muted-foreground text-lg">
+            <p className="text-muted-foreground text-lg font-sans">
               Four simple steps to generate your test code
             </p>
           </div>
 
-          <div className="grid md:grid-cols-4 gap-6 max-w-6xl mx-auto">
+          <div className="grid md:grid-cols-4 gap-0 max-w-6xl mx-auto">
             {steps.map((step, index) => {
               const Icon = step.icon;
               return (
-                <div
-                  key={index}
-                  className="relative animate-in fade-in slide-in-from-bottom-4 duration-700"
-                  style={{ animationDelay: `${index * 100}ms` }}
-                >
-                  <div className="h-full text-center rounded-lg border bg-card text-card-foreground shadow-sm hover:shadow-md transition-shadow">
-                    <div className="p-6">
-                      <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                        <Icon className="w-8 h-8 text-primary" />
-                      </div>
-                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold text-sm">
-                        {index + 1}
-                      </div>
-                      <h3 className="font-semibold mb-2">{step.text}</h3>
-                      <p className="text-sm text-muted-foreground">{step.detail}</p>
-                    </div>
+                <div key={index} className="relative flex flex-col items-center px-4">
+                  {/* Step number + icon circle */}
+                  <div className="relative z-10 w-14 h-14 rounded-full bg-primary/10 border-2 border-primary/30 flex items-center justify-center mb-4">
+                    <Icon className="w-6 h-6 text-primary" />
+                    <span className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold text-[10px] font-mono shadow-sm">
+                      {index + 1}
+                    </span>
                   </div>
+                  {/* Connecting line */}
                   {index < steps.length - 1 && (
-                    <div className="hidden md:block absolute top-1/2 -right-3 w-6 h-0.5 bg-border z-10"></div>
+                    <div className="hidden md:block absolute top-7 left-[calc(50%+28px)] w-[calc(100%-56px)] right-0">
+                      <div className="h-px bg-border w-full" />
+                      <ArrowRight className="absolute -right-2 -top-1.5 w-3 h-3 text-muted-foreground" />
+                    </div>
                   )}
+                  {/* Text */}
+                  <h3 className="font-semibold mb-1 text-sm font-mono text-center">{step.text}</h3>
+                  <p className="text-xs text-muted-foreground font-sans text-center">{step.detail}</p>
                 </div>
               );
             })}
           </div>
         </div>
       </section>
+      </FadeInSection>
 
       {/* Capabilities */}
+      <FadeInSection>
       <section className="container mx-auto px-4 py-16">
-        <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-700">
-          <div className="rounded-lg border bg-card text-card-foreground shadow-sm">
+        <div className="max-w-4xl mx-auto">
+          <div className="rounded-xl border bg-card text-card-foreground shadow-sm">
             <div className="p-8">
               <div className="flex items-center gap-3 mb-6">
-                <Sparkles className="w-8 h-8 text-yellow-500" />
+                <Sparkles className="w-6 h-6 text-primary" />
                 <h2 className="text-2xl md:text-3xl font-bold">
                   What You Can Do
                 </h2>
               </div>
-              <div className="grid md:grid-cols-2 gap-4">
+              <div className="grid md:grid-cols-2 gap-3">
                 {capabilities.map((capability, index) => (
-                  <div
-                    key={index}
-                    className="flex items-start gap-3 animate-in fade-in slide-in-from-left-4 duration-500"
-                    style={{ animationDelay: `${index * 50}ms` }}
-                  >
-                    <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
-                    <span className="text-sm md:text-base">{capability}</span>
+                  <div key={index} className="flex items-start gap-3">
+                    <CheckCircle2 className="w-4 h-4 text-primary flex-shrink-0 mt-1" />
+                    <span className="text-sm text-muted-foreground font-sans">{capability}</span>
                   </div>
                 ))}
               </div>
@@ -250,29 +270,29 @@ export default function Home() {
           </div>
         </div>
       </section>
+      </FadeInSection>
 
       {/* CTA Section */}
+      <FadeInSection>
       <section className="container mx-auto px-4 py-16 pb-24">
-        <div className="max-w-3xl mx-auto animate-in fade-in zoom-in duration-700">
-          <div className="rounded-lg border-2 bg-gradient-to-br from-blue-500/10 via-purple-500/10 to-pink-500/10 text-card-foreground shadow-sm">
-            <div className="p-12 text-center">
-              <h2 className="text-3xl md:text-4xl font-bold mb-4">
+        <div className="max-w-3xl mx-auto">
+          <div className="rounded-xl border-2 border-primary/20 bg-accent/30 text-card-foreground">
+            <div className="p-10 text-center">
+              <h2 className="text-3xl md:text-4xl font-bold mb-3">
                 Ready to Transform Your Testing Workflow?
               </h2>
-              <p className="text-lg text-muted-foreground mb-8">
+              <p className="text-lg text-muted-foreground mb-8 font-sans">
                 Start converting your cURL commands to REST Assured tests in seconds
               </p>
-              <button
-                onClick={handleGetStarted}
-                className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-11 px-10 text-lg py-6 group"
-              >
+              <Button onClick={handleGetStarted} size="lg" className="gap-2 text-base group">
                 Open Playground
-                <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
-              </button>
+                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              </Button>
             </div>
           </div>
         </div>
       </section>
+      </FadeInSection>
     </div>
   );
 }

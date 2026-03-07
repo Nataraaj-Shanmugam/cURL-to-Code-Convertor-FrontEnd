@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { apiClient } from "@/lib/api/apiClient";
 
 interface EditingState {
   [key: string]: boolean;
@@ -18,14 +19,38 @@ export const VALID_SECTIONS = {
   'cookies': 'Cookies',
   'form_data': 'Form Data',
   'auth': 'Authentication',
+  'auth_config': 'Auth Configuration',
   'network_config': 'Network Configuration',
   'ssl_config': 'SSL/TLS Configuration',
-  'flags': 'Flags'
+  'proxy_config': 'Proxy Configuration',
+  'transfer_config': 'Transfer Configuration',
+  'protocol_config': 'Protocol Configuration',
+  'output_config': 'Output Configuration',
+  'ftp_config': 'FTP Configuration',
+  'mail_config': 'Mail Configuration',
+  'flags': 'Flags',
+  'misc_flags': 'Misc Flags'
+};
+
+// If body data is a JSON string, parse it into an object for node-level editing
+const parseBodyData = (data: any): any => {
+  const clone = JSON.parse(JSON.stringify(data || {}));
+  if (typeof clone.data === 'string') {
+    try {
+      const parsed = JSON.parse(clone.data);
+      if (typeof parsed === 'object' && parsed !== null) {
+        clone.data = parsed;
+      }
+    } catch {
+      // Not valid JSON — keep as string (form-encoded, plain text, etc.)
+    }
+  }
+  return clone;
 };
 
 export const useParsedCurlEditor = (initialData: any) => {
   const [originalParsed] = useState(initialData || {});
-  const [parsed, setParsed] = useState(JSON.parse(JSON.stringify(initialData || {})));
+  const [parsed, setParsed] = useState(parseBodyData(initialData));
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<EditingState>({});
   const [editedValues, setEditedValues] = useState<EditedValues>({});
@@ -40,8 +65,22 @@ export const useParsedCurlEditor = (initialData: any) => {
   const [openSections, setOpenSections] = useState<string[]>([]);
   const [bodyCollapsed, setBodyCollapsed] = useState<CollapsedState>({});
   const [allExpanded, setAllExpanded] = useState(false);
+  const [bodyApiLoading, setBodyApiLoading] = useState(false);
+  const [bodyApiError, setBodyApiError] = useState<string | null>(null);
 
   // Helper functions
+  const isMeaningfulValue = (value: any): boolean => {
+    if (value === null || value === undefined || value === false || value === 0) return false;
+    if (typeof value === 'string' && value.trim() === '') return false;
+    if (Array.isArray(value)) return value.length > 0;
+    if (typeof value === 'object') {
+      const keys = Object.keys(value);
+      if (keys.length === 0) return false;
+      return keys.some(k => isMeaningfulValue(value[k]));
+    }
+    return true;
+  };
+
   const hasValidData = (data: any): boolean => {
     if (!data) return false;
     if (typeof data !== 'object') return false;
@@ -50,12 +89,7 @@ export const useParsedCurlEditor = (initialData: any) => {
     const entries = Object.entries(data);
     if (entries.length === 0) return false;
 
-    return entries.some(([_, value]) => {
-      if (value === null || value === undefined) return false;
-      if (typeof value === 'string' && value.trim() === '') return false;
-      if (typeof value === 'object' && Object.keys(value).length === 0) return false;
-      return true;
-    });
+    return entries.some(([_, value]) => isMeaningfulValue(value));
   };
 
   const hasActiveFlags = (flagsObj: any): boolean => {
@@ -68,6 +102,57 @@ export const useParsedCurlEditor = (initialData: any) => {
     return Object.entries(flagsObj)
       .filter(([_, val]) => val === true)
       .map(([key]) => key);
+  };
+
+  // Convert a dot-notation path like "data.user.name" to the backend path format
+  // The backend expects the path relative to the body (without "data." prefix)
+  const toBodyPath = (path: string): string => {
+    return path.startsWith('data.') ? path.slice(5) : path;
+  };
+
+  const editBodyNode = async (path: string, value: any): Promise<boolean> => {
+    setBodyApiLoading(true);
+    setBodyApiError(null);
+    try {
+      const { data: result } = await apiClient.post('/api/body/edit', {
+        body: parsed.data,
+        path: toBodyPath(path),
+        value,
+      });
+      if (result.success !== false) {
+        return true;
+      }
+      const errMsg = typeof result.error === 'object' ? result.error.message : result.error || 'Edit failed';
+      setBodyApiError(errMsg);
+      return false;
+    } catch (err: any) {
+      setBodyApiError(err.message || 'Failed to edit body node');
+      return false;
+    } finally {
+      setBodyApiLoading(false);
+    }
+  };
+
+  const deleteBodyNode = async (path: string): Promise<boolean> => {
+    setBodyApiLoading(true);
+    setBodyApiError(null);
+    try {
+      const { data: result } = await apiClient.post('/api/body/delete', {
+        body: parsed.data,
+        path: toBodyPath(path),
+      });
+      if (result.success !== false) {
+        return true;
+      }
+      const errMsg = typeof result.error === 'object' ? result.error.message : result.error || 'Delete failed';
+      setBodyApiError(errMsg);
+      return false;
+    } catch (err: any) {
+      setBodyApiError(err.message || 'Failed to delete body node');
+      return false;
+    } finally {
+      setBodyApiLoading(false);
+    }
   };
 
   const getValidSections = () => {
@@ -90,12 +175,12 @@ export const useParsedCurlEditor = (initialData: any) => {
         if (Array.isArray(value) && value.length > 0) {
           valid.push(key);
         }
-      } else if (key === 'flags') {
+      } else if (key === 'flags' || key === 'misc_flags') {
         if (hasActiveFlags(value)) {
           valid.push(key);
         }
       } else if (key === 'ssl_config') {
-        if (value && typeof value === 'object' && Object.keys(value).some(k => value[k] === true)) {
+        if (hasValidData(value)) {
           valid.push(key);
         }
       } else if (key === 'data') {
@@ -228,16 +313,15 @@ export const useParsedCurlEditor = (initialData: any) => {
         if (Array.isArray(value) && value.length > 0) {
           valid.push(key);
         }
-      } else if (key === 'flags') {
+      } else if (key === 'flags' || key === 'misc_flags') {
         if (hasActiveFlags(value)) {
           valid.push(key);
         }
       } else if (key === 'ssl_config') {
-        if (value && typeof value === 'object' && Object.keys(value).some(k => value[k] === true)) {
+        if (hasValidData(value)) {
           valid.push(key);
         }
       } else if (key === 'data') {
-        // Check if data has actual content
         if (typeof value === 'object' && value !== null) {
           if (Array.isArray(value) ? value.length > 0 : Object.keys(value).length > 0) {
             valid.push(key);
@@ -272,8 +356,23 @@ export const useParsedCurlEditor = (initialData: any) => {
     setSelected(newSelected);
   };
 
-  const toggleEdit = (path: string, currentValue: any) => {
+  const toggleEdit = async (path: string, currentValue: any) => {
     if (editing[path]) {
+      let finalValue = editedValues[path] ?? currentValue;
+      if (typeof finalValue === 'string') {
+        try {
+          finalValue = JSON.parse(finalValue);
+        } catch {
+          // Keep as string
+        }
+      }
+
+      // Call body edit API for body fields
+      if (path.startsWith('data.')) {
+        const success = await editBodyNode(path, finalValue);
+        if (!success) return;
+      }
+
       const keys = path.split('.');
       let obj: any = parsed;
       for (let i = 0; i < keys.length - 1; i++) {
@@ -286,14 +385,6 @@ export const useParsedCurlEditor = (initialData: any) => {
       }
       const lastKey = keys[keys.length - 1];
       if (lastKey && obj && typeof obj === 'object') {
-        let finalValue = editedValues[path] ?? currentValue;
-        if (typeof finalValue === 'string') {
-          try {
-            finalValue = JSON.parse(finalValue);
-          } catch {
-            // Keep as string
-          }
-        }
         obj[lastKey] = finalValue;
       }
       setParsed({ ...parsed });
@@ -332,7 +423,13 @@ export const useParsedCurlEditor = (initialData: any) => {
     setSelected(new Set());
   };
 
-  const deleteSingle = (path: string) => {
+  const deleteSingle = async (path: string) => {
+    // Call body delete API for body fields
+    if (path.startsWith('data.')) {
+      const success = await deleteBodyNode(path);
+      if (!success) return;
+    }
+
     const keys = path.split('.');
     const newParsed = JSON.parse(JSON.stringify(parsed));
     let obj: any = newParsed;
@@ -618,6 +715,11 @@ public class GeneratedTest {
     hasActiveFlags,
     getActiveFlags,
     getMissingSections,
-    setGeneratedCode
+    setGeneratedCode,
+
+    // Body API state
+    bodyApiLoading,
+    bodyApiError,
+    setBodyApiError
   };
 };
