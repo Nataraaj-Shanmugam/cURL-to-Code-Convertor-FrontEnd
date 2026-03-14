@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Code2,
   Edit3,
@@ -17,28 +17,41 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from "@/lib/api/apiClient";
 import { Button } from "@/components/ui/button";
-import { motion } from "framer-motion";
-
 function FadeInSection({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry?.isIntersecting) setVisible(true); },
+      { rootMargin: '-60px' },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 24 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-60px" }}
-      transition={{ duration: 0.5, delay, ease: "easeOut" }}
+    <div
+      ref={ref}
       className={className}
+      style={{
+        opacity: visible ? 1 : 0,
+        transform: visible ? 'none' : 'translateY(24px)',
+        transition: `opacity 0.5s ${delay}s ease-out, transform 0.5s ${delay}s ease-out`,
+      }}
     >
       {children}
-    </motion.div>
+    </div>
   );
 }
 
 export default function Home() {
   const navigate = useNavigate();
-  const [_isBackendReady, setIsBackendReady] = useState(false);
-
   useEffect(() => {
-    apiClient.get("/api/health").then(() => setIsBackendReady(true)).catch(() => {});
+    document.title = "cURLCraft Assured — cURL to REST Assured Test Generator";
+    apiClient.get("/api/health").catch(() => {});
   }, []);
 
   const features = [
@@ -106,12 +119,7 @@ export default function Home() {
         <div className="relative container mx-auto px-4 py-20 md:py-28">
           <div className="grid md:grid-cols-2 gap-12 items-center max-w-6xl mx-auto">
             {/* Left: Text */}
-            <motion.div
-              initial={{ opacity: 0, x: -24 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.6, ease: "easeOut" }}
-              className="space-y-6"
-            >
+            <div className="space-y-6 animate-hero-left">
               <div className="w-14 h-14 bg-primary rounded-2xl flex items-center justify-center shadow-lg shadow-primary/25">
                 <Code2 className="w-7 h-7 text-primary-foreground" strokeWidth={2.5} />
               </div>
@@ -133,15 +141,10 @@ export default function Home() {
                   <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                 </Button>
               </div>
-            </motion.div>
+            </div>
 
             {/* Right: Terminal preview */}
-            <motion.div
-              initial={{ opacity: 0, x: 24 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.6, delay: 0.2, ease: "easeOut" }}
-              className="hidden md:block"
-            >
+            <div className="hidden md:block animate-hero-right">
               <div className="rounded-xl border border-border bg-card shadow-2xl shadow-primary/5 overflow-hidden">
                 <div className="flex items-center gap-2 px-4 py-2.5 bg-muted/60 border-b border-border">
                   <div className="flex gap-1.5">
@@ -160,7 +163,7 @@ export default function Home() {
                   <p className="mt-3 text-xs text-muted-foreground/60">→ Generates REST Assured test code instantly</p>
                 </div>
               </div>
-            </motion.div>
+            </div>
           </div>
         </div>
       </section>
@@ -177,17 +180,14 @@ export default function Home() {
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-4 max-w-4xl mx-auto">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-4xl mx-auto">
             {features.map((feature, index) => {
               const Icon = feature.icon;
               return (
-                <motion.div
+                <div
                   key={index}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.4, delay: index * 0.07 }}
-                  className="group rounded-xl border bg-card p-6 hover:border-primary/40 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 flex flex-col gap-4"
+                  className="group rounded-xl border bg-card p-6 hover:border-primary/40 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 flex flex-col gap-4 animate-fade-up"
+                  style={{ animationDelay: `${index * 70}ms` }}
                 >
                   <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
                     <Icon className="w-5 h-5 text-primary" />
@@ -196,7 +196,7 @@ export default function Home() {
                     <h3 className="text-sm font-semibold mb-1.5 font-mono text-foreground">{feature.title}</h3>
                     <p className="text-muted-foreground text-xs font-sans leading-relaxed">{feature.description}</p>
                   </div>
-                </motion.div>
+                </div>
               );
             })}
           </div>

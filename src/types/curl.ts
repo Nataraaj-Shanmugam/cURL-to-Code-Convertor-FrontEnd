@@ -3,6 +3,7 @@
  */
 
 export interface ParsedCurl {
+  // Core fields — always returned by BE /api/parse
   method: string;
   url?: string;
   base_url: string;
@@ -12,16 +13,12 @@ export interface ParsedCurl {
   query_params?: Record<string, any>;
   headers?: Record<string, string>;
   data?: string | object;
-  raw_data?: string | null;
   form_data?: Record<string, any>;
   cookies?: Record<string, any>;
-  auth?: any;
+
+  // Config sections — returned by BE as grouped objects
   auth_config?: Record<string, any>;
-  proxy?: string | null;
   proxy_config?: Record<string, any>;
-  user_agent?: string | null;
-  referer?: string | null;
-  flags?: Record<string, any>;
   network_config?: Record<string, any>;
   ssl_config?: Record<string, any>;
   transfer_config?: Record<string, any>;
@@ -30,6 +27,15 @@ export interface ParsedCurl {
   ftp_config?: Record<string, any>;
   mail_config?: Record<string, any>;
   misc_flags?: Record<string, any>;
+
+  // Legacy/defensive fields — not returned by current BE parser
+  // but referenced in editor skip-lists for forward compatibility
+  raw_data?: string | null;
+  auth?: any;
+  proxy?: string | null;
+  user_agent?: string | null;
+  referer?: string | null;
+  flags?: Record<string, any>;
   all_options?: any[];
   meta?: Record<string, any> | null;
 }
@@ -76,6 +82,8 @@ export interface CodeGenerationResponse {
   warnings?: string[];
   structured_json?: any;
   language?: string;
+  error?: string;
+  meta?: Record<string, any>;
 }
 
 // Code generation config matching backend v2.0.0

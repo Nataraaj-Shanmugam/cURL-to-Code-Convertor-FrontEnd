@@ -1,37 +1,25 @@
-# CurlCraft Assured — Design Review TODO
+# CurlCraft Assured — Frontend TODO
 
-All items from `DESIGN_REVIEW.md` have been implemented.
+---
 
-## Completed
+## SEO & META
 
-### Phase 1 — Design System Fixes
-- Error colors use `bg-destructive/10 text-destructive` tokens
-- Badge colors use `bg-accent`/`text-destructive` tokens
-- NavBar active indicator uses `translate-y` (no magic numbers)
-- Theme toggle has Sun/Moon rotate+scale CSS transition
+- [ ] **No favicon or app icons configured** — No mention of PWA manifest or app icons beyond the default Vite favicon.
 
-### Phase 2 — Framer Motion & Animations
-- `framer-motion` installed
-- Page route transitions via `AnimatePresence` in `App.tsx`
-- Scroll-triggered reveals (`FadeInSection`) on Home sections
-- Parse button loading spinner (`Loader2` + `animate-spin`)
-- Copy-to-clipboard slide animation in CodeGenerationDialog
+---
 
-### Phase 3 — Layout & Composition
-- Asymmetric hero with terminal preview on right + gradient mesh blob
-- "How It Works" horizontal stepper with connecting lines + arrows
-- Editor accordion sections have colored left borders + icons
+## TESTING GAPS
 
-### Phase 4 — Atmosphere & Polish
-- Noise texture overlay (`.bg-noise`) on hero
-- Gradient mesh blob behind hero
-- Feature card hover: `scale-[1.02]` + border color shift
+- [ ] **No E2E tests** — Full user workflows (paste cURL -> parse -> edit -> generate code -> download) not validated end-to-end.
+- [ ] **No visual regression tests** — Theme switching (light/dark), responsive breakpoints, dialog rendering untested visually.
 
-### Prior Work
-- Custom typography (DM Sans + JetBrains Mono)
-- Dark mode refinement (deeper blacks, better contrast)
-- Playground terminal-style textarea with macOS chrome
-- Background grid pattern on all pages
-- Mobile hamburger menu, branded footer
-- Editor toolbar grouped with dividers
-- Example cURL commands as empty state
+---
+
+## NEW FEATURE SUGGESTIONS
+
+- [ ] **Import from Postman/OpenAPI** — Accept Postman collection JSON or OpenAPI/Swagger spec and convert to cURL, then to code.
+- [ ] **Diff view for edits** — Show a side-by-side or inline diff of original vs. edited parsed data before generating code.
+- [ ] **Batch cURL processing** — Parse multiple cURL commands at once (one per line or from a file) and generate a test suite with multiple `@Test` methods.
+- [ ] **Request preview / dry-run** — Before generating code, show a visual preview of what the HTTP request will look like (method, URL, headers table, body formatted).
+- [ ] **Keyboard shortcuts panel** — Add a `?` shortcut that shows all available keyboard shortcuts in a modal.
+- [ ] **cURL command builder (reverse direction)** — Let users visually build an HTTP request and generate the equivalent cURL command.

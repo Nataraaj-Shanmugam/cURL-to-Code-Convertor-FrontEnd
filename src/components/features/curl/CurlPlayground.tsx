@@ -1,57 +1,18 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, memo } from "react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { apiClient } from "@/lib/api/apiClient";
+import { ENV } from "@/lib/env";
+import { EXAMPLE_CURLS, METHOD_COLORS } from "@/constants/curl";
 import { Terminal, Play, RotateCcw, AlertCircle, ChevronRight, Loader2 } from "lucide-react";
 
-const EXAMPLE_CURLS = [
-  {
-    label: "GET Request",
-    method: "GET",
-    curl: `curl -X GET "https://jsonplaceholder.typicode.com/posts/1" -H "Accept: application/json"`,
-  },
-  {
-    label: "POST with JSON Body",
-    method: "POST",
-    curl: `curl -X POST "https://jsonplaceholder.typicode.com/posts" -H "Content-Type: application/json" -d '{"title": "foo", "body": "bar", "userId": 1}'`,
-  },
-  {
-    label: "With Auth Header",
-    method: "GET",
-    curl: `curl -X GET "https://api.example.com/users" -H "Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.token" -H "Accept: application/json"`,
-  },
-  {
-    label: "PUT Update Resource",
-    method: "PUT",
-    curl: `curl -X PUT "https://jsonplaceholder.typicode.com/posts/1" -H "Content-Type: application/json" -d '{"id": 1, "title": "updated", "body": "new content", "userId": 1}'`,
-  },
-  {
-    label: "DELETE Request",
-    method: "DELETE",
-    curl: `curl -X DELETE "https://jsonplaceholder.typicode.com/posts/1" -H "Accept: application/json"`,
-  },
-  {
-    label: "PATCH Partial Update",
-    method: "PATCH",
-    curl: `curl -X PATCH "https://jsonplaceholder.typicode.com/posts/1" -H "Content-Type: application/json" -d '{"title": "patched title"}'`,
-  },
-];
-
-const METHOD_COLORS: Record<string, string> = {
-  GET: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
-  POST: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
-  PUT: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
-  DELETE: "bg-red-500/15 text-red-600 dark:text-red-400",
-  PATCH: "bg-violet-500/15 text-violet-600 dark:text-violet-400",
-};
-
-export default function CurlPlayground() {
+function CurlPlayground() {
   const [curl, setCurl] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const navigate = useNavigate();
 
-  const parseEndpoint = import.meta.env.VITE_CURL_CRAFT_API_PARSE_ENDPOINT || "/api/parse";
+  const parseEndpoint = ENV.PARSE_ENDPOINT;
 
   const handleParse = useCallback(async () => {
     if (!curl.trim()) return;
@@ -67,7 +28,6 @@ export default function CurlPlayground() {
           ? result.error.message
           : result.error || "Failed to parse cURL";
         setError(errMsg);
-        setLoading(false);
         return;
       }
 
@@ -79,8 +39,9 @@ export default function CurlPlayground() {
           originalCurl: curl
         }
       });
-    } catch (err: any) {
-      setError(err.message || "Failed to parse cURL command");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to parse cURL command");
+    } finally {
       setLoading(false);
     }
   }, [curl, navigate, parseEndpoint]);
@@ -104,6 +65,11 @@ export default function CurlPlayground() {
 
   return (
     <div className="max-w-5xl mx-auto p-4 space-y-6 bg-grid min-h-[calc(100vh-12rem)]">
+      {/* Screen-reader live region for async status */}
+      <div aria-live="polite" aria-atomic="true" className="sr-only">
+        {loading ? 'Parsing cURL command…' : error ? `Error: ${error}` : ''}
+      </div>
+
       {/* Header */}
       <div className="flex items-center gap-3">
         <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -129,7 +95,7 @@ export default function CurlPlayground() {
           value={curl}
           onChange={(e) => { setCurl(e.target.value); setError(""); }}
           placeholder={`$ curl -X POST "https://api.example.com/data" \\\n  -H "Content-Type: application/json" \\\n  -H "Authorization: Bearer <token>" \\\n  -d '{"key": "value"}'`}
-          className="w-full min-h-[240px] sm:min-h-[280px] lg:min-h-[320px] resize-y p-4 font-mono text-sm
+          className="w-full min-h-[160px] sm:min-h-[220px] lg:min-h-[280px] resize-y p-4 font-mono text-sm
                      focus:outline-none bg-card text-foreground placeholder:text-muted-foreground/50
                      leading-relaxed"
           spellCheck={false}
@@ -152,6 +118,12 @@ export default function CurlPlayground() {
           <RotateCcw className="w-4 h-4" />
           Reset
         </Button>
+
+        <span className="text-xs text-muted-foreground hidden sm:inline" aria-label="Keyboard shortcut: Control or Command plus Enter">
+          <kbd className="font-mono bg-muted px-1.5 py-0.5 rounded text-[11px] border border-border">⌘</kbd>
+          {" + "}
+          <kbd className="font-mono bg-muted px-1.5 py-0.5 rounded text-[11px] border border-border">↵</kbd>
+        </span>
       </div>
 
       {/* Error */}
@@ -192,3 +164,5 @@ export default function CurlPlayground() {
     </div>
   );
 }
+
+export default memo(CurlPlayground);

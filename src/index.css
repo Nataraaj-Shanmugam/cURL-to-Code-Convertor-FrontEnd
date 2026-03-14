@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..700;1,9..40,300..700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+/* Google Fonts are now loaded via <link> in index.html to avoid render-blocking CSS @import */
 
 @tailwind base;
 @tailwind components;
@@ -131,9 +131,48 @@
 }
 
 /* ===========================
+   Animation Keyframes
+=========================== */
+@keyframes page-enter {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes hero-left {
+  from { opacity: 0; transform: translateX(-24px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes hero-right {
+  from { opacity: 0; transform: translateX(24px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ===========================
    Custom Utilities
 =========================== */
 @layer utilities {
+  .animate-page-enter {
+    animation: page-enter 0.25s ease-out both;
+  }
+
+  .animate-hero-left {
+    animation: hero-left 0.6s ease-out both;
+  }
+
+  .animate-hero-right {
+    animation: hero-right 0.6s 0.2s ease-out both;
+  }
+
+  .animate-fade-up {
+    animation: fade-up 0.4s ease-out both;
+  }
+
   .text-balance {
     text-wrap: balance;
   }

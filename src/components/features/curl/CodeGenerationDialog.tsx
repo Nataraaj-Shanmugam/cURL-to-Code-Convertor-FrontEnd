@@ -1,12 +1,54 @@
-import { useState } from "react";
+import { useState, useRef, useEffect, memo } from "react";
+import { Highlight, themes } from "prism-react-renderer";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Copy, CheckCircle2, Download, AlertCircle } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
-import { apiClient } from "@/lib/api/apiClient";
+import { Copy, CheckCircle2, Download, AlertCircle, MessageSquare } from "lucide-react";
+import { apiClient, GENERATE_TIMEOUT_MS } from "@/lib/api/apiClient";
+import { ENV } from "@/lib/env";
 import type { ParsedCurl, CodeGenConfig } from "@/types/curl";
+import FeedbackDialog from "@/components/features/feedback/FeedbackDialog";
+
+function CodeBlock({ code, language }: { code: string; language: string }) {
+    return (
+        <Highlight code={code} language={language} theme={themes.vsDark}>
+            {({ className, style, tokens, getLineProps, getTokenProps }) => (
+                <pre
+                    className={`${className} text-xs font-mono p-6 overflow-auto`}
+                    style={style}
+                >
+                    {tokens.map((line, i) => (
+                        <div key={i} {...getLineProps({ line })}>
+                            {line.map((token, key) => (
+                                <span key={key} {...getTokenProps({ token })} />
+                            ))}
+                        </div>
+                    ))}
+                </pre>
+            )}
+        </Highlight>
+    );
+}
+
+// POM dependency versions — update these when bumping library versions
+const POM_VERSIONS = {
+  REST_ASSURED: '5.3.2',
+  TESTNG: '7.8.0',
+  LOMBOK: '1.18.30',
+  JACKSON: '2.15.3',
+  MAVEN_SUREFIRE: '3.0.0',
+} as const;
+
+const DEFAULT_CODE_CONFIG: CodeGenConfig = {
+  option: '',
+  className: 'ApiTest',
+  methodName: 'testApiRequest',
+  assertionRequired: true,
+  statusCode: '200',
+  loggingRequired: true,
+  needPojo: false,
+};
 
 interface CodeGenerationDialogProps {
     open: boolean;
@@ -14,23 +56,15 @@ interface CodeGenerationDialogProps {
     parsedData: ParsedCurl;
 }
 
-const generateEndpoint = import.meta.env.VITE_CURL_CRAFT_API_GENERATE_ENDPOINT || "/api/generate-from-parsed";
+const generateEndpoint = ENV.GENERATE_ENDPOINT;
 
-export default function CodeGenerationDialog({
+function CodeGenerationDialogInner({
     open,
     onOpenChange,
     parsedData,
 }: CodeGenerationDialogProps) {
     const [currentStep, setCurrentStep] = useState<'config' | 'result'>('config');
-    const [codeConfig, setCodeConfig] = useState<CodeGenConfig>({
-        option: '',
-        className: 'ApiTest',
-        methodName: 'testApiRequest',
-        assertionRequired: true,
-        statusCode: '200',
-        loggingRequired: true,
-        needPojo: false,
-    });
+    const [codeConfig, setCodeConfig] = useState<CodeGenConfig>(DEFAULT_CODE_CONFIG);
     const [pojoClassName, setPojoClassName] = useState('RequestBody');
 
     const [generatedCode, setGeneratedCode] = useState<string>('');
@@ -42,6 +76,24 @@ export default function CodeGenerationDialog({
     const [copied, setCopied] = useState(false);
     const [activeTab, setActiveTab] = useState<'test' | 'pojo' | 'pom'>('test');
     const [error, setError] = useState<string>('');
+    const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+    const [feedbackOpen, setFeedbackOpen] = useState(false);
+    const resultHeadingRef = useRef<HTMLSpanElement>(null);
+
+    // Move focus to the result area when generation completes so screen readers announce it
+    useEffect(() => {
+        if (currentStep === 'result') {
+            resultHeadingRef.current?.focus();
+        }
+    }, [currentStep]);
+
+    const JAVA_IDENTIFIER = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/;
+    const validateJavaIdentifier = (value: string, field: string) => {
+        if (!value.trim()) return setFieldErrors(prev => ({ ...prev, [field]: 'Required' }));
+        if (!JAVA_IDENTIFIER.test(value.trim()))
+            return setFieldErrors(prev => ({ ...prev, [field]: 'Must be a valid Java identifier (no spaces or special characters)' }));
+        setFieldErrors(prev => { const n = { ...prev }; delete n[field]; return n; });
+    };
 
     const generatePomDependencies = () => {
         const dependencies: string[] = [];
@@ -50,7 +102,7 @@ export default function CodeGenerationDialog({
         <dependency>
             <groupId>io.rest-assured</groupId>
             <artifactId>rest-assured</artifactId>
-            <version>5.3.2</version>
+            <version>${POM_VERSIONS.REST_ASSURED}</version>
             <scope>test</scope>
         </dependency>`);
 
@@ -58,7 +110,7 @@ export default function CodeGenerationDialog({
         <dependency>
             <groupId>org.testng</groupId>
             <artifactId>testng</artifactId>
-            <version>7.8.0</version>
+            <version>${POM_VERSIONS.TESTNG}</version>
             <scope>test</scope>
         </dependency>`);
 
@@ -67,7 +119,7 @@ export default function CodeGenerationDialog({
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
-            <version>1.18.30</version>
+            <version>${POM_VERSIONS.LOMBOK}</version>
             <scope>provided</scope>
         </dependency>`);
 
@@ -75,7 +127,7 @@ export default function CodeGenerationDialog({
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
-            <version>2.15.3</version>
+            <version>${POM_VERSIONS.JACKSON}</version>
         </dependency>`);
         }
 
@@ -84,7 +136,7 @@ export default function CodeGenerationDialog({
         <dependency>
             <groupId>io.rest-assured</groupId>
             <artifactId>json-path</artifactId>
-            <version>5.3.2</version>
+            <version>${POM_VERSIONS.REST_ASSURED}</version>
             <scope>test</scope>
         </dependency>`);
         }
@@ -115,7 +167,7 @@ ${dependencies.join('\n\n')}
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <version>3.0.0</version>
+                <version>${POM_VERSIONS.MAVEN_SUREFIRE}</version>
                 <configuration>
                     <suiteXmlFiles>
                         <suiteXmlFile>testng.xml</suiteXmlFile>
@@ -147,7 +199,7 @@ ${dependencies.join('\n\n')}
             const { data: result } = await apiClient.post(generateEndpoint, {
                 parsed_data: parsedData,
                 config: codeConfig,
-            }, { timeout: 30000 });
+            }, { timeout: GENERATE_TIMEOUT_MS });
 
             if (result.success) {
                 setGeneratedCode(result.generated_code || '');
@@ -163,9 +215,8 @@ ${dependencies.join('\n\n')}
                     : result.error || 'Unknown error';
                 setError('Failed to generate code: ' + errMsg);
             }
-        } catch (err: any) {
-            console.error('Error generating code:', err);
-            setError(err.message || 'Failed to generate code. Please try again.');
+        } catch (err: unknown) {
+            setError(err instanceof Error ? err.message : 'Failed to generate code. Please try again.');
         } finally {
             setIsGenerating(false);
         }
@@ -181,7 +232,7 @@ ${dependencies.join('\n\n')}
         try {
             await navigator.clipboard.writeText(codeToCopy);
             setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
+            setTimeout(() => setCopied(false), 3000);
         } catch (err) {
             console.error('Failed to copy code:', err);
         }
@@ -221,19 +272,12 @@ ${dependencies.join('\n\n')}
         setCurrentStep('config');
         setCopied(false);
         setError('');
+        setFieldErrors({});
     };
 
     const handleClose = () => {
         setCurrentStep('config');
-        setCodeConfig({
-            option: '',
-            className: 'ApiTest',
-            methodName: 'testApiRequest',
-            assertionRequired: true,
-            statusCode: '200',
-            loggingRequired: true,
-            needPojo: false,
-        });
+        setCodeConfig(DEFAULT_CODE_CONFIG);
         setPojoClassName('RequestBody');
         setGeneratedCode('');
         setPojoCode('');
@@ -243,6 +287,7 @@ ${dependencies.join('\n\n')}
         setCopied(false);
         setActiveTab('test');
         setError('');
+        setFieldErrors({});
         onOpenChange(false);
     };
 
@@ -255,12 +300,23 @@ ${dependencies.join('\n\n')}
 
     return (
         <Dialog open={open} onOpenChange={handleClose}>
-            <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+            <DialogContent className="max-w-lg md:max-w-3xl lg:max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
                 <DialogHeader>
                     <DialogTitle>
-                        {currentStep === 'config' ? 'Code Generation Configuration' : 'Generated Code'}
+                        {currentStep === 'config' ? 'Code Generation Configuration' : (
+                            // tabIndex -1 allows programmatic focus without entering the tab order
+                            <span ref={resultHeadingRef} tabIndex={-1} className="outline-none">Generated Code</span>
+                        )}
                     </DialogTitle>
                 </DialogHeader>
+
+                {/* Screen-reader live region */}
+                <div aria-live="polite" aria-atomic="true" className="sr-only">
+                    {isGenerating ? 'Generating code, please wait…'
+                        : currentStep === 'result' ? 'Code generation complete. Review the generated code below.'
+                        : error ? `Error: ${error}`
+                        : ''}
+                </div>
 
                 {currentStep === 'config' ? (
                     <div className="space-y-6 overflow-y-auto flex-1 pr-2">
@@ -330,10 +386,17 @@ ${dependencies.join('\n\n')}
                                         <Input
                                             id="class-name"
                                             value={codeConfig.className}
-                                            onChange={(e) => setCodeConfig({ ...codeConfig, className: e.target.value })}
+                                            onChange={(e) => {
+                                                setCodeConfig({ ...codeConfig, className: e.target.value });
+                                                validateJavaIdentifier(e.target.value, 'className');
+                                            }}
                                             placeholder="ApiTest"
-                                            className="font-mono"
+                                            className={`font-mono ${fieldErrors.className ? 'border-destructive' : ''}`}
+                                            aria-describedby={fieldErrors.className ? 'class-name-error' : undefined}
                                         />
+                                        {fieldErrors.className && (
+                                            <p id="class-name-error" className="text-xs text-destructive mt-1">{fieldErrors.className}</p>
+                                        )}
                                     </div>
                                 )}
 
@@ -344,10 +407,17 @@ ${dependencies.join('\n\n')}
                                     <Input
                                         id="method-name"
                                         value={codeConfig.methodName}
-                                        onChange={(e) => setCodeConfig({ ...codeConfig, methodName: e.target.value })}
+                                        onChange={(e) => {
+                                            setCodeConfig({ ...codeConfig, methodName: e.target.value });
+                                            validateJavaIdentifier(e.target.value, 'methodName');
+                                        }}
                                         placeholder="testApiRequest"
-                                        className="font-mono"
+                                        className={`font-mono ${fieldErrors.methodName ? 'border-destructive' : ''}`}
+                                        aria-describedby={fieldErrors.methodName ? 'method-name-error' : undefined}
                                     />
+                                    {fieldErrors.methodName && (
+                                        <p id="method-name-error" className="text-xs text-destructive mt-1">{fieldErrors.methodName}</p>
+                                    )}
                                 </div>
 
                                 {/* POJO Generation */}
@@ -370,15 +440,23 @@ ${dependencies.join('\n\n')}
 
                                     {codeConfig.needPojo && (
                                         <div className="pl-7 pt-2">
-                                            <label className="text-sm font-medium mb-2 block">
+                                            <label htmlFor="pojo-class-name" className="text-sm font-medium mb-2 block">
                                                 POJO Class Name <span className="text-destructive">*</span>
                                             </label>
                                             <Input
+                                                id="pojo-class-name"
                                                 value={pojoClassName}
-                                                onChange={(e) => setPojoClassName(e.target.value)}
+                                                onChange={(e) => {
+                                                    setPojoClassName(e.target.value);
+                                                    validateJavaIdentifier(e.target.value, 'pojoClassName');
+                                                }}
                                                 placeholder="RequestBody"
-                                                className="font-mono"
+                                                className={`font-mono ${fieldErrors.pojoClassName ? 'border-destructive' : ''}`}
+                                                aria-describedby={fieldErrors.pojoClassName ? 'pojo-class-name-error' : undefined}
                                             />
+                                            {fieldErrors.pojoClassName && (
+                                                <p id="pojo-class-name-error" className="text-xs text-destructive mt-1">{fieldErrors.pojoClassName}</p>
+                                            )}
                                             <p className="text-xs text-muted-foreground mt-1">
                                                 Base name for your POJO classes (e.g., UserRequest, OrderDetails)
                                             </p>
@@ -444,7 +522,7 @@ ${dependencies.join('\n\n')}
                             </Button>
                             <Button
                                 onClick={handleGenerateCodeWithConfig}
-                                disabled={!codeConfig.option || isGenerating || (codeConfig.needPojo && !pojoClassName.trim())}
+                                disabled={!codeConfig.option || isGenerating || (codeConfig.needPojo && !pojoClassName.trim()) || Object.keys(fieldErrors).length > 0}
                                 className="bg-primary"
                             >
                                 {isGenerating ? 'Generating...' : 'Generate Code'}
@@ -463,9 +541,13 @@ ${dependencies.join('\n\n')}
                             </div>
                         )}
 
-                        {/* Tabs */}
-                        <div className="flex gap-1 mb-4 border-b bg-muted/50 rounded-t-md p-1">
+                        {/* Tabs — accessible tab pattern */}
+                        <div role="tablist" aria-label="Generated output tabs" className="flex gap-1 mb-4 border-b bg-muted/50 rounded-t-md p-1">
                             <button
+                                role="tab"
+                                id="tab-test"
+                                aria-selected={activeTab === 'test'}
+                                aria-controls="tabpanel-test"
                                 onClick={() => setActiveTab('test')}
                                 className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${activeTab === 'test'
                                     ? 'bg-primary text-primary-foreground shadow-sm'
@@ -476,6 +558,10 @@ ${dependencies.join('\n\n')}
                             </button>
                             {codeConfig.needPojo && pojoCode && (
                                 <button
+                                    role="tab"
+                                    id="tab-pojo"
+                                    aria-selected={activeTab === 'pojo'}
+                                    aria-controls="tabpanel-pojo"
                                     onClick={() => setActiveTab('pojo')}
                                     className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${activeTab === 'pojo'
                                         ? 'bg-primary text-primary-foreground shadow-sm'
@@ -486,6 +572,10 @@ ${dependencies.join('\n\n')}
                                 </button>
                             )}
                             <button
+                                role="tab"
+                                id="tab-pom"
+                                aria-selected={activeTab === 'pom'}
+                                aria-controls="tabpanel-pom"
                                 onClick={() => setActiveTab('pom')}
                                 className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${activeTab === 'pom'
                                     ? 'bg-primary text-primary-foreground shadow-sm'
@@ -503,35 +593,13 @@ ${dependencies.join('\n\n')}
                                     variant="outline"
                                     size="sm"
                                     onClick={handleCopyCode}
-                                    className="relative overflow-hidden"
+                                    className={copied ? 'text-primary' : ''}
                                 >
-                                    <AnimatePresence mode="wait" initial={false}>
-                                        {copied ? (
-                                            <motion.span
-                                                key="copied"
-                                                initial={{ y: 20, opacity: 0 }}
-                                                animate={{ y: 0, opacity: 1 }}
-                                                exit={{ y: -20, opacity: 0 }}
-                                                transition={{ duration: 0.2 }}
-                                                className="flex items-center text-primary"
-                                            >
-                                                <CheckCircle2 className="w-4 h-4 mr-2" />
-                                                Copied
-                                            </motion.span>
-                                        ) : (
-                                            <motion.span
-                                                key="copy"
-                                                initial={{ y: 20, opacity: 0 }}
-                                                animate={{ y: 0, opacity: 1 }}
-                                                exit={{ y: -20, opacity: 0 }}
-                                                transition={{ duration: 0.2 }}
-                                                className="flex items-center"
-                                            >
-                                                <Copy className="w-4 h-4 mr-2" />
-                                                Copy
-                                            </motion.span>
-                                        )}
-                                    </AnimatePresence>
+                                    {copied ? (
+                                        <><CheckCircle2 className="w-4 h-4 mr-2" />Copied</>
+                                    ) : (
+                                        <><Copy className="w-4 h-4 mr-2" />Copy</>
+                                    )}
                                 </Button>
                                 {canDownload() && (
                                     <Button
@@ -544,10 +612,18 @@ ${dependencies.join('\n\n')}
                                     </Button>
                                 )}
                             </div>
-                            <div className="flex-1 overflow-auto bg-muted/30">
-                                <pre className="text-xs font-mono p-6">
-                                    <code>{activeTab === 'test' ? (completeCode || generatedCode) : activeTab === 'pojo' ? pojoCode : pomDependencies}</code>
-                                </pre>
+                            <div
+                                role="tabpanel"
+                                id={`tabpanel-${activeTab}`}
+                                aria-labelledby={`tab-${activeTab}`}
+                                className="flex-1 overflow-auto bg-muted/30"
+                            >
+                                {/* SECURITY: Rendered via prism-react-renderer which uses React children
+                                    (no dangerouslySetInnerHTML), so XSS is not a concern. */}
+                                <CodeBlock
+                                    code={activeTab === 'test' ? (completeCode || generatedCode) : activeTab === 'pojo' ? pojoCode : pomDependencies}
+                                    language={activeTab === 'pom' ? 'xml' : 'java'}
+                                />
                             </div>
                         </div>
 
@@ -556,13 +632,31 @@ ${dependencies.join('\n\n')}
                             <Button variant="outline" onClick={handleBack}>
                                 ← Back to Config
                             </Button>
-                            <Button variant="outline" onClick={handleClose}>
-                                Close
-                            </Button>
+                            <div className="flex gap-2">
+                                <Button
+                                    variant="outline"
+                                    onClick={() => setFeedbackOpen(true)}
+                                    className="text-muted-foreground hover:text-foreground"
+                                >
+                                    <MessageSquare className="w-4 h-4 mr-2" />
+                                    Feedback
+                                </Button>
+                                <Button variant="outline" onClick={handleClose}>
+                                    Close
+                                </Button>
+                            </div>
                         </div>
                     </div>
                 )}
             </DialogContent>
+
+            <FeedbackDialog
+                open={feedbackOpen}
+                onOpenChange={setFeedbackOpen}
+                generatedCode={completeCode || generatedCode}
+            />
         </Dialog>
     );
 }
+
+export default memo(CodeGenerationDialogInner);
