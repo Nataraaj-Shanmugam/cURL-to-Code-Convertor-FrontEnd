@@ -8,6 +8,7 @@ import { Toaster } from "sonner";
 
 const Playground = lazy(() => import("@/pages/Playground"));
 const EditorPage = lazy(() => import("@/pages/EditorPage"));
+const BatchEditorPage = lazy(() => import("@/pages/BatchEditorPage"));
 
 function PageLoader() {
   return (
@@ -30,6 +31,7 @@ export default function App() {
               <Route path="/" element={<Home />} />
               <Route path="/playground" element={<Playground />} />
               <Route path="/editor" element={<EditorPage />} />
+              <Route path="/batch-editor" element={<BatchEditorPage />} />
             </Routes>
           </Suspense>
         </div>

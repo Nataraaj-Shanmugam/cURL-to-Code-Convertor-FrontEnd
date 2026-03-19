@@ -249,8 +249,35 @@ export const useParsedCurlEditor = (initialData: ParsedCurl | undefined) => {
     setAllExpanded(prev => !prev);
   }, [allExpanded, parsed.data, setBodyCollapsed, setAllExpanded]);
 
+  // Revert a single field to its original value using dot-notation path
+  const revertField = useCallback((path: string) => {
+    const keys = path.split(".");
+    let origValue: unknown = originalParsed;
+    for (const key of keys) {
+      if (origValue == null || typeof origValue !== "object") { origValue = undefined; break; }
+      origValue = (origValue as Record<string, unknown>)[key];
+    }
+    if (keys.length === 1) {
+      const topKey = keys[0] as keyof ParsedCurl;
+      const update = { ...parsed, [topKey]: origValue } as ParsedCurl;
+      setParsed(update);
+    } else {
+      // Deep path — clone and set
+      const clone = structuredClone(parsed) as unknown as Record<string, unknown>;
+      let obj = clone;
+      for (let i = 0; i < keys.length - 1; i++) {
+        const k = keys[i]!;
+        if (typeof obj[k] !== "object" || obj[k] == null) obj[k] = {};
+        obj = obj[k] as Record<string, unknown>;
+      }
+      obj[keys[keys.length - 1]!] = origValue;
+      setParsed(clone as unknown as ParsedCurl);
+    }
+  }, [originalParsed, parsed, setParsed]);
+
   return {
     // State
+    originalParsed,
     parsed,
     selected,
     editing,
@@ -280,6 +307,7 @@ export const useParsedCurlEditor = (initialData: ParsedCurl | undefined) => {
     handleReset,
     undo,
     redo,
+    revertField,
     deleteSection,
     toggleSelect,
     toggleEdit,

@@ -14,7 +14,8 @@
       "Bash(npx vitest:*)",
       "Bash(npx tsc:*)",
       "Bash(npm test:*)",
-      "Bash(npm uninstall:*)"
+      "Bash(npm uninstall:*)",
+      "Bash(find src:*)"
     ]
   }
 }

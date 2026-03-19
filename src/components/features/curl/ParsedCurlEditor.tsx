@@ -15,10 +15,12 @@ import {
 import { useParsedCurlEditor, VALID_SECTIONS } from "@/lib/hooks/useParsedCurlEditor";
 import {
   Edit2, Trash2, Save, Download, Code, FolderPlus,
-  Maximize2, Minimize2, RotateCcw, FileText, Undo2, Redo2, MoreHorizontal,
+  Maximize2, Minimize2, RotateCcw, FileText, Undo2, Redo2, MoreHorizontal, Eye, GitCompare,
 } from "lucide-react";
 import { useState, useMemo, memo, useEffect, useCallback } from "react";
 import CodeGenerationDialog from "./CodeGenerationDialog";
+import RequestPreviewDialog from "./RequestPreviewDialog";
+import DiffViewDialog from "./DiffViewDialog";
 import type { ParsedCurl } from "@/types/curl";
 import { EditorContext } from "./editor/EditorContext";
 import SectionRenderer from "./editor/SectionRenderer";
@@ -49,6 +51,7 @@ function filterMeaningfulEntries(data: Record<string, unknown>): Record<string, 
 function ParsedCurlEditor({ initialData, originalCurl, onBack, onSave }: ParsedCurlEditorProps) {
   const {
     parsed,
+    originalParsed,
     selected,
     editing,
     editedValues,
@@ -73,6 +76,7 @@ function ParsedCurlEditor({ initialData, originalCurl, onBack, onSave }: ParsedC
     handleReset,
     undo,
     redo,
+    revertField,
     deleteSection,
     toggleSelect,
     toggleEdit,
@@ -94,6 +98,8 @@ function ParsedCurlEditor({ initialData, originalCurl, onBack, onSave }: ParsedC
   } = useParsedCurlEditor(initialData);
 
   const [showCodeDialog, setShowCodeDialog] = useState(false);
+  const [showPreviewDialog, setShowPreviewDialog] = useState(false);
+  const [showDiffDialog, setShowDiffDialog] = useState(false);
 
   // Confirmation dialog state — replaces window.confirm
   type ConfirmAction = { type: "reset" } | { type: "deleteSection"; key: string };
@@ -296,6 +302,27 @@ function ParsedCurlEditor({ initialData, originalCurl, onBack, onSave }: ParsedC
 
           {/* Right: Actions */}
           <div className="flex items-center gap-1.5 flex-wrap">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowPreviewDialog(true)}
+              className="gap-1.5"
+              title="Preview request"
+            >
+              <Eye className="w-3.5 h-3.5" />
+              Preview
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowDiffDialog(true)}
+              disabled={!canUndo}
+              className="gap-1.5"
+              title="Review changes"
+            >
+              <GitCompare className="w-3.5 h-3.5" />
+              Changes
+            </Button>
             {/* Primary action — always visible */}
             <Button onClick={() => setShowCodeDialog(true)} size="sm" className="gap-1.5">
               <Code className="w-3.5 h-3.5" />
@@ -392,6 +419,22 @@ function ParsedCurlEditor({ initialData, originalCurl, onBack, onSave }: ParsedC
           open={showCodeDialog}
           onOpenChange={setShowCodeDialog}
           parsedData={parsed}
+        />
+
+        {/* Request Preview Dialog */}
+        <RequestPreviewDialog
+          open={showPreviewDialog}
+          onOpenChange={setShowPreviewDialog}
+          parsedData={parsed}
+        />
+
+        {/* Diff View Dialog */}
+        <DiffViewDialog
+          open={showDiffDialog}
+          onOpenChange={setShowDiffDialog}
+          originalParsed={originalParsed as import("@/types/curl").ParsedCurl}
+          currentParsed={parsed}
+          onRevert={revertField}
         />
 
         {/* Confirmation Dialog */}
