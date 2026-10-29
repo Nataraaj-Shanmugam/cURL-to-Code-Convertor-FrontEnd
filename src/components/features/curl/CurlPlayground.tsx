@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, memo } from "react";
+import { useState, useEffect, useCallback, useRef, memo } from "react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { apiClient } from "@/lib/api/apiClient";
@@ -6,85 +6,142 @@ import { ENV } from "@/lib/env";
 import { EXAMPLE_CURLS, METHOD_COLORS } from "@/constants/curl";
 import { Terminal, Play, RotateCcw, AlertCircle, ChevronRight, Loader2, Upload, Plus, X, Layers } from "lucide-react";
 import ImportDialog from "@/components/features/import/ImportDialog";
+import { parseCurlBatch } from "@/lib/utils/parseCurlBatch";
+import type { BatchParseFailure } from "@/types/batch";
 
 let nextId = 1;
 function createEntry(value = ""): { id: number; value: string } {
   return { id: nextId++, value };
 }
 
+type Entry = { id: number; value: string };
+
 function CurlPlayground() {
-  const [entries, setEntries] = useState<{ id: number; value: string }[]>(() => [createEntry()]);
+  const [entries, setEntries] = useState<Entry[]>(() => [createEntry()]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  // Parse errors for individual commands in a batch, keyed by entry id.
+  const [entryErrors, setEntryErrors] = useState<Record<number, string>>({});
   const [showImportDialog, setShowImportDialog] = useState(false);
   const navigate = useNavigate();
+
+  // A parse can outlive this page; don't navigate on its behalf after the user has left.
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const parseEndpoint = ENV.PARSE_ENDPOINT;
 
   const isMulti = entries.length > 1;
   const filledEntries = entries.filter((e) => e.value.trim());
   const hasAnyContent = filledEntries.length > 0;
+  // Blank entries are ignored: what decides single vs. batch is how many commands were filled in.
+  const isBatchParse = filledEntries.length > 1;
 
-  // Parse single curl → editor
-  const handleParseSingle = useCallback(async () => {
-    const curl = entries[0]?.value.trim();
-    if (!curl) return;
+  // Parse one curl → editor
+  const handleParseSingle = useCallback(
+    async (rawCurl: string) => {
+      const curl = rawCurl.trim();
+      if (!curl) return;
 
-    setLoading(true);
-    setError("");
+      setLoading(true);
+      setError("");
+      setEntryErrors({});
 
-    try {
-      const { data: result } = await apiClient.post(parseEndpoint, { curl });
+      try {
+        const { data: result } = await apiClient.post(parseEndpoint, { curl });
 
-      if (!result.success) {
-        const errMsg = typeof result.error === "object"
-          ? result.error.message
-          : result.error || "Failed to parse cURL";
-        setError(errMsg);
+        if (!result.success) {
+          const errMsg = typeof result.error === "object"
+            ? result.error.message
+            : result.error || "Failed to parse cURL";
+          setError(errMsg);
+          return;
+        }
+
+        const parsed = Array.isArray(result.data) ? result.data[0] : result.data;
+
+        navigate("/editor", {
+          state: { parsed, originalCurl: curl },
+        });
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : "Failed to parse cURL command");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [navigate, parseEndpoint]
+  );
+
+  // Parse several curls → batch editor. Parsing happens here, before navigating, so the batch
+  // editor is handed finished items instead of having to wait on (and re-seed from) an async parse.
+  const parseBatch = useCallback(
+    async (batch: Entry[]) => {
+      // Remember each command's position in the list the user sees; blanks are skipped.
+      const sources = batch
+        .map((entry, position) => ({ entry, position, curl: entry.value.trim() }))
+        .filter((source) => source.curl);
+      if (sources.length === 0) return;
+      if (sources.length === 1) {
+        await handleParseSingle(sources[0]!.curl);
         return;
       }
 
-      const parsed = Array.isArray(result.data) ? result.data[0] : result.data;
+      setLoading(true);
+      setError("");
+      setEntryErrors({});
 
-      navigate("/editor", {
-        state: { parsed, originalCurl: curl },
-      });
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to parse cURL command");
-    } finally {
+      const { items, failures } = await parseCurlBatch(sources.map((s) => s.curl));
+      if (!mountedRef.current) return;
       setLoading(false);
-    }
-  }, [entries, navigate, parseEndpoint]);
 
-  // Parse all curls → batch editor
-  const handleParseAll = useCallback(() => {
-    const curls = entries.map((e) => e.value.trim()).filter(Boolean);
-    if (curls.length === 0) return;
-    if (curls.length === 1) {
-      // Treat single filled entry as single parse
-      setEntries([createEntry(curls[0])]);
-      // Will be handled by handleParseSingle logic on next render, so do it directly
-    }
-    navigate("/batch-editor", { state: { curls } });
-  }, [entries, navigate]);
+      // Report failures against the position the user sees ("Command 3"), not the filtered one.
+      const located: BatchParseFailure[] = failures.map((failure) => ({
+        ...failure,
+        index: sources[failure.index]!.position,
+      }));
 
-  // Smart parse: single → editor, multi → batch
+      if (items.length === 0) {
+        // Nothing to edit: stay here, flag every command that failed.
+        const byEntry: Record<number, string> = {};
+        failures.forEach((failure) => {
+          byEntry[sources[failure.index]!.entry.id] = failure.message;
+        });
+        setEntryErrors(byEntry);
+        setError(`None of the ${sources.length} cURL commands could be parsed.`);
+        return;
+      }
+
+      navigate("/batch-editor", { state: { items, failures: located } });
+    },
+    [handleParseSingle, navigate]
+  );
+
+  // Smart parse: one filled command → editor, several → batch editor
   const handleParse = useCallback(async () => {
-    if (!isMulti) {
-      await handleParseSingle();
-    } else {
-      handleParseAll();
-    }
-  }, [isMulti, handleParseSingle, handleParseAll]);
+    if (loading) return; // the Ctrl/Cmd+Enter shortcut bypasses the disabled button
+    await parseBatch(entries);
+  }, [entries, loading, parseBatch]);
 
   const handleReset = () => {
     setEntries((prev) => [{ id: prev[0]?.id ?? nextId++, value: "" }]);
     setError("");
+    setEntryErrors({});
   };
 
   const updateEntry = (id: number, value: string) => {
     setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, value } : e)));
     setError("");
+    setEntryErrors((prev) => {
+      if (!(id in prev)) return prev;
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
   };
 
   const addEntry = () => {
@@ -95,6 +152,12 @@ function CurlPlayground() {
     setEntries((prev) => {
       if (prev.length <= 1) return prev;
       return prev.filter((e) => e.id !== id);
+    });
+    setEntryErrors((prev) => {
+      if (!(id in prev)) return prev;
+      const next = { ...prev };
+      delete next[id];
+      return next;
     });
   };
 
@@ -117,7 +180,11 @@ function CurlPlayground() {
     <div className="max-w-5xl mx-auto p-4 space-y-6 bg-grid min-h-[calc(100vh-12rem)]">
       {/* Screen-reader live region for async status */}
       <div aria-live="polite" aria-atomic="true" className="sr-only">
-        {loading ? "Parsing cURL command\u2026" : error ? `Error: ${error}` : ""}
+        {loading
+          ? "Parsing cURL command\u2026"
+          : error
+            ? `Error: ${[error, ...Object.values(entryErrors)].join(". ")}`
+            : ""}
       </div>
 
       {/* Header */}
@@ -182,7 +249,20 @@ function CurlPlayground() {
                 isMulti ? "min-h-[100px] sm:min-h-[120px]" : "min-h-[160px] sm:min-h-[220px] lg:min-h-[280px]"
               }`}
               spellCheck={false}
+              aria-invalid={entryErrors[entry.id] ? true : undefined}
             />
+            {entryErrors[entry.id] && (
+              <div
+                role="alert"
+                className="flex items-start gap-2 px-4 py-2 bg-destructive/10 text-destructive text-sm border-t border-destructive/30"
+              >
+                <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                <span>
+                  {isMulti ? `curl-input-${idx + 1}: ` : ""}
+                  {entryErrors[entry.id]}
+                </span>
+              </div>
+            )}
           </div>
         ))}
 
@@ -207,14 +287,14 @@ function CurlPlayground() {
         >
           {loading ? (
             <Loader2 className="w-4 h-4 animate-spin" />
-          ) : isMulti ? (
+          ) : isBatchParse ? (
             <Layers className="w-4 h-4" />
           ) : (
             <Play className="w-4 h-4" />
           )}
           {loading
             ? "Parsing..."
-            : isMulti
+            : isBatchParse
               ? `Parse All (${filledEntries.length})`
               : "Parse cURL"}
         </Button>
@@ -252,7 +332,13 @@ function CurlPlayground() {
           setEntries([createEntry(c)]);
           setError("");
         }}
-        onImportMultiple={(curls) => navigate("/batch-editor", { state: { curls } })}
+        onImportMultiple={(curls) => {
+          // Show the imported commands, then parse them like Parse All would: a command that
+          // fails is reported next to its own input instead of silently disappearing.
+          const imported = curls.map((curl) => createEntry(curl));
+          setEntries(imported);
+          void parseBatch(imported);
+        }}
       />
 
       {/* Example commands — show when all empty, or in multi-mode with any empty entry */}
