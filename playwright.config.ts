@@ -6,7 +6,11 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : undefined,
-  reporter: 'html',
+  // CI: readable log plus an HTML report (uploaded as an artifact on failure).
+  // `open: 'never'` so a local failure doesn't block on serving the report.
+  reporter: process.env.CI
+    ? [['list'], ['html', { open: 'never' }]]
+    : [['html', { open: 'never' }]],
   timeout: 30_000,
 
   use: {

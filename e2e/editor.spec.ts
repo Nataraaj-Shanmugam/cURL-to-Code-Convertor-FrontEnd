@@ -8,15 +8,20 @@ async function navigateToEditor(page: import('@playwright/test').Page) {
   await page.waitForURL(/\/editor/, { timeout: 10_000 });
 }
 
-/** Click an accordion section trigger by its title text */
+/**
+ * Ensure an accordion section is open, by its title text.
+ *
+ * The editor picks its initially-open sections in a mount effect, so the first
+ * `data-state` we observe can be stale: reading it once and clicking would then
+ * close a section that was just opened. Re-read the state on every attempt and
+ * only finish once the section reports `open`.
+ */
 async function expandSection(page: import('@playwright/test').Page, title: string) {
   const trigger = page.locator('button[data-state]', { hasText: title }).first();
-  const state = await trigger.getAttribute('data-state');
-  if (state === 'closed') {
-    await trigger.click();
-    // Wait for accordion animation
-    await page.waitForTimeout(400);
-  }
+  await expect(async () => {
+    if ((await trigger.getAttribute('data-state')) === 'closed') await trigger.click();
+    await expect(trigger).toHaveAttribute('data-state', 'open', { timeout: 1_000 });
+  }).toPass({ timeout: 10_000 });
 }
 
 test.describe('Editor Page', () => {
