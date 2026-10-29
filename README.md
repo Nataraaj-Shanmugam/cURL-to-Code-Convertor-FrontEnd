@@ -14,6 +14,7 @@ A modern web application that parses cURL commands and generates REST Assured te
 - [Features](#-features)
 - [Tech Stack](#-tech-stack)
 - [Getting Started](#-getting-started)
+- [Environment Variables](#environment-variables)
 - [Usage Guide](#-usage-guide)
 - [Project Structure](#-project-structure)
 - [API Integration](#-api-integration)
@@ -212,11 +213,11 @@ cd <project-directory>
 npm install
 ```
 
-3. **Configure API endpoint**
-```typescript
-// src/lib/api/apiClient.ts
-const API_BASE_URL = "http://127.0.0.1:8000"; // Update as needed
-```
+3. **Configure the backend URL**
+
+   `npm run dev` works with no setup and talks to `http://127.0.0.1:8000`. To use a
+   different backend, or for any deployed build, set the variables described in
+   [Environment Variables](#environment-variables).
 
 4. **Start development server**
 ```bash
@@ -225,13 +226,54 @@ npm run dev
 
 5. **Build for production**
 ```bash
-npm run build
+VITE_CURL_CRAFT_API_URL=https://api.example.com npm run build     # production
+VITE_CURL_CRAFT_API_URL=https://api.example.com npm run preprod   # preprod (--mode preprod)
 ```
+The build fails if `VITE_CURL_CRAFT_API_URL` is missing or points at a loopback host.
 
 6. **Preview production build**
 ```bash
 npm run preview
 ```
+
+---
+
+## Environment Variables
+
+All configuration is read through `src/lib/env.ts`. Vite inlines `VITE_*` values at **build time**, so they
+must be set in the environment that runs the build (Vercel: Project Settings > Environment Variables, scoped
+to the environment being built), not at runtime.
+
+| Variable | Default | Replaces (master) | Notes |
+|----------|---------|-------------------|-------|
+| `VITE_CURL_CRAFT_API_URL` | `http://127.0.0.1:8000` (dev only) | same name | Backend base URL. **Required for `production` and `preprod` builds**: `vite build` fails if it is missing, empty, not an absolute http(s) URL, or a loopback host (`localhost`, `127.0.0.0/8`, `::1`, `0.0.0.0`). The default applies to `npm run dev` only. |
+| `VITE_CURL_CRAFT_API_PARSE_ENDPOINT` | `/api/parse` | same name | Parse a cURL command. |
+| `VITE_CURL_CRAFT_API_GENERATE_ENDPOINT` | `/api/generate-from-parsed` | `VITE_CURL_CRAFT_API_GENERATE_FROM_PARSED_ENDPOINT` | **Renamed.** Generate code from parsed data (also used per item by batch generation). |
+| `VITE_CURL_CRAFT_API_FEEDBACK_ENDPOINT` | `/api/feedback` | same name | Submit feedback. |
+| `VITE_CURL_CRAFT_API_BODY_EDIT_ENDPOINT` | `/api/body/edit` | none (new in V3) | Edit a node of the parsed body. |
+| `VITE_CURL_CRAFT_API_BODY_DELETE_ENDPOINT` | `/api/body/delete` | none (new in V3) | Delete a node of the parsed body. |
+
+Only `VITE_CURL_CRAFT_API_URL` normally needs setting; the endpoint paths already default to the backend's routes.
+
+**Master variables V3 no longer reads** (a leftover value is harmless but has no effect; check the Vercel
+project before deploying V3 to it):
+
+| Variable | What happened to it |
+|----------|---------------------|
+| `VITE_CURL_CRAFT_API_GENERATE_FROM_PARSED_ENDPOINT` | Renamed to `VITE_CURL_CRAFT_API_GENERATE_ENDPOINT`. If only the old name is set, V3 silently uses the default path. |
+| `VITE_CURL_CRAFT_API_HEALTH_ENDPOINT` | Ignored. V3 calls `GET /api/health` (hard-coded in `src/pages/Home.tsx`); master defaulted to `/health`. |
+| `VITE_CURL_CRAFT_API_PARSE_AND_GENERATE_ENDPOINT` | Ignored. V3 has no one-shot parse-and-generate call. |
+| `VITE_BE_WARMUP_WAIT_MINS` | Ignored. V3 has no backend warm-up flow. |
+| `VITE_BE_WARMUP_MAX_RETRIES` | Ignored. V3 has no backend warm-up flow. |
+
+**Per environment**
+
+- `npm run dev` loads the committed `.env.development` (localhost backend).
+- `npm run build` (mode `production`) and `npm run preprod` (mode `preprod`) load `.env.production` /
+  `.env.preprod` if present, plus anything in the process environment. `.env.preprod` and
+  `.env.production.local` are git-ignored; `.env.production` is not, so prefer Vercel settings or a
+  `.env.production.local` for per-deployment values. Never put secrets in any `VITE_*` variable: every value
+  is visible in the shipped JavaScript.
 
 ---
 
@@ -461,11 +503,7 @@ All components use Tailwind CSS classes. Modify classes directly in components o
 
 ### API Configuration
 
-Update API base URL in `src/lib/api/apiClient.ts`:
-
-```typescript
-const API_BASE_URL = "https://your-api-domain.com";
-```
+Set `VITE_CURL_CRAFT_API_URL` (see [Environment Variables](#environment-variables)); there is no URL constant to edit in source.
 
 ---
 
