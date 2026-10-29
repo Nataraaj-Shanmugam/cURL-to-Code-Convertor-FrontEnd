@@ -252,6 +252,7 @@ to the environment being built), not at runtime.
 | `VITE_CURL_CRAFT_API_FEEDBACK_ENDPOINT` | `/api/feedback` | same name | Submit feedback. |
 | `VITE_CURL_CRAFT_API_BODY_EDIT_ENDPOINT` | `/api/body/edit` | none (new in V3) | Edit a node of the parsed body. |
 | `VITE_CURL_CRAFT_API_BODY_DELETE_ENDPOINT` | `/api/body/delete` | none (new in V3) | Delete a node of the parsed body. |
+| `VITE_CURL_CRAFT_BODY_API_ENABLED` | off (`true` turns it on) | none (new in V3) | Feature flag. Request-body edits and deletes always apply locally in the editor. When on, they are also mirrored to the two `/api/body/*` endpoints above (fire-and-forget; a failure shows a notice but never blocks or rolls back the edit). Leave off unless the backend needs to see body edits. |
 
 Only `VITE_CURL_CRAFT_API_URL` normally needs setting; the endpoint paths already default to the backend's routes.
 

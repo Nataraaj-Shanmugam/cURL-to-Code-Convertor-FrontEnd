@@ -128,11 +128,6 @@ export const useParsedCurlEditor = (initialData: ParsedCurl | undefined) => {
           }
         }
 
-        if (path.startsWith("data.")) {
-          const success = await editBodyNode(path, finalValue);
-          if (!success) return;
-        }
-
         const keys = path.split(".");
         const newParsed = structuredClone(parsed);
         let obj: unknown = newParsed;
@@ -145,6 +140,10 @@ export const useParsedCurlEditor = (initialData: ParsedCurl | undefined) => {
         const lastKey = keys[keys.length - 1];
         if (lastKey && obj && typeof obj === "object")
           (obj as Record<string, unknown>)[lastKey] = finalValue;
+
+        // The edit is local and final. The backend call (flag-gated) is advisory, so it starts
+        // after the state update and its failure only surfaces as a notice.
+        if (path.startsWith("data.")) void editBodyNode(path, finalValue);
 
         setParsed(newParsed);
         const newEditing = { ...editing };
@@ -181,11 +180,7 @@ export const useParsedCurlEditor = (initialData: ParsedCurl | undefined) => {
   }, [selected, parsed, setParsed]);
 
   const deleteSingle = useCallback(
-    async (path: string) => {
-      if (path.startsWith("data.")) {
-        const success = await deleteBodyNode(path);
-        if (!success) return;
-      }
+    (path: string) => {
       const keys = path.split(".");
       const newParsed = structuredClone(parsed);
       let obj: unknown = newParsed;
@@ -198,6 +193,9 @@ export const useParsedCurlEditor = (initialData: ParsedCurl | undefined) => {
       const lastKey = keys[keys.length - 1];
       if (lastKey && obj && typeof obj === "object")
         delete (obj as Record<string, unknown>)[lastKey];
+      // Local delete is final; the backend call (flag-gated) is advisory and sent with the
+      // pre-delete body, as before.
+      if (path.startsWith("data.")) void deleteBodyNode(path);
       setParsed(newParsed);
       setSelected(prev => {
         const next = new Set(prev);

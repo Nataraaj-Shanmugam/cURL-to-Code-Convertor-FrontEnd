@@ -129,8 +129,8 @@ describe('ParsedCurlEditor', () => {
     });
   });
 
-  describe('body API error display', () => {
-    it('shows body API error when body node delete fails', async () => {
+  describe('body edits', () => {
+    it('deletes a body field locally even when the backend would reject it (flag off by default)', async () => {
       server.use(
         http.post('*/api/body/delete', () =>
           HttpResponse.json({ success: false, error: { message: 'Node not found at path' } })
@@ -139,19 +139,13 @@ describe('ParsedCurlEditor', () => {
       const user = userEvent.setup();
       render(<ParsedCurlEditor initialData={baseParsed} />);
 
-      // The data section auto-opens when data is present — no need to click accordion
-      // Wait for body content to render and find delete buttons
-      await waitFor(() => {
-        const deleteButtons = screen.getAllByRole('button', { name: /Delete name/i });
-        expect(deleteButtons.length).toBeGreaterThan(0);
-      });
-
-      const deleteBtn = screen.getAllByRole('button', { name: /Delete name/i })[0];
+      const deleteBtn = (await screen.findAllByRole('button', { name: /Delete name/i }))[0]!;
       await user.click(deleteBtn);
 
       await waitFor(() => {
-        expect(screen.getByText(/Body API error/i)).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /Delete name/i })).not.toBeInTheDocument();
       });
+      expect(screen.queryByText(/Body API error/i)).not.toBeInTheDocument();
     });
   });
 

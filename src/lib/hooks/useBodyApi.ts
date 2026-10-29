@@ -7,11 +7,17 @@ import { ENV } from "@/lib/env";
 export const toBodyPath = (path: string): string =>
   path.startsWith("data.") ? path.slice(5) : path;
 
-export const useBodyApi = (getBody: () => unknown) => {
+/**
+ * Mirrors body edits/deletes to the backend. This is advisory: callers apply the edit locally
+ * first and must not depend on the result. With `enabled` false (the default, see
+ * `ENV.BODY_API_ENABLED`) no request is made and both calls resolve `true`.
+ */
+export const useBodyApi = (getBody: () => unknown, enabled: boolean = ENV.BODY_API_ENABLED) => {
   const [bodyApiLoading, setBodyApiLoading] = useState(false);
   const [bodyApiError, setBodyApiError] = useState<string | null>(null);
 
   const editBodyNode = async (path: string, value: unknown): Promise<boolean> => {
+    if (!enabled) return true;
     setBodyApiLoading(true);
     setBodyApiError(null);
     try {
@@ -36,6 +42,7 @@ export const useBodyApi = (getBody: () => unknown) => {
   };
 
   const deleteBodyNode = async (path: string): Promise<boolean> => {
+    if (!enabled) return true;
     setBodyApiLoading(true);
     setBodyApiError(null);
     try {
