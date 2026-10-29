@@ -15,12 +15,15 @@ import {
 import { useParsedCurlEditor, VALID_SECTIONS } from "@/lib/hooks/useParsedCurlEditor";
 import {
   Edit2, Trash2, Save, Download, Code, FolderPlus,
-  Maximize2, Minimize2, RotateCcw, FileText, Undo2, Redo2, MoreHorizontal, Eye, GitCompare,
+  Maximize2, Minimize2, RotateCcw, FileText, Undo2, Redo2, MoreHorizontal, Eye, GitCompare, ShieldAlert,
 } from "lucide-react";
 import { useState, useMemo, memo, useEffect, useCallback, useRef } from "react";
 import CodeGenerationDialog from "./CodeGenerationDialog";
 import RequestPreviewDialog from "./RequestPreviewDialog";
 import DiffViewDialog from "./DiffViewDialog";
+import ExportJsonDialog from "./ExportJsonDialog";
+import { MaskedText } from "./editor/SecretValue";
+import { MASK, countRedactions, redactBodyString, redactCurlString } from "@/lib/utils/redaction";
 import type { ParsedCurl } from "@/types/curl";
 import { EditorContext } from "./editor/EditorContext";
 import SectionRenderer from "./editor/SectionRenderer";
@@ -97,7 +100,6 @@ function ParsedCurlEditor({
     deleteSelected,
     deleteSingle,
     handleEditChange,
-    exportData,
     handleAddEntry,
     saveNewEntry,
     handleAddSection,
@@ -114,6 +116,10 @@ function ParsedCurlEditor({
   const [showCodeDialog, setShowCodeDialog] = useState(false);
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
   const [showDiffDialog, setShowDiffDialog] = useState(false);
+  const [showExportDialog, setShowExportDialog] = useState(false);
+
+  // Values redacted before this request was saved (or typed over since): the user must re-enter them.
+  const redactedCount = countRedactions(parsed) + countRedactions(originalCurl);
 
   // Confirmation dialog state — replaces window.confirm
   type ConfirmAction = { type: "reset" } | { type: "deleteSection"; key: string };
@@ -281,11 +287,27 @@ function ParsedCurlEditor({
               <CardTitle className="text-sm text-muted-foreground">Original cURL Command</CardTitle>
             </CardHeader>
             <CardContent>
-              <pre className="text-xs font-mono whitespace-pre-wrap break-all bg-background p-3 rounded border border-border max-h-32 overflow-auto">
-                {originalCurl}
-              </pre>
+              <MaskedText
+                label="original cURL command"
+                text={originalCurl}
+                maskedText={redactCurlString(originalCurl, { placeholder: MASK })}
+                className="text-xs font-mono whitespace-pre-wrap break-all bg-background p-3 rounded border border-border max-h-32 overflow-auto"
+              />
             </CardContent>
           </Card>
+        )}
+
+        {redactedCount > 0 && (
+          <div
+            role="alert"
+            className="flex items-start gap-2 p-3 rounded-lg border border-amber-500/40 bg-amber-500/10 text-sm text-amber-900 dark:text-amber-200"
+          >
+            <ShieldAlert className="w-4 h-4 mt-0.5 shrink-0" aria-hidden="true" />
+            <span>
+              Secret values in this request were redacted when it was saved. Fields marked <strong>Redacted: re-enter
+              value</strong> must be filled in again; code generated now would contain the placeholder.
+            </span>
+          </div>
         )}
 
         {/* Toolbar */}
@@ -382,7 +404,7 @@ function ParsedCurlEditor({
                   Save
                 </Button>
               )}
-              <Button variant="outline" size="sm" onClick={exportData} className="gap-1.5">
+              <Button variant="outline" size="sm" onClick={() => setShowExportDialog(true)} className="gap-1.5">
                 <Download className="w-3.5 h-3.5" />
                 Export
               </Button>
@@ -416,7 +438,7 @@ function ParsedCurlEditor({
                     </DropdownMenuItem>
                   )}
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={exportData}>
+                  <DropdownMenuItem onClick={() => setShowExportDialog(true)}>
                     <Download className="w-4 h-4 mr-2" />
                     Export JSON
                   </DropdownMenuItem>
@@ -456,6 +478,13 @@ function ParsedCurlEditor({
         <RequestPreviewDialog
           open={showPreviewDialog}
           onOpenChange={setShowPreviewDialog}
+          parsedData={parsed}
+        />
+
+        {/* Export JSON Dialog */}
+        <ExportJsonDialog
+          open={showExportDialog}
+          onOpenChange={setShowExportDialog}
           parsedData={parsed}
         />
 
@@ -686,11 +715,18 @@ function ParsedCurlEditor({
                               </div>
                             ) : (
                               <div className="flex items-start gap-2">
-                                <pre className="text-xs whitespace-pre-wrap break-all flex-1">
-                                  {typeof parsed.data === "string"
-                                    ? parsed.data
-                                    : JSON.stringify(parsed.data, null, 2)}
-                                </pre>
+                                <div className="flex-1 min-w-0">
+                                  <MaskedText
+                                    label="request body"
+                                    text={typeof parsed.data === "string" ? parsed.data : JSON.stringify(parsed.data, null, 2)}
+                                    maskedText={
+                                      typeof parsed.data === "string"
+                                        ? redactBodyString(parsed.data, { placeholder: MASK })
+                                        : JSON.stringify(parsed.data, null, 2)
+                                    }
+                                    className="text-xs whitespace-pre-wrap break-all"
+                                  />
+                                </div>
                                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                   <Button
                                     variant="ghost"
