@@ -4,10 +4,12 @@ node_modules
 .pnp.js
 
 # Testing
-coverage
+coverage/
+playwright-report/
+test-results/
 
 # Production
-dist
+dist/
 build
 
 # Misc
@@ -37,3 +39,7 @@ pnpm-debug.log*
 .vite
 
 *.zip
+
+# Local-only artefacts (demo video to be hosted elsewhere; old components archive)
+curlCraftAssuredDemo.mp4
+Archieve/
