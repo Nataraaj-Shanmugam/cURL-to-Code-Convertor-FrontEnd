@@ -298,7 +298,7 @@ describe('CurlPlayground', () => {
       expect(screen.getByText('Try an example:')).toBeInTheDocument();
     });
 
-    it('should navigate to batch-editor when parsing multiple entries', async () => {
+    it('should parse every entry and navigate to batch-editor with the parsed items', async () => {
       renderWithProviders(<CurlPlayground />);
 
       await clickAddEntry();
@@ -311,10 +311,16 @@ describe('CurlPlayground', () => {
       const parseButton = screen.getByText(/Parse All/).closest('button')!;
       await user.click(parseButton);
 
-      expect(mockNavigate).toHaveBeenCalledWith('/batch-editor', {
-        state: {
-          curls: ['curl https://first.com', 'curl https://second.com'],
-        },
+      await waitFor(() => {
+        expect(mockNavigate).toHaveBeenCalledWith('/batch-editor', {
+          state: {
+            items: [
+              { parsed: expect.objectContaining({ method: 'POST', endpoint: '/users' }), originalCurl: 'curl https://first.com' },
+              { parsed: expect.objectContaining({ method: 'POST', endpoint: '/users' }), originalCurl: 'curl https://second.com' },
+            ],
+            failures: [],
+          },
+        });
       });
     });
 
@@ -364,6 +370,137 @@ describe('CurlPlayground', () => {
       expect(screen.getByText('Try an example:')).toBeInTheDocument();
 
       expect(screen.getAllByRole('textbox')).toHaveLength(3);
+    });
+  });
+
+  describe('batch parsing (Parse All)', () => {
+    const fillEntries = async (values: string[]) => {
+      for (let i = 1; i < values.length; i++) {
+        await user.click(screen.getByText('Add another cURL'));
+      }
+      const textareas = screen.getAllByRole('textbox');
+      for (let i = 0; i < values.length; i++) {
+        if (values[i]) await user.type(textareas[i], values[i]);
+      }
+    };
+
+    const parseByCurl = (failing: string[]) =>
+      server.use(
+        http.post('*/api/parse', async ({ request }) => {
+          const { curl } = (await request.json()) as { curl: string };
+          const bad = failing.find((f) => curl.includes(f));
+          if (bad) {
+            return HttpResponse.json(
+              { success: false, error: { code: 'PARSE_ERROR', message: `Cannot parse ${bad}` } },
+              { status: 422 },
+            );
+          }
+          return HttpResponse.json({
+            success: true,
+            data: { method: 'GET', base_url: 'https://a.com', endpoint: `/${curl.split('/').pop()}` },
+          });
+        }),
+      );
+
+    it('routes one filled entry plus one blank entry to the single editor', async () => {
+      renderWithProviders(<CurlPlayground />);
+      await fillEntries(['curl https://api.com/solo', '']);
+
+      // Only one command is filled, so this is a single parse, not "Parse All".
+      expect(screen.queryByText(/Parse All/)).not.toBeInTheDocument();
+      await user.click(screen.getByText('Parse cURL').closest('button')!);
+
+      await waitFor(() => {
+        expect(mockNavigate).toHaveBeenCalledWith('/editor', {
+          state: expect.objectContaining({ originalCurl: 'curl https://api.com/solo' }),
+        });
+      });
+      expect(mockNavigate).not.toHaveBeenCalledWith('/batch-editor', expect.anything());
+    });
+
+    it('parses the filled entry even when it is not the first one', async () => {
+      renderWithProviders(<CurlPlayground />);
+      await fillEntries(['', 'curl https://api.com/second']);
+
+      await user.click(screen.getByText('Parse cURL').closest('button')!);
+
+      await waitFor(() => {
+        expect(mockNavigate).toHaveBeenCalledWith('/editor', {
+          state: expect.objectContaining({ originalCurl: 'curl https://api.com/second' }),
+        });
+      });
+    });
+
+    it('ignores blank entries between filled ones and reports positions as the user sees them', async () => {
+      parseByCurl(['bad']);
+      renderWithProviders(<CurlPlayground />);
+      await fillEntries(['curl https://api.com/a', '', 'curl https://api.com/bad']);
+
+      await user.click(screen.getByText('Parse All (2)').closest('button')!);
+
+      await waitFor(() => {
+        expect(mockNavigate).toHaveBeenCalledWith('/batch-editor', {
+          state: {
+            items: [expect.objectContaining({ originalCurl: 'curl https://api.com/a' })],
+            // The failing command is the third input box, i.e. index 2.
+            failures: [
+              { index: 2, curl: 'curl https://api.com/bad', message: 'Cannot parse bad' },
+            ],
+          },
+        });
+      });
+    });
+
+    it('keeps the commands that parsed when another one fails', async () => {
+      parseByCurl(['broken']);
+      renderWithProviders(<CurlPlayground />);
+      await fillEntries(['curl https://api.com/a', 'curl https://api.com/broken', 'curl https://api.com/c']);
+
+      await user.click(screen.getByText('Parse All (3)').closest('button')!);
+
+      await waitFor(() => expect(mockNavigate).toHaveBeenCalled());
+      const [path, options] = mockNavigate.mock.calls[0];
+      expect(path).toBe('/batch-editor');
+      expect(options.state.items.map((i: { originalCurl: string }) => i.originalCurl)).toEqual([
+        'curl https://api.com/a',
+        'curl https://api.com/c',
+      ]);
+      expect(options.state.failures).toHaveLength(1);
+      expect(options.state.failures[0]).toMatchObject({ index: 1, message: 'Cannot parse broken' });
+    });
+
+    it('stays on the playground and flags each command when none parse', async () => {
+      parseByCurl(['bad']);
+      renderWithProviders(<CurlPlayground />);
+      await fillEntries(['curl https://api.com/bad1', 'curl https://api.com/bad2']);
+
+      await user.click(screen.getByText('Parse All (2)').closest('button')!);
+
+      expect(await screen.findByText('None of the 2 cURL commands could be parsed.')).toBeInTheDocument();
+      expect(screen.getByText(/curl-input-1: Cannot parse bad/)).toBeInTheDocument();
+      expect(screen.getByText(/curl-input-2: Cannot parse bad/)).toBeInTheDocument();
+      expect(mockNavigate).not.toHaveBeenCalled();
+
+      // Editing a command clears only that command's error.
+      await user.type(screen.getAllByRole('textbox')[0], ' ');
+      expect(screen.queryByText(/curl-input-1: Cannot parse bad/)).not.toBeInTheDocument();
+      expect(screen.getByText(/curl-input-2: Cannot parse bad/)).toBeInTheDocument();
+    });
+
+    it('shows a parsing state while the batch is in flight', async () => {
+      server.use(
+        http.post('*/api/parse', async () => {
+          await new Promise((resolve) => setTimeout(resolve, 100));
+          return HttpResponse.json({ success: true, data: { method: 'GET', base_url: 'https://a.com', endpoint: '/' } });
+        }),
+      );
+      renderWithProviders(<CurlPlayground />);
+      await fillEntries(['curl https://a.com/1', 'curl https://a.com/2']);
+
+      await user.click(screen.getByText('Parse All (2)').closest('button')!);
+
+      expect(screen.getByText('Parsing...')).toBeInTheDocument();
+      await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/batch-editor', expect.anything()));
     });
   });
 

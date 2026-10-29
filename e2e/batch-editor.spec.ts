@@ -1,32 +1,113 @@
-import { test, expect, SAMPLE_CURL, SAMPLE_CURL_GET, MOCK_PARSED_CURL, mockApi } from './fixtures';
-import type { Page } from '@playwright/test';
+import { test, expect } from './fixtures';
+import type { Page, Route, Locator } from '@playwright/test';
 
 /**
- * Navigate to /batch-editor by injecting pre-parsed items into route state.
+ * Batch editor, driven through the real UI: every test starts on the Playground, fills in cURL
+ * commands and presses Parse All. Nothing is injected into route state.
  *
- * Note: The batch editor has a known issue where `useBatchEditor(initialItems)`
- * uses a lazy initializer, so items parsed asynchronously via `state.curls`
- * don't propagate. We work around this by providing `state.items` directly.
+ * The backend is mocked at the network layer. `mockBatchApi` replaces the shared fixture's parse
+ * and generate handlers (the last-registered route wins) with ones that respond per command, so
+ * each request in a batch is distinguishable and one of them can fail.
  */
-async function navigateToBatchEditorWithItems(page: Page) {
-  await page.goto('/playground');
-  // Use evaluate to navigate with pre-parsed items via React Router
-  await page.evaluate((mockParsed) => {
-    const items = [
-      { parsed: mockParsed, originalCurl: 'curl -X POST ...' },
-      { parsed: { ...mockParsed, method: 'GET', endpoint: '/users/list' }, originalCurl: 'curl -X GET ...' },
-    ];
-    // React Router stores state in window.history
-    window.history.pushState({ usr: { items } }, '', '/batch-editor');
-    window.dispatchEvent(new PopStateEvent('popstate'));
-  }, MOCK_PARSED_CURL);
 
-  // Wait for batch editor to render
-  await page.waitForTimeout(1000);
+const CURL_USERS = 'curl -X GET "https://api.example.com/users" -H "Accept: application/json"';
+const CURL_ORDERS = 'curl -X POST "https://api.example.com/orders" -H "Content-Type: application/json"';
+const CURL_ITEMS = 'curl -X DELETE "https://api.example.com/items/7"';
+const CURL_SELF_SIGNED = 'curl -k -X GET "https://self-signed.example.com/status"';
+const CURL_BAD = 'invalid-curl-garbage';
+
+function parsedFromCurl(curl: string) {
+  const url = /https?:\/\/[^\s'"\\]+/.exec(curl)?.[0] ?? 'https://api.example.com/';
+  const { origin, pathname } = new URL(url);
+  const method = /-X\s+(\w+)/.exec(curl)?.[1]?.toUpperCase() ?? 'GET';
+  const insecure = /(^|\s)(-k|--insecure)(\s|$)/.test(curl);
+  return {
+    method,
+    url,
+    base_url: origin,
+    endpoint: pathname,
+    headers: { Accept: 'application/json' },
+    ...(insecure ? { ssl_config: { insecure: true } } : {}),
+  };
 }
 
+async function mockBatchApi(page: Page) {
+  await page.route(/\/api\/parse$/, async (route: Route) => {
+    const { curl = '' } = JSON.parse(route.request().postData() ?? '{}');
+    if (curl.includes(CURL_BAD)) {
+      return route.fulfill({
+        status: 422,
+        json: { success: false, error: { code: 'PARSE_ERROR', message: 'Invalid cURL command format' } },
+      });
+    }
+    return route.fulfill({ json: { success: true, data: parsedFromCurl(curl) } });
+  });
+
+  await page.route(/\/api\/generate-from-parsed/, async (route: Route) => {
+    const { parsed_data: parsed, config } = JSON.parse(route.request().postData() ?? '{}');
+    const generated = `import io.restassured.RestAssured;
+import static io.restassured.RestAssured.*;
+import org.testng.annotations.*;
+
+public class ${config.className} {
+    @Test
+    public void ${config.methodName}() {
+        given()
+            .header("Accept", "application/json")
+        .when()
+            .${String(parsed.method).toLowerCase()}("${parsed.url}")
+        .then()
+            .statusCode(200);
+    }
+}`;
+    return route.fulfill({ json: { success: true, generated_code: generated, language: 'java' } });
+  });
+}
+
+/** Fill one textarea per command (adding boxes as needed) and press the parse button. */
+async function enterCurls(page: Page, curls: string[]) {
+  await page.goto('/playground');
+  for (let i = 1; i < curls.length; i++) {
+    await page.getByText('Add another cURL').click();
+  }
+  const boxes = page.locator('textarea');
+  await expect(boxes).toHaveCount(curls.length);
+  for (let i = 0; i < curls.length; i++) {
+    if (curls[i]) await boxes.nth(i).fill(curls[i]!);
+  }
+}
+
+async function parseAll(page: Page, curls: string[]) {
+  await enterCurls(page, curls);
+  const filled = curls.filter(Boolean).length;
+  await page.getByRole('button', { name: new RegExp(`Parse All \\(${filled}\\)`) }).click();
+}
+
+const sidebar = (page: Page) => page.getByRole('list', { name: 'Requests' });
+const sidebarRow = (page: Page, name: string) =>
+  sidebar(page).getByRole('button', { name, exact: true });
+
+/** The remove button only appears on hover, like a user would find it. */
+async function removeRequest(page: Page, name: string) {
+  await sidebarRow(page, name).hover();
+  await page.getByRole('button', { name: `Remove ${name}` }).click();
+}
+
+/** Edit the endpoint of the request currently shown in the editor. */
+async function editEndpoint(page: Page, value: string, { commit = true } = {}) {
+  await page.getByRole('button', { name: 'Edit endpoint' }).click();
+  await page.getByRole('textbox').fill(value);
+  if (commit) await page.getByRole('button', { name: 'Save endpoint' }).click();
+}
+
+const shownCurl = (page: Page, text: string): Locator => page.getByText(text, { exact: false }).first();
+
 test.describe('Batch Editor Page', () => {
-  test.setTimeout(30_000);
+  test.setTimeout(45_000);
+
+  test.beforeEach(async ({ mockPage: page }) => {
+    await mockBatchApi(page);
+  });
 
   // ── Empty state ───────────────────────────────────────────────────────────
 
@@ -44,54 +125,199 @@ test.describe('Batch Editor Page', () => {
     await expect(page).toHaveURL(/\/playground/);
   });
 
-  // ── Loaded batch (via pre-parsed items) ───────────────────────────────────
+  // ── Parse All → batch editor ──────────────────────────────────────────────
 
-  test('loads batch with sidebar showing requests', async ({ mockPage: page }) => {
-    await navigateToBatchEditorWithItems(page);
+  test('Parse All opens the batch editor with every parsed request', async ({ mockPage: page }) => {
+    await parseAll(page, [CURL_USERS, CURL_ORDERS, CURL_ITEMS]);
 
-    await expect(page.getByText('Batch Editor')).toBeVisible();
+    await expect(page).toHaveURL(/\/batch-editor/);
+    await expect(page.getByRole('heading', { name: /No Requests/i })).toHaveCount(0);
+    await expect(page.getByText('Batch Editor', { exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: /Generate All/i })).toBeVisible();
-    await expect(page.getByText('Back to Playground')).toBeVisible();
+
+    await expect(sidebarRow(page, 'GET /users')).toBeVisible();
+    await expect(sidebarRow(page, 'POST /orders')).toBeVisible();
+    await expect(sidebarRow(page, 'DELETE /items/7')).toBeVisible();
+    await expect(sidebar(page).getByRole('listitem')).toHaveCount(3);
+    // The count badge.
+    await expect(page.getByText('3', { exact: true })).toBeVisible();
+    // No errors when everything parsed.
+    await expect(page.getByRole('alert')).toHaveCount(0);
   });
 
-  test('sidebar shows item count badge', async ({ mockPage: page }) => {
-    await navigateToBatchEditorWithItems(page);
+  test('a command that fails to parse is reported and the others are kept', async ({ mockPage: page }) => {
+    await parseAll(page, [CURL_USERS, CURL_BAD, CURL_ORDERS]);
 
-    // Badge showing count of items (use exact match to avoid matching other text containing '2')
-    await expect(page.getByText('2', { exact: true })).toBeVisible();
+    await expect(page).toHaveURL(/\/batch-editor/);
+    await expect(sidebar(page).getByRole('listitem')).toHaveCount(2);
+    await expect(sidebarRow(page, 'GET /users')).toBeVisible();
+    await expect(sidebarRow(page, 'POST /orders')).toBeVisible();
+
+    const alert = page.getByRole('alert');
+    await expect(alert).toContainText('1 command could not be parsed');
+    await expect(alert).toContainText('Command 2: Invalid cURL command format');
+    await expect(alert).toContainText(CURL_BAD);
+
+    await page.getByRole('button', { name: 'Dismiss parse errors' }).click();
+    await expect(alert).toHaveCount(0);
+    await expect(sidebar(page).getByRole('listitem')).toHaveCount(2);
   });
 
-  test('clicking a sidebar item loads it in editor', async ({ mockPage: page }) => {
-    await navigateToBatchEditorWithItems(page);
+  test('when no command parses, the playground stays and flags each one', async ({ mockPage: page }) => {
+    await parseAll(page, [`${CURL_BAD} one`, `${CURL_BAD} two`]);
 
-    // Click the second request in the sidebar
-    const sidebarItem = page.getByText(/\/users\/list/i).first();
-    if (await sidebarItem.isVisible()) {
-      await sidebarItem.click();
-      await page.waitForTimeout(500);
-      // Editor panel should show the request
-      await expect(page.getByText('GET').first()).toBeVisible();
-    }
+    await expect(page).toHaveURL(/\/playground/);
+    await expect(page.getByText('None of the 2 cURL commands could be parsed.', { exact: true })).toBeVisible();
+    await expect(page.getByText(/curl-input-1: Invalid cURL command format/)).toBeVisible();
+    await expect(page.getByText(/curl-input-2: Invalid cURL command format/)).toBeVisible();
+  });
+
+  test('one filled command plus a blank one opens the single editor', async ({ mockPage: page }) => {
+    await enterCurls(page, [CURL_USERS, '']);
+
+    // Only one command is filled in: this is a plain parse, not a batch.
+    await expect(page.getByRole('button', { name: /Parse All/i })).toHaveCount(0);
+    await page.getByRole('button', { name: /Parse cURL/i }).click();
+
+    await expect(page).toHaveURL(/\/editor/);
+    await expect(page).not.toHaveURL(/batch-editor/);
+  });
+
+  test('blank commands between filled ones are ignored', async ({ mockPage: page }) => {
+    await parseAll(page, [CURL_USERS, '', CURL_ORDERS]);
+
+    await expect(page).toHaveURL(/\/batch-editor/);
+    await expect(sidebar(page).getByRole('listitem')).toHaveCount(2);
+    await expect(page.getByRole('alert')).toHaveCount(0);
+  });
+
+  test('importing several requests parses them into the batch editor', async ({ mockPage: page }) => {
+    await page.goto('/playground');
+    await page.getByRole('button', { name: /Import/i }).click();
+
+    const collection = {
+      info: { _postman_id: 'e2e', name: 'E2E' },
+      item: [
+        { name: 'List users', request: { method: 'GET', url: 'https://api.example.com/users' } },
+        { name: 'Create order', request: { method: 'POST', url: 'https://api.example.com/orders' } },
+      ],
+    };
+    await page.getByRole('dialog').getByRole('textbox').fill(JSON.stringify(collection));
+    await page.getByRole('button', { name: /Import Selected \(2\)/ }).click();
+
+    await expect(page).toHaveURL(/\/batch-editor/);
+    await expect(sidebarRow(page, 'GET /users')).toBeVisible();
+    await expect(sidebarRow(page, 'POST /orders')).toBeVisible();
+  });
+
+  // ── Working in the editor ─────────────────────────────────────────────────
+
+  test('the first request is selected and clicking another loads it in the editor', async ({ mockPage: page }) => {
+    await parseAll(page, [CURL_USERS, CURL_ORDERS]);
+
+    await expect(sidebarRow(page, 'GET /users')).toHaveAttribute('aria-current', 'true');
+    await expect(shownCurl(page, 'curl -X GET "https://api.example.com/users"')).toBeVisible();
+
+    await sidebarRow(page, 'POST /orders').click();
+
+    await expect(sidebarRow(page, 'POST /orders')).toHaveAttribute('aria-current', 'true');
+    await expect(shownCurl(page, 'curl -X POST "https://api.example.com/orders"')).toBeVisible();
+    await expect(page.getByText('curl -X GET "https://api.example.com/users"')).toBeHidden();
+  });
+
+  test('edits are kept when switching to another request and back', async ({ mockPage: page }) => {
+    await parseAll(page, [CURL_USERS, CURL_ORDERS]);
+
+    await editEndpoint(page, '/users/v2');
+    await expect(sidebarRow(page, 'GET /users/v2')).toBeVisible();
+
+    await sidebarRow(page, 'POST /orders').click();
+    await sidebarRow(page, 'GET /users/v2').click();
+
+    await expect(page.getByText('/users/v2', { exact: true })).toBeVisible();
+    // The other request was not touched.
+    await expect(sidebarRow(page, 'POST /orders')).toBeVisible();
+  });
+
+  test('a half-typed edit survives switching away and back', async ({ mockPage: page }) => {
+    await parseAll(page, [CURL_USERS, CURL_ORDERS]);
+
+    await editEndpoint(page, '/typing-in-progress', { commit: false });
+    await sidebarRow(page, 'POST /orders').click();
+    await sidebarRow(page, 'GET /users').click();
+
+    await expect(page.getByRole('textbox')).toHaveValue('/typing-in-progress');
+  });
+
+  test('removing a request never makes a later Save overwrite a different one', async ({ mockPage: page }) => {
+    await parseAll(page, [CURL_USERS, CURL_ORDERS, CURL_ITEMS]);
+
+    await sidebarRow(page, 'POST /orders').click();
+    await removeRequest(page, 'GET /users');
+
+    await expect(sidebar(page).getByRole('listitem')).toHaveCount(2);
+    await expect(sidebarRow(page, 'POST /orders')).toHaveAttribute('aria-current', 'true');
+
+    await editEndpoint(page, '/orders/saved');
+    await page.getByRole('button', { name: /^Save$/ }).click();
+
+    await expect(sidebarRow(page, 'POST /orders/saved')).toBeVisible();
+    await expect(sidebarRow(page, 'DELETE /items/7')).toBeVisible();
+    await expect(sidebar(page).getByRole('listitem')).toHaveCount(2);
+  });
+
+  test('removing the selected request selects its neighbour; removing the last shows the empty state', async ({ mockPage: page }) => {
+    await parseAll(page, [CURL_USERS, CURL_ORDERS]);
+
+    await removeRequest(page, 'GET /users');
+    await expect(sidebarRow(page, 'POST /orders')).toHaveAttribute('aria-current', 'true');
+    await expect(shownCurl(page, 'curl -X POST "https://api.example.com/orders"')).toBeVisible();
+
+    await removeRequest(page, 'POST /orders');
+    await expect(page.getByRole('heading', { name: /No Requests/i })).toBeVisible();
   });
 
   test('Back to Playground navigates away', async ({ mockPage: page }) => {
-    await navigateToBatchEditorWithItems(page);
+    await parseAll(page, [CURL_USERS, CURL_ORDERS]);
 
-    await page.getByText('Back to Playground').click();
+    await page.getByRole('button', { name: /Back to Playground/i }).click();
     await expect(page).toHaveURL(/\/playground/);
   });
 
-  // ── Batch via playground navigation (parsing flow) ────────────────────────
+  // ── Generate All ──────────────────────────────────────────────────────────
 
-  test('Parse All from playground navigates to batch-editor page', async ({ mockPage: page }) => {
-    await page.goto('/playground');
+  test('Generate All gives duplicate requests unique method names', async ({ mockPage: page }) => {
+    await parseAll(page, [CURL_USERS, CURL_USERS, CURL_ORDERS]);
 
-    await page.getByText('Add another cURL').click();
-    await page.locator('textarea').first().fill(SAMPLE_CURL);
-    await page.locator('textarea').nth(1).fill(SAMPLE_CURL_GET);
+    await page.getByRole('button', { name: /Generate All/i }).click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog.getByRole('textbox').nth(1)).toHaveValue('testGet_users');
+    await expect(dialog.getByRole('textbox').nth(2)).toHaveValue('testGet_users_2');
+    await dialog.getByRole('button', { name: 'Generate All' }).click();
 
-    await page.getByRole('button', { name: /Parse All/i }).click();
-    // At minimum, we should arrive at the batch-editor URL
-    await expect(page).toHaveURL(/\/batch-editor/, { timeout: 10_000 });
+    const code = dialog.locator('pre');
+    await expect(code).toContainText('public class BatchApiTest');
+    await expect(code).toContainText('public void testGet_users()');
+    await expect(code).toContainText('public void testGet_users_2()');
+    await expect(code).toContainText('public void testPost_orders()');
+  });
+
+  test('Generate All relaxes HTTPS validation only for the request that used -k', async ({ mockPage: page }) => {
+    await parseAll(page, [CURL_USERS, CURL_SELF_SIGNED]);
+
+    await page.getByRole('button', { name: /Generate All/i }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByRole('button', { name: 'Generate All' }).click();
+
+    const code = dialog.locator('pre');
+    await expect(code).toContainText('public void testGet_status()');
+    const text = (await code.textContent()) ?? '';
+    const [usersMethod, statusMethod] = [
+      text.slice(text.indexOf('public void testGet_users()'), text.indexOf('public void testGet_status()')),
+      text.slice(text.indexOf('public void testGet_status()')),
+    ];
+    expect(usersMethod).not.toContain('relaxedHTTPSValidation');
+    expect(statusMethod).toContain('given().relaxedHTTPSValidation()');
+    expect(text).not.toContain('useRelaxedHTTPSValidation');
   });
 });

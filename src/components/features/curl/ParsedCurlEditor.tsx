@@ -17,7 +17,7 @@ import {
   Edit2, Trash2, Save, Download, Code, FolderPlus,
   Maximize2, Minimize2, RotateCcw, FileText, Undo2, Redo2, MoreHorizontal, Eye, GitCompare,
 } from "lucide-react";
-import { useState, useMemo, memo, useEffect, useCallback } from "react";
+import { useState, useMemo, memo, useEffect, useCallback, useRef } from "react";
 import CodeGenerationDialog from "./CodeGenerationDialog";
 import RequestPreviewDialog from "./RequestPreviewDialog";
 import DiffViewDialog from "./DiffViewDialog";
@@ -31,6 +31,13 @@ interface ParsedCurlEditorProps {
   originalCurl?: string;
   onBack?: () => void;
   onSave?: (data: ParsedCurl) => void;
+  /** Called with the current parsed data every time it changes (not on first render). */
+  onChange?: (data: ParsedCurl) => void;
+  /**
+   * When false, the editor ignores global keyboard shortcuts (Ctrl+Z / Ctrl+Y). The batch editor
+   * keeps one editor mounted per visited request, and only the visible one should react.
+   */
+  isActive?: boolean;
 }
 
 // Filter out default/empty values from config sections for display
@@ -48,7 +55,14 @@ function filterMeaningfulEntries(data: Record<string, unknown>): Record<string, 
   return filtered;
 }
 
-function ParsedCurlEditor({ initialData, originalCurl, onBack, onSave }: ParsedCurlEditorProps) {
+function ParsedCurlEditor({
+  initialData,
+  originalCurl,
+  onBack,
+  onSave,
+  onChange,
+  isActive = true,
+}: ParsedCurlEditorProps) {
   const {
     parsed,
     originalParsed,
@@ -116,8 +130,21 @@ function ParsedCurlEditor({ initialData, originalCurl, onBack, onSave }: ParsedC
     setPendingConfirm(null);
   };
 
+  // Report edits to the owner as they happen, so nothing is lost if this editor is hidden or
+  // unmounted before the user presses Save. Comparing against the last value seen (instead of
+  // skipping "the first run") keeps this correct under StrictMode's double-invoked effects.
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+  const lastReportedRef = useRef(parsed);
+  useEffect(() => {
+    if (parsed === lastReportedRef.current) return;
+    lastReportedRef.current = parsed;
+    onChangeRef.current?.(parsed);
+  }, [parsed]);
+
   // Keyboard shortcuts: Ctrl+Z = undo, Ctrl+Y / Ctrl+Shift+Z = redo
   useEffect(() => {
+    if (!isActive) return;
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "z" && !e.shiftKey) {
         e.preventDefault();
@@ -132,7 +159,7 @@ function ParsedCurlEditor({ initialData, originalCurl, onBack, onSave }: ParsedC
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [undo, redo]);
+  }, [undo, redo, isActive]);
 
   const handleSave = () => {
     if (onSave) onSave(parsed);

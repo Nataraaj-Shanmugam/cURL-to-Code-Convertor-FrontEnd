@@ -7,6 +7,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Loader2, Copy, CheckCircle2, AlertCircle } from "lucide-react";
 import { apiClient, GENERATE_TIMEOUT_MS } from "@/lib/api/apiClient";
 import { ENV } from "@/lib/env";
+import { isInsecureCurl, withRelaxedHttps } from "@/lib/utils/insecureFlag";
 import type { BatchItem } from "@/types/batch";
 
 interface BatchCodeGenerationDialogProps {
@@ -46,7 +47,8 @@ function BatchCodeGenerationDialog({
     setIsGenerating(true);
     setProgress(0);
 
-    const results: string[] = [];
+    // `insecure` records, per request, whether its cURL used -k/--insecure.
+    const results: { code: string; insecure: boolean }[] = [];
     let lastPom = "";
 
     for (let i = 0; i < items.length; i++) {
@@ -65,14 +67,23 @@ function BatchCodeGenerationDialog({
           { timeout: GENERATE_TIMEOUT_MS }
         );
         if (result.success && result.generated_code) {
-          results.push(result.generated_code as string);
+          results.push({
+            code: result.generated_code as string,
+            insecure: isInsecureCurl(item.parsed),
+          });
           if (result.pom_dependencies) lastPom = result.pom_dependencies as string;
         } else {
           const errMsg = typeof result.error === "object" ? (result.error as { message: string }).message : result.error ?? "Unknown error";
-          results.push(`// Error generating code for: ${item.name}\n// ${errMsg}`);
+          results.push({
+            code: `// Error generating code for: ${item.name}\n// ${errMsg}`,
+            insecure: false,
+          });
         }
       } catch (e) {
-        results.push(`// Error for: ${item.name}\n// ${e instanceof Error ? e.message : "Unknown error"}`);
+        results.push({
+          code: `// Error for: ${item.name}\n// ${e instanceof Error ? e.message : "Unknown error"}`,
+          insecure: false,
+        });
       }
 
       setProgress(i + 1);
@@ -82,7 +93,7 @@ function BatchCodeGenerationDialog({
     const imports = new Set<string>();
     const methods: string[] = [];
 
-    for (const code of results) {
+    for (const { code, insecure } of results) {
       // Extract import lines
       const importLines = code
         .split("\n")
@@ -93,22 +104,15 @@ function BatchCodeGenerationDialog({
       const methodMatch = code.match(
         /(@Test[\s\S]*?(?=\n\s*@Test|\n\s*public\s+class|\n\s*@Before|\n\s*\/\*\*\s*\*\s*@|$))/
       );
-      if (methodMatch && methodMatch[1]) {
-        methods.push(methodMatch[1].trim());
-      } else {
-        // Fallback: include everything that looks like a method
-        methods.push(code);
-      }
+      const method = methodMatch && methodMatch[1] ? methodMatch[1].trim() : code;
+      // Relax TLS validation per request: RestAssured.useRelaxedHTTPSValidation() is global static
+      // state and would relax every other request in the class too.
+      methods.push(insecure ? withRelaxedHttps(method) : method);
     }
 
     const merged = `${Array.from(imports).join("\n")}
 
 public class ${className} {
-
-    @BeforeClass
-    public void setUp() {
-        RestAssured.useRelaxedHTTPSValidation();
-    }
 
 ${methods.map((m) => "    " + m.replace(/\n/g, "\n    ")).join("\n\n")}
 }`;
