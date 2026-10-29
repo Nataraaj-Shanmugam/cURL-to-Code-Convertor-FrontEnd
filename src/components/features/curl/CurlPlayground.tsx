@@ -148,7 +148,7 @@ function CurlPlayground() {
         {entries.map((entry, idx) => (
           <div
             key={entry.id}
-            className="rounded-lg border border-border overflow-hidden shadow-sm group/card transition-shadow hover:shadow-md"
+            className="rounded-lg border border-border overflow-hidden shadow-sm group/card transition-shadow hover:shadow-md focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-background"
           >
             <div className="flex items-center gap-2 px-4 py-2 bg-muted/50 border-b border-border">
               <div className="flex gap-1.5">
