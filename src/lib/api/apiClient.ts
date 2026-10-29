@@ -10,10 +10,10 @@ function extractErrorMessage(data: Record<string, unknown>): string {
   return (data?.message as string) || 'Request failed';
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function fetchJson(
   url: string,
   init: RequestInit & { timeout?: number },
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): Promise<{ data: any }> {
   const { timeout = DEFAULT_TIMEOUT_MS, ...rest } = init;
   const controller = new AbortController();

@@ -1,4 +1,4 @@
-import { test, expect, SAMPLE_CURL, SAMPLE_CURL_GET, MOCK_PARSED_CURL, mockApi } from './fixtures';
+import { test, expect, SAMPLE_CURL, SAMPLE_CURL_GET, MOCK_PARSED_CURL } from './fixtures';
 import type { Page } from '@playwright/test';
 
 /**

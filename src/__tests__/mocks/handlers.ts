@@ -89,7 +89,7 @@ export const handlers = [
 
   // Generate code endpoint
   http.post('*/api/generate-from-parsed', async ({ request }) => {
-    const body = await request.json() as { parsed_data?: any; config?: any };
+    const body = await request.json() as { parsed_data?: unknown; config?: { option?: string; needPojo?: boolean } };
     const config = body?.config;
 
     if (!config?.option) {
@@ -113,7 +113,7 @@ export const handlers = [
 
   // Body edit endpoint
   http.post('*/api/body/edit', async ({ request }) => {
-    const body = await request.json() as { body?: any; path?: string; value?: any };
+    const body = await request.json() as { body?: unknown; path?: string; value?: unknown };
     if (!body?.path) {
       return HttpResponse.json({
         success: false,
@@ -125,7 +125,7 @@ export const handlers = [
 
   // Body delete endpoint
   http.post('*/api/body/delete', async ({ request }) => {
-    const body = await request.json() as { body?: any; path?: string };
+    const body = await request.json() as { body?: unknown; path?: string };
     if (!body?.path) {
       return HttpResponse.json({
         success: false,

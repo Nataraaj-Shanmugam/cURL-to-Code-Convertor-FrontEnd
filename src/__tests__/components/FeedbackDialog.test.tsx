@@ -114,7 +114,6 @@ describe('FeedbackDialog', () => {
     });
 
     it('requires a rating selection — shows inline error', async () => {
-      const user = userEvent.setup();
       renderDialog();
       // Submit button should be disabled; clicking it does nothing
       expect(screen.getByRole('button', { name: /Submit Feedback/i })).toBeDisabled();

@@ -144,24 +144,15 @@ function ParsedCurlEditor({ initialData, originalCurl, onBack, onSave }: ParsedC
     return key.split("_").map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
   };
 
-  if (!parsed || Object.keys(parsed).length === 0) {
-    return (
-      <div className="p-8 text-center space-y-4">
-        <p className="text-muted-foreground">No parsed data available</p>
-        {onBack && (
-          <Button onClick={onBack} variant="outline">
-            Back to Playground
-          </Button>
-        )}
-      </div>
-    );
-  }
-
+  // Hooks must run on every render, so these memos sit above the empty-state early
+  // return below (rules-of-hooks). Their results are unused while `parsed` is
+  // empty, so they short-circuit in that case.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const missingSections = useMemo(() => getMissingSections(), [parsed]);
+  const missingSections = useMemo(() => (parsed ? getMissingSections() : []), [parsed]);
 
   const sectionsToRender = useMemo(() => {
     const sections: Array<{ key: string; title: string; data: unknown; isFlags?: boolean }> = [];
+    if (!parsed) return sections;
 
     const fixedSections = ["method", "url", "base_url", "endpoint", "path_template"];
     const parsedRecord = parsed as unknown as Record<string, unknown>;
@@ -240,6 +231,19 @@ function ParsedCurlEditor({ initialData, originalCurl, onBack, onSave }: ParsedC
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [editing, editedValues, selected, bodyCollapsed, allExpanded],
   );
+
+  if (!parsed || Object.keys(parsed).length === 0) {
+    return (
+      <div className="p-8 text-center space-y-4">
+        <p className="text-muted-foreground">No parsed data available</p>
+        {onBack && (
+          <Button onClick={onBack} variant="outline">
+            Back to Playground
+          </Button>
+        )}
+      </div>
+    );
+  }
 
   return (
     <EditorContext.Provider value={editorCtx}>

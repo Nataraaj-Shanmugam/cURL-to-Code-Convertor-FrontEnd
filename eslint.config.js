@@ -5,6 +5,19 @@ import reactHooks from "eslint-plugin-react-hooks";
 import tseslint from "typescript-eslint";
 
 export default [
+  // Flat config does not read .eslintignore, so global ignores live here.
+  {
+    ignores: [
+      "node_modules/",
+      "dist/",
+      "build/",
+      ".vite/",
+      "coverage/",
+      "playwright-report/",
+      "test-results/",
+      "Archieve/",
+    ],
+  },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

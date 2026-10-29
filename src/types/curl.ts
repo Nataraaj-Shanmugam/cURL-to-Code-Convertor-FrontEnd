@@ -9,35 +9,35 @@ export interface ParsedCurl {
   base_url: string;
   endpoint: string;
   path_template?: string;
-  path_parameters?: any[];
-  query_params?: Record<string, any>;
+  path_parameters?: unknown[];
+  query_params?: Record<string, unknown>;
   headers?: Record<string, string>;
   data?: string | object;
-  form_data?: Record<string, any>;
-  cookies?: Record<string, any>;
+  form_data?: Record<string, unknown>;
+  cookies?: Record<string, unknown>;
 
   // Config sections — returned by BE as grouped objects
-  auth_config?: Record<string, any>;
-  proxy_config?: Record<string, any>;
-  network_config?: Record<string, any>;
-  ssl_config?: Record<string, any>;
-  transfer_config?: Record<string, any>;
-  protocol_config?: Record<string, any>;
-  output_config?: Record<string, any>;
-  ftp_config?: Record<string, any>;
-  mail_config?: Record<string, any>;
-  misc_flags?: Record<string, any>;
+  auth_config?: Record<string, unknown>;
+  proxy_config?: Record<string, unknown>;
+  network_config?: Record<string, unknown>;
+  ssl_config?: Record<string, unknown>;
+  transfer_config?: Record<string, unknown>;
+  protocol_config?: Record<string, unknown>;
+  output_config?: Record<string, unknown>;
+  ftp_config?: Record<string, unknown>;
+  mail_config?: Record<string, unknown>;
+  misc_flags?: Record<string, unknown>;
 
   // Legacy/defensive fields — not returned by current BE parser
   // but referenced in editor skip-lists for forward compatibility
   raw_data?: string | null;
-  auth?: any;
+  auth?: unknown;
   proxy?: string | null;
   user_agent?: string | null;
   referer?: string | null;
-  flags?: Record<string, any>;
-  all_options?: any[];
-  meta?: Record<string, any> | null;
+  flags?: Record<string, unknown>;
+  all_options?: unknown[];
+  meta?: Record<string, unknown> | null;
 }
 
 
@@ -51,7 +51,7 @@ export interface MultipartField {
 export interface ParsedCurlResponse {
   success: boolean;
   data: ParsedCurl;
-  meta?: Record<string, any>;
+  meta?: Record<string, unknown>;
   error?: ApiError;
 }
 
@@ -61,16 +61,16 @@ export type FilterState = Record<string, boolean>;
 export interface ApiError {
   code: string;
   message: string;
-  details?: any;
+  details?: unknown;
 }
 
 // API Response wrapper type
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
   error?: ApiError | string;
   message?: string;
-  meta?: Record<string, any>;
+  meta?: Record<string, unknown>;
 }
 
 // Code generation response from backend v2.0.0
@@ -80,10 +80,10 @@ export interface CodeGenerationResponse {
   pojo_code?: string;
   complete_code?: string;
   warnings?: string[];
-  structured_json?: any;
+  structured_json?: unknown;
   language?: string;
   error?: string;
-  meta?: Record<string, any>;
+  meta?: Record<string, unknown>;
 }
 
 // Code generation config matching backend v2.0.0
