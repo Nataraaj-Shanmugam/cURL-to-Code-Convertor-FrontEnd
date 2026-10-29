@@ -34,6 +34,11 @@ interface ParsedCurlEditorProps {
   /** Called with the current parsed data every time it changes (not on first render). */
   onChange?: (data: ParsedCurl) => void;
   /**
+   * Called whenever "has unsaved edits" changes (true only while the working copy differs from the
+   * normalised original), and with false on unmount. The owner uses it to guard unload/navigation.
+   */
+  onDirtyChange?: (isDirty: boolean) => void;
+  /**
    * When false, the editor ignores global keyboard shortcuts (Ctrl+Z / Ctrl+Y). The batch editor
    * keeps one editor mounted per visited request, and only the visible one should react.
    */
@@ -61,11 +66,13 @@ function ParsedCurlEditor({
   onBack,
   onSave,
   onChange,
+  onDirtyChange,
   isActive = true,
 }: ParsedCurlEditorProps) {
   const {
     parsed,
     originalParsed,
+    isDirty,
     selected,
     editing,
     editedValues,
@@ -141,6 +148,13 @@ function ParsedCurlEditor({
     lastReportedRef.current = parsed;
     onChangeRef.current?.(parsed);
   }, [parsed]);
+
+  const onDirtyChangeRef = useRef(onDirtyChange);
+  onDirtyChangeRef.current = onDirtyChange;
+  useEffect(() => {
+    onDirtyChangeRef.current?.(isDirty);
+  }, [isDirty]);
+  useEffect(() => () => onDirtyChangeRef.current?.(false), []);
 
   // Keyboard shortcuts: Ctrl+Z = undo, Ctrl+Y / Ctrl+Shift+Z = redo
   useEffect(() => {

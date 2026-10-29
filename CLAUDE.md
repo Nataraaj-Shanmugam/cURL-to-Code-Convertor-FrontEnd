@@ -25,7 +25,7 @@ npm test             # Run tests (Vitest)
 
 **Tech stack:** React 18 + TypeScript (strict) + Vite + Tailwind CSS + shadcn/ui + Framer Motion
 
-**Routing** (React Router v6 in `src/App.tsx`):
+**Routing** (React Router v6; `src/main.tsx` mounts a data router via `createBrowserRouter` + `RouterProvider` with one catch-all route rendering `<App/>`, which owns the `<Routes>` in `src/App.tsx`; the data router is required by `useBlocker`, used for the editor's unsaved-edits guard. Tests render through a memory data router, see `src/__tests__/test-utils.tsx`):
 - `/` → `Home` — Landing page with backend health check
 - `/playground` → `Playground` — cURL input via `CurlPlayground`
 - `/editor` → `EditorPage` — Parsed cURL editor with code generation

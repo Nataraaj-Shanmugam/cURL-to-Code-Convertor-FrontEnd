@@ -5,7 +5,7 @@ import { http, HttpResponse } from 'msw';
 import ParsedCurlEditor from '@/components/features/curl/ParsedCurlEditor';
 import { render } from '../test-utils';
 import { server } from '../mocks/server';
-import { mockParsedCurl } from '../mocks/handlers';
+import { mockParsedCurl, mockParsedCurlStringBody } from '../mocks/handlers';
 import type { ParsedCurl } from '@/types/curl';
 
 const baseParsed: ParsedCurl = {
@@ -146,6 +146,51 @@ describe('ParsedCurlEditor', () => {
         expect(screen.queryByRole('button', { name: /Delete name/i })).not.toBeInTheDocument();
       });
       expect(screen.queryByText(/Body API error/i)).not.toBeInTheDocument();
+    });
+  });
+
+  describe('change tracking with a JSON-string body', () => {
+    const stringBody = mockParsedCurlStringBody as unknown as ParsedCurl;
+
+    it('does not report unsaved changes for an untouched body', async () => {
+      const onDirtyChange = vi.fn();
+      render(<ParsedCurlEditor initialData={stringBody} onDirtyChange={onDirtyChange} />);
+      await screen.findAllByRole('button', { name: /Delete name/i });
+
+      expect(onDirtyChange).toHaveBeenCalledWith(false);
+      expect(onDirtyChange).not.toHaveBeenCalledWith(true);
+    });
+
+    it('reports dirty after an edit and Review Changes lists only that edit (body is not "modified")', async () => {
+      const user = userEvent.setup();
+      const onDirtyChange = vi.fn();
+      render(<ParsedCurlEditor initialData={stringBody} onDirtyChange={onDirtyChange} />);
+
+      await user.click((await screen.findAllByRole('button', { name: /Delete name/i }))[0]!);
+      await waitFor(() => expect(onDirtyChange).toHaveBeenLastCalledWith(true));
+
+      await user.click(screen.getByRole('button', { name: /Changes/i }));
+      const dialog = await screen.findByRole('dialog', { name: /Review Changes/i });
+      const rows = within(dialog).getAllByRole('row').slice(1); // drop header row
+      expect(rows).toHaveLength(1);
+      expect(within(rows[0]!).getByText('data.name')).toBeInTheDocument();
+      expect(within(rows[0]!).getByText('removed')).toBeInTheDocument();
+      expect(within(dialog).queryByText('modified')).not.toBeInTheDocument();
+    });
+
+    it('Reset restores the body object and clears dirty', async () => {
+      const user = userEvent.setup();
+      const onDirtyChange = vi.fn();
+      render(<ParsedCurlEditor initialData={stringBody} onDirtyChange={onDirtyChange} />);
+
+      await user.click((await screen.findAllByRole('button', { name: /Delete name/i }))[0]!);
+      await waitFor(() => expect(onDirtyChange).toHaveBeenLastCalledWith(true));
+
+      await user.click(screen.getByRole('button', { name: /Reset/i }));
+      await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: /^Reset$/ }));
+
+      await waitFor(() => expect(onDirtyChange).toHaveBeenLastCalledWith(false));
+      expect((await screen.findAllByRole('button', { name: /Delete name/i })).length).toBeGreaterThan(0);
     });
   });
 

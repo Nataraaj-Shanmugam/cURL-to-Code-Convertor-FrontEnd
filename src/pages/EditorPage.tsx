@@ -1,6 +1,8 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { useEffect, useMemo, Suspense, lazy } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, Suspense, lazy } from "react";
 import { Terminal, ArrowRight } from "lucide-react";
+import { useUnsavedChangesGuard } from "@/lib/hooks/useUnsavedChangesGuard";
+import UnsavedChangesDialog from "@/components/features/curl/UnsavedChangesDialog";
 
 const ParsedCurlEditor = lazy(() => import("@/components/features/curl/ParsedCurlEditor"));
 
@@ -66,20 +68,26 @@ export default function EditorPage() {
     }
   }, [parsed, originalCurl]);
 
-  // Warn before closing/refreshing with data loaded
-  useEffect(() => {
-    if (!parsed) return;
-    const handler = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-    };
-    window.addEventListener("beforeunload", handler);
-    return () => window.removeEventListener("beforeunload", handler);
-  }, [parsed]);
+  // Unsaved edits: native prompt on unload and a confirm dialog on in-app navigation, both only
+  // while the editor reports real changes against its normalised original.
+  const [isDirty, setIsDirty] = useState(false);
+  const { isBlocked, stay, leave } = useUnsavedChangesGuard(isDirty);
 
+  // Back clears the persisted editor state, but only once the user has actually left.
+  const clearOnLeaveRef = useRef(false);
   const handleBack = () => {
-    clearEditorState();
+    if (isDirty) clearOnLeaveRef.current = true;
+    else clearEditorState();
     navigate('/playground');
   };
+  const handleStay = useCallback(() => {
+    clearOnLeaveRef.current = false;
+    stay();
+  }, [stay]);
+  const handleLeave = useCallback(() => {
+    if (clearOnLeaveRef.current) clearEditorState();
+    leave();
+  }, [leave]);
 
   if (!parsed) {
     return (
@@ -105,12 +113,16 @@ export default function EditorPage() {
   }
 
   return (
-    <Suspense fallback={<EditorSkeleton />}>
-      <ParsedCurlEditor
-        initialData={parsed}
-        originalCurl={originalCurl}
-        onBack={handleBack}
-      />
-    </Suspense>
+    <>
+      <Suspense fallback={<EditorSkeleton />}>
+        <ParsedCurlEditor
+          initialData={parsed}
+          originalCurl={originalCurl}
+          onBack={handleBack}
+          onDirtyChange={setIsDirty}
+        />
+      </Suspense>
+      <UnsavedChangesDialog open={isBlocked} onStay={handleStay} onLeave={handleLeave} />
+    </>
   );
 }

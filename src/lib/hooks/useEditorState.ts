@@ -1,5 +1,6 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useMemo } from "react";
 import type { ParsedCurl } from "@/types/curl";
+import { deepEqual } from "@/lib/utils/deepEqual";
 
 interface EditingState {
   [key: string]: boolean;
@@ -32,10 +33,11 @@ export const parseBodyData = (data: ParsedCurl | undefined): ParsedCurl => {
 };
 
 export const useEditorState = (initialData: ParsedCurl | undefined) => {
-  const initial = parseBodyData(initialData);
-
-  const [originalParsed] = useState<ParsedCurl>((initialData ?? {}) as ParsedCurl);
-  const [parsed, setParsedInternal] = useState<ParsedCurl>(initial);
+  // Both sides are normalised the same way at load. The original used to keep the raw JSON-string
+  // body while the working copy held the parsed object, so an untouched body looked "modified"
+  // in the diff and Reset restored the raw string.
+  const [originalParsed] = useState<ParsedCurl>(() => parseBodyData(initialData));
+  const [parsed, setParsedInternal] = useState<ParsedCurl>(() => structuredClone(originalParsed));
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<EditingState>({});
   const [editedValues, setEditedValues] = useState<EditedValues>({});
@@ -43,10 +45,14 @@ export const useEditorState = (initialData: ParsedCurl | undefined) => {
   const [allExpanded, setAllExpanded] = useState(false);
 
   // Undo/redo history stored in refs to avoid stale-closure issues
-  const historyRef = useRef<ParsedCurl[]>([structuredClone(initial)]);
+  const historyRef = useRef<ParsedCurl[]>([structuredClone(originalParsed)]);
   const historyIndexRef = useRef(0);
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
+
+  // True when the working copy differs from the normalised original. Undoing or reverting back to
+  // the original makes it false again.
+  const isDirty = useMemo(() => !deepEqual(parsed, originalParsed), [parsed, originalParsed]);
 
   const syncHistoryFlags = () => {
     setCanUndo(historyIndexRef.current > 0);
@@ -111,6 +117,7 @@ export const useEditorState = (initialData: ParsedCurl | undefined) => {
   return {
     originalParsed,
     parsed,
+    isDirty,
     setParsed,
     resetParsed,
     undo,

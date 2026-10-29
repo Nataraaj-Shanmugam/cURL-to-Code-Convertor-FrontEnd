@@ -49,6 +49,7 @@ export const useParsedCurlEditor = (initialData: ParsedCurl | undefined) => {
   const {
     originalParsed,
     parsed,
+    isDirty,
     setParsed,
     resetParsed,
     undo,
@@ -277,6 +278,7 @@ export const useParsedCurlEditor = (initialData: ParsedCurl | undefined) => {
     // State
     originalParsed,
     parsed,
+    isDirty,
     selected,
     editing,
     editedValues,
