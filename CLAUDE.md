@@ -35,8 +35,8 @@ Data flows between routes via React Router location state: `navigate('/editor', 
 **State management:** No global store. Uses `useState` for UI state, `useReducer` in `useCodeGenerator` hook for code generation flow, and custom hooks (`useCurlParser`, `useParsedCurlEditor`) for business logic.
 
 **API layer** (`src/lib/api/`):
-- `apiClient.ts` — Axios instance with interceptors; exports `DEFAULT_TIMEOUT_MS` (10s) and `GENERATE_TIMEOUT_MS` (30s)
-- Endpoints configured via env vars: `VITE_CURL_CRAFT_API_URL`, `VITE_CURL_CRAFT_API_PARSE_ENDPOINT`, `VITE_CURL_CRAFT_API_GENERATE_ENDPOINT`, `VITE_CURL_CRAFT_API_FEEDBACK_ENDPOINT`
+- `apiClient.ts` — `fetch` wrapper. Checks status and content type before parsing, throws `ApiError` (`kind`, `status`, `code`, `retryable`) with plain-language messages, retries network errors/timeouts/502/503/504 with jittered backoff when the call passes `retries` (GET defaults to 2, POST to 0; parse and generate use `SAFE_RETRIES`, feedback 1). Timeouts: `DEFAULT_TIMEOUT_MS` (10s), `GENERATE_TIMEOUT_MS` (30s), raised to `COLD_START_TIMEOUT_MS` (20s) until a response shows the backend is awake
+- Endpoints configured via env vars: `VITE_CURL_CRAFT_API_URL`, `VITE_CURL_CRAFT_API_PARSE_ENDPOINT`, `VITE_CURL_CRAFT_API_GENERATE_ENDPOINT`, `VITE_CURL_CRAFT_API_FEEDBACK_ENDPOINT`, `VITE_CURL_CRAFT_API_HEALTH_ENDPOINT`
 - POST `/api/parse` — Parse a cURL string
 - POST `/api/generate-from-parsed` — Generate code from parsed data + config
 - POST `/api/body/edit` — Edit a node in parsed body

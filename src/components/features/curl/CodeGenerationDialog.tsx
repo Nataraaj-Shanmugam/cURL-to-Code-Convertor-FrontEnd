@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Copy, CheckCircle2, Download, AlertCircle, MessageSquare } from "lucide-react";
-import { apiClient, GENERATE_TIMEOUT_MS } from "@/lib/api/apiClient";
+import { apiClient, GENERATE_TIMEOUT_MS, SAFE_RETRIES } from "@/lib/api/apiClient";
 import { ENV } from "@/lib/env";
 import type { ParsedCurl, CodeGenConfig } from "@/types/curl";
 import FeedbackDialog from "@/components/features/feedback/FeedbackDialog";
@@ -199,7 +199,7 @@ ${dependencies.join('\n\n')}
             const { data: result } = await apiClient.post(generateEndpoint, {
                 parsed_data: parsedData,
                 config: codeConfig,
-            }, { timeout: GENERATE_TIMEOUT_MS });
+            }, { timeout: GENERATE_TIMEOUT_MS, retries: SAFE_RETRIES });
 
             if (result.success) {
                 setGeneratedCode(result.generated_code || '');

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, memo } from "react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
-import { apiClient } from "@/lib/api/apiClient";
+import { apiClient, SAFE_RETRIES } from "@/lib/api/apiClient";
 import { ENV } from "@/lib/env";
 import { EXAMPLE_CURLS, METHOD_COLORS } from "@/constants/curl";
 import { Terminal, Play, RotateCcw, AlertCircle, ChevronRight, Loader2, Upload, Plus, X, Layers } from "lucide-react";
@@ -53,7 +53,7 @@ function CurlPlayground() {
       setEntryErrors({});
 
       try {
-        const { data: result } = await apiClient.post(parseEndpoint, { curl });
+        const { data: result } = await apiClient.post(parseEndpoint, { curl }, { retries: SAFE_RETRIES });
 
         if (!result.success) {
           const errMsg = typeof result.error === "object"

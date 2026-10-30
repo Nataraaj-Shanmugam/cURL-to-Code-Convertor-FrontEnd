@@ -1,4 +1,4 @@
-import { apiClient } from "@/lib/api/apiClient";
+import { apiClient, SAFE_RETRIES } from "@/lib/api/apiClient";
 import { ENV } from "@/lib/env";
 import type { ParsedCurl } from "@/types/curl";
 import type { BatchParseFailure, ParsedCurlEntry } from "@/types/batch";
@@ -32,7 +32,7 @@ function errorMessage(error: unknown, fallback: string): string {
 
 async function parseOne(curl: string): Promise<ParseOutcome> {
   try {
-    const { data: result } = await apiClient.post(ENV.PARSE_ENDPOINT, { curl });
+    const { data: result } = await apiClient.post(ENV.PARSE_ENDPOINT, { curl }, { retries: SAFE_RETRIES });
     if (!result?.success) {
       return { ok: false, message: errorMessage(result?.error, "Failed to parse cURL") };
     }

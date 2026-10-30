@@ -14,6 +14,8 @@ export const ENV = {
   API_URL:            env('VITE_CURL_CRAFT_API_URL',                  'http://127.0.0.1:8000'),
   PARSE_ENDPOINT:     env('VITE_CURL_CRAFT_API_PARSE_ENDPOINT',       '/api/parse'),
   GENERATE_ENDPOINT:  env('VITE_CURL_CRAFT_API_GENERATE_ENDPOINT',    '/api/generate-from-parsed'),
+  /** Polled on app load to tell whether the (sleep-prone) backend is awake. Any 2xx or 4xx means it is up. */
+  HEALTH_ENDPOINT:    env('VITE_CURL_CRAFT_API_HEALTH_ENDPOINT',      '/api/health'),
   FEEDBACK_ENDPOINT:  env('VITE_CURL_CRAFT_API_FEEDBACK_ENDPOINT',    '/api/feedback'),
   BODY_EDIT_ENDPOINT: env('VITE_CURL_CRAFT_API_BODY_EDIT_ENDPOINT',   '/api/body/edit'),
   BODY_DELETE_ENDPOINT: env('VITE_CURL_CRAFT_API_BODY_DELETE_ENDPOINT', '/api/body/delete'),
