@@ -1,8 +1,10 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { useCallback, useEffect, useMemo, useRef, useState, Suspense, lazy } from "react";
-import { Terminal, ArrowRight } from "lucide-react";
+import { Terminal, ArrowRight, ShieldCheck } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { useUnsavedChangesGuard } from "@/lib/hooks/useUnsavedChangesGuard";
 import UnsavedChangesDialog from "@/components/features/curl/UnsavedChangesDialog";
+import { clearEditorState, loadEditorState, redactHistoryState, saveEditorState } from "@/lib/utils/editorStorage";
 
 const ParsedCurlEditor = lazy(() => import("@/components/features/curl/ParsedCurlEditor"));
 
@@ -22,32 +24,12 @@ function EditorSkeleton() {
   );
 }
 
-const STORAGE_KEY = "curlcraft_editor_state";
-
-function loadEditorState() {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    return stored ? JSON.parse(stored) : null;
-  } catch {
-    return null;
-  }
-}
-
-function saveEditorState(parsed: unknown, originalCurl?: string) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ parsed, originalCurl }));
-  } catch {
-    // Silently fail if storage is full
-  }
-}
-
-export function clearEditorState() {
-  localStorage.removeItem(STORAGE_KEY);
-}
-
 export default function EditorPage() {
   const location = useLocation();
   const navigate = useNavigate();
+
+  // Persistence: a redacted copy lives in sessionStorage so a reload can restore the request.
+  const [savedCopy, setSavedCopy] = useState<"none" | "saved" | "cleared">("none");
 
   const { parsed, originalCurl } = useMemo(() => {
     const fromRoute = location.state?.parsed;
@@ -63,15 +45,24 @@ export default function EditorPage() {
   }, []);
 
   useEffect(() => {
-    if (parsed) {
-      saveEditorState(parsed, originalCurl);
+    // Once the user has cleared the saved copy, keep it cleared for the rest of this visit.
+    if (parsed && savedCopy !== "cleared") {
+      setSavedCopy(saveEditorState(parsed, originalCurl) ? "saved" : "none");
     }
+    // The router's copy in history.state outlives a reload too: keep only the redacted one there.
+    if (parsed) redactHistoryState();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [parsed, originalCurl]);
 
   // Unsaved edits: native prompt on unload and a confirm dialog on in-app navigation, both only
   // while the editor reports real changes against its normalised original.
   const [isDirty, setIsDirty] = useState(false);
   const { isBlocked, stay, leave } = useUnsavedChangesGuard(isDirty);
+
+  const handleClearSaved = () => {
+    clearEditorState();
+    setSavedCopy("cleared");
+  };
 
   // Back clears the persisted editor state, but only once the user has actually left.
   const clearOnLeaveRef = useRef(false);
@@ -114,6 +105,26 @@ export default function EditorPage() {
 
   return (
     <>
+      {savedCopy !== "none" && (
+        <div className="max-w-6xl mx-auto px-4 pt-4">
+          <div
+            role="status"
+            className="flex items-center justify-between gap-3 flex-wrap rounded-lg border bg-muted/30 px-3 py-2 text-xs text-muted-foreground"
+          >
+            <span className="flex items-center gap-1.5">
+              <ShieldCheck className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+              {savedCopy === "saved"
+                ? "A copy of this request, with secrets redacted, is kept for this browser session so a reload can restore it."
+                : "Saved copy cleared. Reloading this page will not restore this request."}
+            </span>
+            {savedCopy === "saved" && (
+              <Button variant="outline" size="sm" onClick={handleClearSaved}>
+                Clear saved request
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
       <Suspense fallback={<EditorSkeleton />}>
         <ParsedCurlEditor
           initialData={parsed}

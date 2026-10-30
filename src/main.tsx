@@ -12,6 +12,10 @@ import "@fontsource/jetbrains-mono/500.css";
 import "@fontsource/jetbrains-mono/600.css";
 import "@fontsource/jetbrains-mono/700.css";
 import "./index.css";
+import { migrateLegacyEditorState } from "@/lib/utils/editorStorage";
+
+// Earlier versions kept the editor state, secrets included, in localStorage with no expiry.
+migrateLegacyEditorState();
 
 // A data router is required by useBlocker (unsaved-edits guard). One catch-all route renders
 // <App/>, which keeps its own <Routes>, so the route table and lazy loading are unchanged.

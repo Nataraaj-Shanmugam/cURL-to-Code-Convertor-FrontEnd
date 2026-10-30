@@ -23,6 +23,25 @@ describe('CurlPlayground', () => {
     mockNavigate.mockClear();
   });
 
+  describe('data notice', () => {
+    it('states where the cURL goes and that this page does not keep it past the session', () => {
+      renderWithProviders(<CurlPlayground />);
+      const notice = screen.getByTestId('curl-data-notice');
+      expect(notice).toHaveTextContent(/sent to the cURLCraft backend to be parsed/i);
+      expect(notice).toHaveTextContent(/doesn.t store it beyond your browser session/i);
+      expect(notice).not.toHaveTextContent(/retain|delete|never stored/i); // no claims about the backend's retention
+    });
+
+    it('does not write the pasted cURL to either storage', async () => {
+      localStorage.clear();
+      sessionStorage.clear();
+      renderWithProviders(<CurlPlayground />);
+      await user.click(screen.getByRole('textbox'));
+      await user.paste("curl https://api.example.com -H 'Authorization: Bearer playground-secret-1'");
+      expect(JSON.stringify({ ...localStorage, ...sessionStorage })).not.toContain('playground-secret-1');
+    });
+  });
+
   describe('rendering', () => {
     it('should render the playground header', () => {
       renderWithProviders(<CurlPlayground />);

@@ -121,8 +121,10 @@ test.describe('Editor Page', () => {
 
     const exportBtn = page.getByRole('button', { name: /Export/i });
     if (await exportBtn.isVisible()) {
-      const downloadPromise = page.waitForEvent('download');
+      // Export opens a preview (secrets masked) with the download button inside.
       await exportBtn.click();
+      const downloadPromise = page.waitForEvent('download');
+      await page.getByRole('button', { name: /Download JSON/i }).click();
       const download = await downloadPromise;
       expect(download.suggestedFilename()).toContain('.json');
     }
@@ -145,15 +147,14 @@ test.describe('Editor Page', () => {
 
   // ── Editor persistence ────────────────────────────────────────────────────
 
-  test('editor state persists via localStorage', async ({ mockPage: page }) => {
+  test('editor state persists via sessionStorage, redacted, and not via localStorage', async ({ mockPage: page }) => {
     await navigateToEditor(page);
 
-    // Wait for the useEffect to persist
-    await page.waitForTimeout(1000);
-
-    const stored = await page.evaluate(() => localStorage.getItem('curlcraft_editor_state'));
-    expect(stored).not.toBeNull();
-    const parsed = JSON.parse(stored!);
-    expect(parsed.parsed).toBeTruthy();
+    await expect.poll(() => page.evaluate(() => sessionStorage.getItem('curlcraft_editor_state'))).not.toBeNull();
+    const stored = await page.evaluate(() => sessionStorage.getItem('curlcraft_editor_state'));
+    const entry = JSON.parse(stored!);
+    expect(entry.parsed).toBeTruthy();
+    expect(stored).toContain('[REDACTED]');
+    expect(await page.evaluate(() => localStorage.getItem('curlcraft_editor_state'))).toBeNull();
   });
 });
