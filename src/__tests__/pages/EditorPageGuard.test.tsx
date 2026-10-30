@@ -55,6 +55,7 @@ describe('EditorPage unsaved-edits guard', () => {
   let confirmSpy: ReturnType<typeof vi.spyOn>;
   beforeEach(() => {
     localStorage.clear();
+    sessionStorage.clear();
     confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
   });
   afterEach(() => confirmSpy.mockRestore());
@@ -137,15 +138,15 @@ describe('EditorPage unsaved-edits guard', () => {
     const user = userEvent.setup();
     renderEditor();
     await makeEdit(user);
-    await waitFor(() => expect(localStorage.getItem('curlcraft_editor_state')).not.toBeNull());
+    await waitFor(() => expect(sessionStorage.getItem('curlcraft_editor_state')).not.toBeNull());
 
     await user.click(screen.getByRole('button', { name: /← Back/i }));
     await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: /Keep editing/i }));
-    expect(localStorage.getItem('curlcraft_editor_state')).not.toBeNull();
+    expect(sessionStorage.getItem('curlcraft_editor_state')).not.toBeNull();
 
     await user.click(screen.getByRole('button', { name: /← Back/i }));
     await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: /Discard and leave/i }));
     await screen.findByText('Playground page');
-    expect(localStorage.getItem('curlcraft_editor_state')).toBeNull();
+    expect(sessionStorage.getItem('curlcraft_editor_state')).toBeNull();
   });
 });
