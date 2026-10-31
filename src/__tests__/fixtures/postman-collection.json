@@ -1,0 +1,156 @@
+{
+  "info": {
+    "_postman_id": "8f6c1d52-3a41-4c0e-9a77-5d1e0c2b7a10",
+    "name": "Acme Orders API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "1234567"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }]
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "https://orders.acme.test/v2", "type": "string" },
+    { "key": "region", "value": "eu-west", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "Orders",
+      "item": [
+        {
+          "name": "List orders",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "X-Debug", "value": "1", "disabled": true }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/orders?status=on hold&q=a&b&region={{region}}&page=2&verbose=true",
+              "host": ["{{baseUrl}}"],
+              "path": ["orders"],
+              "query": [
+                { "key": "status", "value": "on hold" },
+                { "key": "q", "value": "a&b=c" },
+                { "key": "region", "value": "{{region}}" },
+                { "key": "page", "value": "2" },
+                { "key": "verbose", "value": "true", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get order",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/orders/:orderId/items/:itemId",
+              "host": ["{{baseUrl}}"],
+              "path": ["orders", ":orderId", "items", ":itemId"],
+              "variable": [
+                { "key": "orderId", "value": "A 100/7" },
+                { "key": "itemId", "value": "" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create order",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Idempotency-Key", "value": "{{idempotencyKey}}" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sku\": \"{{sku}}\",\n  \"quantity\": 2\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/orders", "host": ["{{baseUrl}}"], "path": ["orders"] }
+          }
+        },
+        {
+          "name": "Public status",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": "https://status.acme.test/api/status"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "auth": {
+        "type": "apikey",
+        "apikey": [
+          { "key": "key", "value": "X-Admin-Key", "type": "string" },
+          { "key": "value", "value": "{{adminKey}}", "type": "string" },
+          { "key": "in", "value": "header", "type": "string" }
+        ]
+      },
+      "item": [
+        {
+          "name": "Users",
+          "item": [
+            {
+              "name": "Login",
+              "request": {
+                "auth": {
+                  "type": "basic",
+                  "basic": [
+                    { "key": "username", "value": "admin", "type": "string" },
+                    { "key": "password", "value": "s3cret pass", "type": "string" }
+                  ]
+                },
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "urlencoded",
+                  "urlencoded": [
+                    { "key": "grant_type", "value": "password" },
+                    { "key": "scope", "value": "read write" },
+                    { "key": "redirect", "value": "https://x.test/cb?a=1&b=2" },
+                    { "key": "ignored", "value": "x", "disabled": true }
+                  ]
+                },
+                "url": { "raw": "{{baseUrl}}/login", "host": ["{{baseUrl}}"], "path": ["login"] }
+              }
+            },
+            {
+              "name": "Upload avatar",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    { "key": "avatar", "type": "file", "src": "/Users/me/avatar.png" },
+                    { "key": "docs", "type": "file", "src": [] },
+                    { "key": "caption", "value": "Me at work", "type": "text", "contentType": "text/plain" },
+                    { "key": "mention", "value": "@alice", "type": "text" }
+                  ]
+                },
+                "url": { "raw": "{{baseUrl}}/users/me/avatar", "host": ["{{baseUrl}}"], "path": ["users", "me", "avatar"] }
+              }
+            },
+            {
+              "name": "Search (GraphQL)",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "graphql",
+                  "graphql": {
+                    "query": "query Orders($first: Int!) {\n  orders(first: $first) { id total }\n}",
+                    "variables": "{\n  \"first\": 10\n}"
+                  }
+                },
+                "url": { "raw": "https://graphql.acme.test/graphql", "protocol": "https", "host": ["graphql", "acme", "test"], "path": ["graphql"] }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

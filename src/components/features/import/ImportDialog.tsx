@@ -6,10 +6,10 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AlertCircle, Upload, FileText, CheckSquare, Square } from "lucide-react";
 import type { ImportFormat, ImportedRequest } from "@/types/import";
-import { parseInput } from "@/lib/parsers/importUtils";
+import { parseInput, parseEnvironmentText } from "@/lib/parsers/importUtils";
 import { parsePostmanCollection } from "@/lib/parsers/postmanParser";
 import { parseOpenApiSpec } from "@/lib/parsers/openApiParser";
-import type { PostmanCollection, OpenApiSpec } from "@/types/import";
+import type { PostmanCollection, OpenApiSpec, PostmanEnvironment } from "@/types/import";
 
 interface ImportDialogProps {
   open: boolean;
@@ -30,7 +30,6 @@ const METHOD_COLORS: Record<string, string> = {
   OPTIONS: "bg-gray-500/15 text-gray-600 dark:text-gray-400",
 };
 
-const hasPostmanVariables = (curl: string) => /\{\{[^}]+\}\}/.test(curl);
 
 function formatBadge(format: ImportFormat | null) {
   if (!format || format === "unknown") {
@@ -67,9 +66,27 @@ function ImportDialog({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [isParsing, setIsParsing] = useState(false);
+  const [envText, setEnvText] = useState("");
+  const [envError, setEnvError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const envTextRef = useRef("");
+  const envFileInputRef = useRef<HTMLInputElement>(null);
+  // The parsed source stays around so a Postman environment added later can re-resolve the variables.
+  const sourceRef = useRef<{ format: ImportFormat; data: PostmanCollection | OpenApiSpec } | null>(null);
+
+  const convert = (
+    format: ImportFormat,
+    data: PostmanCollection | OpenApiSpec,
+    environment: PostmanEnvironment | null,
+  ): ImportedRequest[] => {
+    if (format === "postman") return parsePostmanCollection(data as PostmanCollection, environment);
+    if (format === "openapi") return parseOpenApiSpec(data as OpenApiSpec);
+    return [];
+  };
 
   const resetState = () => {
+    sourceRef.current = null;
+    setEnvError(null);
     setDetectedFormat(null);
     setRequests([]);
     setSelected(new Set());
@@ -94,12 +111,10 @@ function ImportDialog({
         return;
       }
       setDetectedFormat(result.format);
-      let parsed: ImportedRequest[] = [];
-      if (result.format === "postman") {
-        parsed = parsePostmanCollection(result.data as PostmanCollection);
-      } else if (result.format === "openapi") {
-        parsed = parseOpenApiSpec(result.data as OpenApiSpec);
-      }
+      sourceRef.current = { format: result.format, data: result.data };
+      const { env, error: envProblem } = parseEnvironmentText(envTextRef.current);
+      setEnvError(envProblem ?? null);
+      const parsed = convert(result.format, result.data, env);
       setRequests(parsed);
       setSelected(new Set(parsed.map((r) => r.id)));
     } catch (e) {
@@ -108,6 +123,26 @@ function ImportDialog({
       setIsParsing(false);
     }
   }, []);
+
+  const handleEnvChange = (text: string) => {
+    setEnvText(text);
+    envTextRef.current = text;
+    const { env, error: envProblem } = parseEnvironmentText(text);
+    setEnvError(envProblem ?? null);
+    if (envProblem || !sourceRef.current) return;
+    // Same ids as before, so the user's selection survives re-resolving.
+    setRequests(convert(sourceRef.current.format, sourceRef.current.data, env));
+  };
+
+  const handleEnvFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > MAX_FILE_SIZE) {
+      setEnvError("File is too large (max 5 MB).");
+      return;
+    }
+    handleEnvChange(await file.text());
+  };
 
   const handlePasteChange = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -161,12 +196,16 @@ function ImportDialog({
     onOpenChange(false);
     resetState();
     setPasteText("");
+    setEnvText("");
+    envTextRef.current = "";
   };
 
   const handleClose = () => {
     onOpenChange(false);
     resetState();
     setPasteText("");
+    setEnvText("");
+    envTextRef.current = "";
   };
 
   // Group requests by folder for display
@@ -179,6 +218,11 @@ function ImportDialog({
     },
     {} as Record<string, ImportedRequest[]>
   );
+
+  const selectedRequests = requests.filter((r) => selected.has(r.id));
+  const unresolvedRequests = requests.filter((r) => (r.unresolvedVariables?.length ?? 0) > 0);
+  const unresolvedNames = Array.from(new Set(unresolvedRequests.flatMap((r) => r.unresolvedVariables ?? [])));
+  const selectedUnresolved = selectedRequests.filter((r) => (r.unresolvedVariables?.length ?? 0) > 0).length;
 
   const selectedCount = selected.size;
   const allSelected = requests.length > 0 && selected.size === requests.length;
@@ -255,11 +299,65 @@ function ImportDialog({
           </div>
         )}
 
+        {/* Postman environment: resolves {{variables}} the collection itself does not define */}
+        {detectedFormat === "postman" && (
+          <div className="space-y-1.5 shrink-0">
+            <div className="flex items-center justify-between">
+              <label htmlFor="postman-env" className="text-xs font-medium">
+                Postman environment <span className="text-muted-foreground font-normal">(optional)</span>
+              </label>
+              <Button variant="ghost" size="sm" className="text-xs h-6" onClick={() => envFileInputRef.current?.click()}>
+                Choose file
+              </Button>
+              <input
+                ref={envFileInputRef}
+                type="file"
+                accept=".json"
+                aria-label="Choose environment file"
+                onChange={handleEnvFile}
+                className="hidden"
+              />
+            </div>
+            <textarea
+              id="postman-env"
+              value={envText}
+              onChange={(e) => handleEnvChange(e.target.value)}
+              placeholder='Paste an exported environment ({"values": [...]}) to resolve {{variables}}'
+              className="font-mono text-xs min-h-[56px] resize-y w-full rounded-md border border-input bg-background px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring"
+              spellCheck={false}
+            />
+            {envError && (
+              <p role="alert" className="text-xs text-destructive">
+                {envError}
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Error display */}
         {error && (
           <div className="flex items-start gap-2 p-3 bg-destructive/10 text-destructive rounded-md text-sm border border-destructive/30 shrink-0">
             <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
             <span>{error}</span>
+          </div>
+        )}
+
+        {unresolvedNames.length > 0 && (
+          <div
+            role="status"
+            data-testid="unresolved-variables"
+            className="flex items-start gap-2 p-3 bg-yellow-500/10 text-yellow-800 dark:text-yellow-300 rounded-md text-sm border border-yellow-500/30 shrink-0"
+          >
+            <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+            <span>
+              {unresolvedRequests.length} of {requests.length} request{requests.length !== 1 ? "s" : ""} still contain
+              unresolved variables
+              {selectedUnresolved !== unresolvedRequests.length ? ` (${selectedUnresolved} selected)` : ""}:{" "}
+              <span className="font-mono">{unresolvedNames.join(", ")}</span>.{" "}
+              {detectedFormat === "postman"
+                ? "Add a Postman environment above, or fill them in after import."
+                : "Fill them in after import."}
+            </span>
           </div>
         )}
 
@@ -319,9 +417,20 @@ function ImportDialog({
                       <span className="text-xs text-muted-foreground font-mono truncate max-w-[160px]">
                         {req.url}
                       </span>
-                      {hasPostmanVariables(req.curlCommand) && (
-                        <Badge className="bg-yellow-500/15 text-yellow-700 dark:text-yellow-400 border-0 text-[9px] shrink-0">
-                          vars
+                      {(req.unresolvedVariables?.length ?? 0) > 0 && (
+                        <Badge
+                          title={`Unresolved: ${req.unresolvedVariables!.join(", ")}`}
+                          className="bg-yellow-500/15 text-yellow-700 dark:text-yellow-400 border-0 text-[9px] shrink-0"
+                        >
+                          {req.unresolvedVariables!.length} unresolved
+                        </Badge>
+                      )}
+                      {(req.warnings?.length ?? 0) > 0 && (
+                        <Badge
+                          title={req.warnings!.join("\n")}
+                          className="bg-orange-500/15 text-orange-700 dark:text-orange-400 border-0 text-[9px] shrink-0"
+                        >
+                          note
                         </Badge>
                       )}
                     </label>

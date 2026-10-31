@@ -7,7 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Copy, CheckCircle2 } from "lucide-react";
 import type { ParsedCurl } from "@/types/curl";
 import { buildFullUrl } from "@/lib/utils/urlBuilder";
-import { reconstructCurl } from "@/lib/utils/curlReconstructor";
+import { bodyToString, reconstructCurl } from "@/lib/utils/curlReconstructor";
 import { MASK, redactFieldValue, redactParsedCurl, redactText } from "@/lib/utils/redaction";
 import { MaskedText, RevealToggle } from "./editor/SecretValue";
 
@@ -76,29 +76,17 @@ function RequestPreviewDialog({ open, onOpenChange, parsedData }: RequestPreview
 
   const hasHeaders = parsedData.headers && Object.keys(parsedData.headers).length > 0;
   const hasCookies = parsedData.cookies && Object.keys(parsedData.cookies).length > 0;
-  const hasBody =
-    !!parsedData.data ||
-    (parsedData.form_data && Object.keys(parsedData.form_data).length > 0);
+  const hasForm = !!parsedData.form_data && Object.keys(parsedData.form_data).length > 0;
+  const hasBody = bodyToString(parsedData.data) !== "" || hasForm;
 
-  const bodyStr = parsedData.data
-    ? typeof parsedData.data === "object"
-      ? JSON.stringify(parsedData.data, null, 2)
-      : String(parsedData.data)
-    : parsedData.form_data
-    ? JSON.stringify(parsedData.form_data, null, 2)
-    : "";
+  const bodyStr = bodyToString(parsedData.data) || (hasForm ? JSON.stringify(parsedData.form_data, null, 2) : "");
 
   // On screen, secrets are masked (each block has its own reveal toggle). Copy is unchanged unless asked.
   const maskedParsed = redactParsedCurl(parsedData, { placeholder: MASK });
   const maskedUrl = redactText(fullUrl, { placeholder: MASK });
   const maskedReconstructed = reconstructCurl(maskedParsed);
-  const maskedBodyStr = maskedParsed.data
-    ? typeof maskedParsed.data === "object"
-      ? JSON.stringify(maskedParsed.data, null, 2)
-      : String(maskedParsed.data)
-    : maskedParsed.form_data
-    ? JSON.stringify(maskedParsed.form_data, null, 2)
-    : "";
+  const maskedBodyStr =
+    bodyToString(maskedParsed.data) || (hasForm ? JSON.stringify(maskedParsed.form_data, null, 2) : "");
 
   const handleCopyCurl = async () => {
     try {
