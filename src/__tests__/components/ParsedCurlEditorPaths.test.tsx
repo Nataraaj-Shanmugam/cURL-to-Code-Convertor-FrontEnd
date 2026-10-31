@@ -56,7 +56,7 @@ describe('ParsedCurlEditor field paths', () => {
   it('offers no Add Entry on Request Details (QF-13)', () => {
     render(<ParsedCurlEditor initialData={parsed} />);
     const header = screen.getByRole('button', { name: /Request Details/ }).closest('h3')!;
-    expect(within(header).queryByRole('button', { name: 'Add Entry' })).toBeNull();
+    expect(within(header).queryByRole('button', { name: /Add Entry/ })).toBeNull();
   });
 
   it('asks before replacing a header that differs only by case (QF-23)', async () => {
@@ -64,8 +64,7 @@ describe('ParsedCurlEditor field paths', () => {
     const onChange = vi.fn();
     render(<ParsedCurlEditor initialData={parsed} onChange={onChange} />);
 
-    const header = screen.getByRole('button', { name: /^Headers/ }).closest('h3')!;
-    await user.click(within(header).getByRole('button', { name: 'Add Entry' }));
+    await user.click(screen.getByRole('button', { name: 'Add Entry to Headers' }));
     const dialog = screen.getByRole('dialog');
     const [keyInput, valueInput] = within(dialog).getAllByRole('textbox');
     await user.type(keyInput!, 'accept');

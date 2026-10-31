@@ -28,6 +28,7 @@ import type { ParsedCurl } from "@/types/curl";
 import { EditorContext } from "./editor/EditorContext";
 import SectionRenderer from "./editor/SectionRenderer";
 import BodyFieldNode from "./editor/BodyFieldNode";
+import { ROW_ACTIONS_VISIBILITY } from "./editor/rowActions";
 import { encodePath } from "@/lib/utils/fieldPath";
 import { isBlockedByModal, isTextEntryTarget } from "@/lib/utils/shortcuts";
 
@@ -687,38 +688,32 @@ function ParsedCurlEditor({
                     : Object.keys(parsed.data).length > 0
                   : parsed.data) && (
                   <AccordionItem value="data" className="border-l-2 border-l-indigo-500 pl-2">
-                    <AccordionTrigger>
-                      <div className="flex items-center justify-between w-full pr-2">
-                        <span className="flex items-center gap-2">
-                          <FileText className="w-4 h-4 text-muted-foreground" />
-                          Request Body
-                        </span>
-                        <div className="flex gap-2" onClick={e => e.stopPropagation()}>
-                          <button
-                            type="button"
-                            className="h-7 px-3 inline-flex items-center justify-center rounded-md text-xs font-medium hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                            aria-label={
-                              allExpanded ? "Collapse all body nodes" : "Expand all body nodes"
-                            }
-                            onClick={e => {
-                              e.stopPropagation();
-                              handleBodyExpandCollapseAll();
-                            }}
-                          >
-                            {allExpanded ? (
-                              <>
-                                <Minimize2 className="h-3 w-3 mr-1" />
-                                Collapse All
-                              </>
-                            ) : (
-                              <>
-                                <Maximize2 className="h-3 w-3 mr-1" />
-                                Expand All
-                              </>
-                            )}
-                          </button>
-                        </div>
-                      </div>
+                    <AccordionTrigger
+                      actions={
+                        <button
+                          type="button"
+                          className="h-7 px-3 inline-flex items-center justify-center rounded-md text-xs font-medium hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          aria-label={allExpanded ? "Collapse all body nodes" : "Expand all body nodes"}
+                          onClick={handleBodyExpandCollapseAll}
+                        >
+                          {allExpanded ? (
+                            <>
+                              <Minimize2 className="h-3 w-3 mr-1" aria-hidden="true" />
+                              Collapse All
+                            </>
+                          ) : (
+                            <>
+                              <Maximize2 className="h-3 w-3 mr-1" aria-hidden="true" />
+                              Expand All
+                            </>
+                          )}
+                        </button>
+                      }
+                    >
+                      <span className="flex items-center gap-2">
+                        <FileText className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
+                        Request Body
+                      </span>
                     </AccordionTrigger>
                     <AccordionContent>
                       {bodyApiError && (
@@ -770,7 +765,7 @@ function ParsedCurlEditor({
                                     className="text-xs whitespace-pre-wrap break-all"
                                   />
                                 </div>
-                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div className={`flex gap-1 ${ROW_ACTIONS_VISIBILITY}`}>
                                   <Button
                                     variant="ghost"
                                     size="icon"

@@ -5,6 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Edit2, Trash2, Save } from "lucide-react";
 import { useEditorContext } from "./EditorContext";
+import { ROW_ACTIONS_VISIBILITY } from "./rowActions";
 import { RevealToggle } from "./SecretValue";
 import { MASK, countRedactions, isSecretField, redactFieldValue } from "@/lib/utils/redaction";
 import { decodePath, toDisplayPath } from "@/lib/utils/fieldPath";
@@ -99,7 +100,7 @@ function EditableField({ label, value, path }: EditableFieldProps) {
         )}
       </div>
 
-      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className={`flex gap-1 ${ROW_ACTIONS_VISIBILITY}`}>
         <Button
           variant="ghost"
           size="icon"

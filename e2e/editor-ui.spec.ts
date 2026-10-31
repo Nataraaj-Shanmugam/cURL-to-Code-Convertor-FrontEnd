@@ -47,3 +47,30 @@ for (const size of [
     await expect(page.getByRole('dialog').getByRole('combobox')).toHaveText(lastName);
   });
 }
+
+// QU-2 / QU-26 / T59: focused row actions are visible; accordion triggers get the teal ring.
+test('a keyboard-focused Edit button is visible and triggers show the brand focus ring', async ({ mockPage: page }) => {
+  await openEditor(page);
+  const edit = page.getByRole('button', { name: 'Edit Content-Type' });
+  await edit.focus();
+  await expect(edit.locator('..')).toHaveCSS('opacity', '1');
+
+  const trigger = page.getByRole('button', { name: 'Headers', exact: true });
+  await trigger.focus();
+  await page.keyboard.press('Shift+Tab');
+  await page.keyboard.press('Tab');
+  await expect(trigger).toBeFocused();
+  const shadow = await trigger.evaluate(el => getComputedStyle(el).boxShadow);
+  expect(shadow).not.toBe('none');
+});
+
+test.describe('on a touch device', () => {
+  test.use({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } });
+
+  test('row Edit / Delete actions are shown without hover', async ({ mockPage: page }) => {
+    await openEditor(page);
+    const isHoverNone = await page.evaluate(() => matchMedia('(hover: none)').matches);
+    test.skip(!isHoverNone, 'this browser does not report (hover: none) under touch emulation');
+    await expect(page.getByRole('button', { name: 'Edit Content-Type' }).locator('..')).toHaveCSS('opacity', '1');
+  });
+});

@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Edit2, Trash2, Save, ChevronDown, ChevronRight } from "lucide-react";
 import { useEditorContext } from "./EditorContext";
+import { ROW_ACTIONS_VISIBILITY } from "./rowActions";
 import { RevealToggle } from "./SecretValue";
 import { MASK, countRedactions, isSecretField, redactFieldValue } from "@/lib/utils/redaction";
 import { decodePath, encodePath, toDisplayPath } from "@/lib/utils/fieldPath";
@@ -59,7 +60,7 @@ function BodyFieldNode({ fieldKey, value, path, level = 0 }: BodyFieldNodeProps)
             </span>
           </span>
 
-          <div className="ml-auto flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className={`ml-auto flex gap-0.5 ${ROW_ACTIONS_VISIBILITY}`}>
             <Button
               variant="ghost"
               size="icon"
@@ -144,7 +145,7 @@ function BodyFieldNode({ fieldKey, value, path, level = 0 }: BodyFieldNodeProps)
         {isSecret && <RevealToggle label={fieldKey} revealed={revealed} onToggle={() => setRevealed(r => !r)} />}
       </div>
 
-      <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className={`flex gap-0.5 ${ROW_ACTIONS_VISIBILITY}`}>
         <Button
           variant="ghost"
           size="icon"
