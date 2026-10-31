@@ -6,11 +6,12 @@ import { ENV } from "@/lib/env";
 import { EXAMPLE_CURLS } from "@/constants/curl";
 import { Alert } from "@/components/ui/alert";
 import { MethodBadge } from "@/components/ui/method-badge";
-import { Terminal, Play, RotateCcw, ChevronRight, Loader2, Upload, Plus, X, Layers, ShieldCheck } from "lucide-react";
+import { Terminal, Play, RotateCcw, ChevronRight, Loader2, Upload, Plus, X, Layers, ShieldCheck, Copy } from "lucide-react";
 import ImportDialog from "@/components/features/import/ImportDialog";
 import { parseCurlBatch } from "@/lib/utils/parseCurlBatch";
 import type { BatchParseFailure } from "@/types/batch";
 import { redactCurlString } from "@/lib/utils/redaction";
+import { copyToClipboard } from "@/lib/utils/notify";
 import type { FeedbackLocationState } from "@/constants/feedback";
 
 let nextId = 1;
@@ -19,6 +20,8 @@ function createEntry(value = ""): { id: number; value: string } {
 }
 
 type Entry = { id: number; value: string };
+
+const lineCount = (text: string) => text.split("\n").length;
 
 /**
  * "Report this cURL" on a parse error: opens /feedback as a bug report with the command available
@@ -249,6 +252,22 @@ function CurlPlayground() {
                 {commandLabel(idx)}
               </label>
               <div className="flex-1" />
+              {entry.value.trim() && (
+                <>
+                  <span className="text-xs text-muted-foreground font-mono" data-testid="line-count">
+                    {lineCount(entry.value)} {lineCount(entry.value) === 1 ? "line" : "lines"}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => void copyToClipboard(entry.value, "cURL command")}
+                    className="-my-1 inline-flex h-7 items-center gap-1 rounded px-2 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    aria-label={`Copy ${commandLabel(idx)}`}
+                  >
+                    <Copy className="w-3 h-3" aria-hidden="true" />
+                    Copy
+                  </button>
+                </>
+              )}
               {entries.length > 1 && (
                 <button
                   type="button"

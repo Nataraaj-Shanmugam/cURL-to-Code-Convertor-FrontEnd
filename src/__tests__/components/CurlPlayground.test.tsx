@@ -42,6 +42,32 @@ describe('CurlPlayground', () => {
     });
   });
 
+  describe('examples and Copy (QR-7)', () => {
+    it.each([
+      ['PUT with XML Body', /-X PUT .*application\/xml.* -d '<user><name>Jane Doe<\/name>/],
+      ['Nested JSON Body', /-d '\{"person": \{"name": "Jane", "age": 28, "city": \{"city": "Chennai"/],
+      ['Form Data Upload', /-F "file=@document\.pdf" -F "category=documents"/],
+      ['Query Parameters', /search\?q=test&page=1&limit=10/],
+    ])('offers the %s example and fills the input with it', async (label, expected) => {
+      renderWithProviders(<CurlPlayground />);
+      await user.click(screen.getByText(label));
+      expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toMatch(expected);
+    });
+
+    it('shows a line count and a Copy button once there is a command, and copies it', async () => {
+      renderWithProviders(<CurlPlayground />);
+      expect(screen.queryByRole('button', { name: /^Copy cURL command/ })).not.toBeInTheDocument();
+      expect(screen.queryByTestId('line-count')).not.toBeInTheDocument();
+
+      await user.click(screen.getByRole('textbox'));
+      await user.paste('curl https://a.test\n  -H "Accept: application/json"\n  -d x');
+      expect(screen.getByTestId('line-count')).toHaveTextContent('3 lines');
+
+      await user.click(screen.getByRole('button', { name: 'Copy cURL command' }));
+      expect(await navigator.clipboard.readText()).toBe('curl https://a.test\n  -H "Accept: application/json"\n  -d x');
+    });
+  });
+
   describe('Report this cURL (QR-6)', () => {
     it('offers a link to /feedback next to a parse error', async () => {
       server.use(

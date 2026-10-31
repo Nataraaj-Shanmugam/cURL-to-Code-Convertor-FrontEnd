@@ -29,6 +29,26 @@ export const EXAMPLE_CURLS = [
     method: "PATCH",
     curl: `curl -X PATCH "https://jsonplaceholder.typicode.com/posts/1" -H "Content-Type: application/json" -d '{"title": "patched title"}'`,
   },
+  {
+    label: "PUT with XML Body",
+    method: "PUT",
+    curl: `curl -X PUT "https://api.example.com/users/123" -H "Content-Type: application/xml" -H "Authorization: Bearer token123" -d '<user><name>Jane Doe</name><email>jane@example.com</email></user>'`,
+  },
+  {
+    label: "Nested JSON Body",
+    method: "POST",
+    curl: `curl -X POST "https://api.example.com/create-user" -H "Content-Type: application/json" -d '{"person": {"name": "Jane", "age": 28, "city": {"city": "Chennai", "state": "Tamil Nadu"}}}'`,
+  },
+  {
+    label: "Form Data Upload",
+    method: "POST",
+    curl: `curl -X POST "https://api.example.com/upload" -H "Authorization: Bearer token123" -F "file=@document.pdf" -F "category=documents"`,
+  },
+  {
+    label: "Query Parameters",
+    method: "GET",
+    curl: `curl -X GET "https://api.example.com/search?q=test&page=1&limit=10" -H "Authorization: Bearer token123" -H "Accept: application/json"`,
+  },
 ] as const;
 
 /**

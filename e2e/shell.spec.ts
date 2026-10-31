@@ -133,3 +133,28 @@ test.describe('Feedback (QR-6)', () => {
     expect(JSON.stringify(sent.payload)).not.toContain('abcdef123456');
   });
 });
+
+test.describe('Playground examples and Copy (QR-7)', () => {
+  test('the XML, nested JSON, form-data and query-param examples fill the input; Copy confirms with a toast', async ({ mockPage: page, context }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await page.goto('/playground');
+    const input = page.getByRole('textbox', { name: 'cURL command' });
+
+    await page.getByRole('button', { name: /PUT with XML Body/ }).click();
+    await expect(input).toHaveValue(/application\/xml.*<user><name>Jane Doe<\/name>/);
+    await page.getByRole('button', { name: 'Reset' }).click();
+    await page.getByRole('button', { name: /Nested JSON Body/ }).click();
+    await expect(input).toHaveValue(/"city": \{"city": "Chennai"/);
+    await page.getByRole('button', { name: 'Reset' }).click();
+    await page.getByRole('button', { name: /Form Data Upload/ }).click();
+    await expect(input).toHaveValue(/-F "file=@document\.pdf"/);
+    await page.getByRole('button', { name: 'Reset' }).click();
+    await page.getByRole('button', { name: /Query Parameters/ }).click();
+    await expect(input).toHaveValue(/search\?q=test&page=1&limit=10/);
+
+    await expect(page.getByTestId('line-count')).toHaveText('1 line');
+    await page.getByRole('button', { name: 'Copy cURL command' }).click();
+    await expect(page.getByText('cURL command copied to clipboard')).toBeVisible();
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toContain('search?q=test');
+  });
+});
