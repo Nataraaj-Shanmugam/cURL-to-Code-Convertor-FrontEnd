@@ -476,4 +476,34 @@ test.describe('Batch Editor Page', () => {
     await dialog.getByRole('button', { name: /Copy/ }).click();
     expect(await page.evaluate(() => navigator.clipboard.readText())).toContain('abc123tokenvalue');
   });
+
+  // ── Secrets in history.state ─────────────────────────────────────────────
+
+  test('history.state keeps only a redacted batch; a reload blocks Generate All until secrets are re-entered', async ({ mockPage: page }) => {
+    const TOKEN = 'sk_live_BATCH_PLAYWRIGHT_77aa88bb';
+    const KEY = 'batch-api-key-SECRET-5566';
+    await page.route(/\/api\/parse$/, async (route: Route) => {
+      const { curl = '' } = JSON.parse(route.request().postData() ?? '{}');
+      const data = parsedFromCurl(curl);
+      const headers = curl.includes(TOKEN) ? { Authorization: `Bearer ${TOKEN}` } : { 'X-Api-Key': KEY };
+      return route.fulfill({ json: { success: true, data: { ...data, headers } } });
+    });
+    await parseAll(page, [
+      `${CURL_USERS} -H "Authorization: Bearer ${TOKEN}"`,
+      `${CURL_ORDERS} -H "X-Api-Key: ${KEY}"`,
+    ]);
+    await expect(page).toHaveURL(/\/batch-editor/);
+    await expect.poll(() => page.evaluate(() => JSON.stringify(window.history.state))).toContain('[REDACTED]');
+    const history = await page.evaluate(() => JSON.stringify(window.history.state));
+    expect(history).not.toContain(TOKEN);
+    expect(history).not.toContain(KEY);
+    // This visit still has the live values.
+    await expect(page.getByRole('button', { name: 'Generate All' })).toBeEnabled();
+
+    await page.reload();
+    await expect(page.getByText('Batch Editor', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Generate All' })).toBeDisabled();
+    await expect(page.getByText('Re-enter 2 redacted values to generate code.', { exact: true })).toBeVisible();
+    await expect(page.locator('body')).not.toContainText(TOKEN);
+  });
 });

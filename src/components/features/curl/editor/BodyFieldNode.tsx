@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Edit2, Trash2, Save, ChevronDown, ChevronRight } from "lucide-react";
 import { useEditorContext } from "./EditorContext";
 import { ROW_ACTIONS_VISIBILITY } from "./rowActions";
-import { RevealToggle } from "./SecretValue";
+import { RevealToggle, MaskedString } from "./SecretValue";
 import { MASK, countRedactions, isSecretField, redactFieldValue } from "@/lib/utils/redaction";
 import { decodePath, encodePath, toDisplayPath } from "@/lib/utils/fieldPath";
 
@@ -131,7 +131,7 @@ function BodyFieldNode({ fieldKey, value, path, level = 0 }: BodyFieldNodeProps)
         ) : (
           <span className="font-mono text-sm text-foreground">
             {hidden
-              ? `"${String(redactFieldValue(keyPath, value, { placeholder: MASK }))}"`
+              ? <MaskedString text={`"${String(redactFieldValue(keyPath, value, { placeholder: MASK }))}"`} />
               : typeof value === "string"
                 ? `"${value}"`
                 : String(value ?? "null")}

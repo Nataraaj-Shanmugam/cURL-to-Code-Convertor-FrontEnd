@@ -4,7 +4,8 @@ import userEvent from '@testing-library/user-event';
 import { renderWithProviders } from '../test-utils';
 import EditorPage from '@/pages/EditorPage';
 import { mockParsedCurl } from '../mocks/handlers';
-import { EDITOR_STORAGE_KEY } from '@/lib/utils/editorStorage';
+import { EDITOR_STATE_TTL_MS, EDITOR_STORAGE_KEY } from '@/lib/utils/editorStorage';
+import { forgetAllLiveRequests } from '@/lib/utils/liveRequestStore';
 import { REDACTED_PLACEHOLDER } from '@/lib/utils/redaction';
 
 const mockNavigate = vi.fn();
@@ -32,6 +33,8 @@ describe('EditorPage', () => {
     mockRouteState = null;
     localStorage.clear();
     sessionStorage.clear();
+    forgetAllLiveRequests();
+    window.history.replaceState(null, '');
   });
 
   describe('without data', () => {
@@ -90,7 +93,8 @@ describe('EditorPage', () => {
       await waitFor(() => expect(sessionStorage.getItem(EDITOR_STORAGE_KEY)).not.toBeNull());
       first.unmount();
 
-      mockRouteState = null; // a reload has no router state
+      mockRouteState = null; // a reload has no router state...
+      forgetAllLiveRequests(); // ...and starts with empty memory
       renderWithProviders(<EditorPage />);
       expect(await screen.findByText(/were redacted when it was saved/i, {}, { timeout: 5000 })).toBeInTheDocument();
       expect(screen.getAllByText(/Redacted: re-enter value/i).length).toBeGreaterThan(0);
@@ -131,6 +135,59 @@ describe('EditorPage', () => {
       renderWithProviders(<EditorPage />);
       expect(screen.getByText(/No cURL command parsed yet/)).toBeInTheDocument();
       expect(localStorage.getItem(EDITOR_STORAGE_KEY)).toBeNull();
+    });
+
+    it('Back/Forward within the tab restores the live values from memory, so Generate Code stays usable', async () => {
+      window.history.replaceState({ usr: { parsed: mockParsedCurl, originalCurl: CURL }, key: 'k', idx: 1 }, '');
+      mockRouteState = { parsed: mockParsedCurl, originalCurl: CURL };
+      const first = renderWithProviders(<EditorPage />);
+      await waitFor(() => expect(JSON.stringify(window.history.state)).toContain(REDACTED_PLACEHOLDER));
+      first.unmount();
+
+      // Forward: the router hands back the (redacted) copy it keeps in history.state.
+      mockRouteState = (window.history.state as { usr: unknown }).usr;
+      renderWithProviders(<EditorPage />);
+      expect(await screen.findByRole('button', { name: /Generate Code/ }, { timeout: 5000 })).toBeEnabled();
+      expect(screen.queryByText(/were redacted when it was saved/i)).not.toBeInTheDocument();
+    });
+
+    it('a reload of a redacted copy blocks Generate Code until the values are re-entered', async () => {
+      window.history.replaceState({ usr: { parsed: mockParsedCurl, originalCurl: CURL }, key: 'k', idx: 1 }, '');
+      mockRouteState = { parsed: mockParsedCurl, originalCurl: CURL };
+      const first = renderWithProviders(<EditorPage />);
+      await waitFor(() => expect(JSON.stringify(window.history.state)).toContain(REDACTED_PLACEHOLDER));
+      first.unmount();
+
+      forgetAllLiveRequests(); // reload
+      mockRouteState = (window.history.state as { usr: unknown }).usr;
+      renderWithProviders(<EditorPage />);
+      expect(await screen.findByRole('button', { name: /Generate Code/ }, { timeout: 5000 })).toBeDisabled();
+      expect(screen.getByRole('alert')).toHaveTextContent(/Re-enter \d+ redacted values? to generate code/i);
+    });
+
+    it('"Clear saved request" also clears the history.state copy and the in-memory copy', async () => {
+      window.history.replaceState({ usr: { parsed: mockParsedCurl, originalCurl: CURL }, key: 'k', idx: 1 }, '');
+      mockRouteState = { parsed: mockParsedCurl, originalCurl: CURL };
+      const first = renderWithProviders(<EditorPage />);
+      await user.click(await screen.findByRole('button', { name: /Clear saved request/i }, { timeout: 5000 }));
+      expect(window.history.state).toEqual({ usr: {}, key: 'k', idx: 1 });
+      first.unmount();
+
+      // Reload or Forward to this entry: nothing to restore.
+      mockRouteState = (window.history.state as { usr: unknown }).usr;
+      renderWithProviders(<EditorPage />);
+      expect(screen.getByText(/No cURL command parsed yet/)).toBeInTheDocument();
+    });
+
+    it('explains an expired saved copy instead of showing the generic empty state', () => {
+      sessionStorage.setItem(
+        EDITOR_STORAGE_KEY,
+        JSON.stringify({ version: 2, savedAt: Date.now() - EDITOR_STATE_TTL_MS - 1000, parsed: mockParsedCurl }),
+      );
+      renderWithProviders(<EditorPage />);
+      expect(screen.getByText(/Your saved request has expired/)).toBeInTheDocument();
+      expect(screen.getByText(/8 hours after your last activity/)).toBeInTheDocument();
+      expect(screen.queryByText(/No cURL command parsed yet/)).not.toBeInTheDocument();
     });
 
     it('Back clears the saved request', async () => {

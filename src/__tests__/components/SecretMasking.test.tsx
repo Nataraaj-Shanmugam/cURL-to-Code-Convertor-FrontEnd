@@ -3,7 +3,8 @@ import { screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import ParsedCurlEditor from '@/components/features/curl/ParsedCurlEditor';
 import RequestPreviewDialog from '@/components/features/curl/RequestPreviewDialog';
-import ExportJsonDialog from '@/components/features/curl/ExportJsonDialog';
+import ExportJsonDialog, { EXPORT_REDACTED_FILE_NAME } from '@/components/features/curl/ExportJsonDialog';
+import DiffViewDialog from '@/components/features/curl/DiffViewDialog';
 import CodeGenerationDialog from '@/components/features/curl/CodeGenerationDialog';
 import { render } from '../test-utils';
 import { MASK, REDACTED_PLACEHOLDER } from '@/lib/utils/redaction';
@@ -100,20 +101,36 @@ describe('ParsedCurlEditor: secret masking', () => {
 
     it('warns, and marks each redacted field for re-entry', () => {
       render(<ParsedCurlEditor initialData={redacted} />);
-      expect(screen.getByRole('alert')).toHaveTextContent(/must be filled in again/i);
+      expect(screen.getByRole('alert')).toHaveTextContent(/Re-enter 3 redacted values to generate code/i);
       expect(screen.getAllByText(/Redacted: re-enter value/i).length).toBeGreaterThanOrEqual(3);
       // nothing left to reveal on a placeholder
       expect(screen.queryByRole('button', { name: 'Reveal value of Authorization' })).not.toBeInTheDocument();
     });
 
-    it('drops the warning once every placeholder has been replaced', async () => {
-      render(<ParsedCurlEditor initialData={{ ...redacted, cookies: {}, data: undefined, headers: { Authorization: `Bearer ${REDACTED_PLACEHOLDER}` } }} />);
+    it('blocks Generate Code until every placeholder is re-entered', () => {
+      render(<ParsedCurlEditor initialData={redacted} />);
+      const generate = screen.getByRole('button', { name: /Generate Code/ });
+      expect(generate).toBeDisabled();
+      expect(generate).toHaveAccessibleDescription(/Re-enter 3 redacted values to generate code/i);
+    });
+
+    it('drops the warning and unblocks Generate Code once every placeholder has been replaced, even though the original cURL still shows one', async () => {
+      const originalCurl = `curl https://api.example.com -H 'Authorization: Bearer ${REDACTED_PLACEHOLDER}'`;
+      render(
+        <ParsedCurlEditor
+          initialData={{ ...redacted, cookies: {}, data: undefined, headers: { Authorization: `Bearer ${REDACTED_PLACEHOLDER}` } }}
+          originalCurl={originalCurl}
+        />,
+      );
+      expect(screen.getByRole('alert')).toHaveTextContent(/Re-enter 1 redacted value to generate code/i);
+      expect(screen.getByText(/secrets redacted when saved/i)).toBeInTheDocument();
       await user.click(screen.getByRole('button', { name: 'Edit Authorization' }));
       const input = screen.getByLabelText('Value of Authorization');
       await user.clear(input);
       await user.type(input, 'Bearer new-token');
       await user.click(screen.getByRole('button', { name: 'Save Authorization' }));
       await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
+      expect(screen.getByRole('button', { name: /Generate Code/ })).toBeEnabled();
     });
 
     it('shows no warning for a fresh, unredacted request', () => {
@@ -214,22 +231,42 @@ describe('ExportJsonDialog', () => {
     expect(pageText()).not.toContain(TOKEN);
   });
 
-  it('downloads the real values unless redaction is chosen (masking is display only)', async () => {
+  it('downloads a redacted file by default, named as such', async () => {
     renderExport();
+    const toggle = screen.getByRole('checkbox', { name: 'Redact secrets in the downloaded file' });
+    expect(toggle).toBeChecked();
+    expect(screen.getByText(EXPORT_REDACTED_FILE_NAME)).toBeInTheDocument();
+    const clicked = vi.mocked(HTMLAnchorElement.prototype.click);
+    await user.click(screen.getByRole('button', { name: /Download JSON/ }));
+    const text = await createdBlob!.text();
+    for (const secret of everySecret) expect(text).not.toContain(secret);
+    expect(text).toContain(REDACTED_PLACEHOLDER);
+    expect(JSON.parse(text).headers['Content-Type']).toBe('application/json');
+    expect((clicked.mock.contexts[0] as HTMLAnchorElement).download).toBe(EXPORT_REDACTED_FILE_NAME);
+  });
+
+  it('downloads the real values only when redaction is turned off (masking is display only)', async () => {
+    renderExport();
+    await user.click(screen.getByRole('checkbox', { name: 'Redact secrets in the downloaded file' }));
+    expect(screen.getByText(/will contain the real secret values/i)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /Download JSON/ }));
     const text = await createdBlob!.text();
     expect(text).toContain(TOKEN);
     expect(text).not.toContain(MASK);
   });
 
-  it('downloads a redacted file when asked', async () => {
+  it('opens with focus on the redact choice, not on an eye button', async () => {
     renderExport();
-    await user.click(screen.getByRole('checkbox', { name: 'Redact secrets in the downloaded file' }));
-    await user.click(screen.getByRole('button', { name: /Download JSON/ }));
-    const text = await createdBlob!.text();
-    for (const secret of everySecret) expect(text).not.toContain(secret);
-    expect(text).toContain(REDACTED_PLACEHOLDER);
-    expect(JSON.parse(text).headers['Content-Type']).toBe('application/json');
+    await waitFor(() =>
+      expect(screen.getByRole('checkbox', { name: 'Redact secrets in the downloaded file' })).toHaveFocus(),
+    );
+  });
+
+  it('announces masks as "hidden value" instead of bullets', () => {
+    renderExport();
+    const preview = document.querySelector('pre')!;
+    expect(within(preview).getAllByText('hidden value').length).toBeGreaterThanOrEqual(3);
+    for (const bullets of within(preview).getAllByText(MASK)) expect(bullets).toHaveAttribute('aria-hidden', 'true');
   });
 });
 
@@ -297,5 +334,49 @@ describe('CodeGenerationDialog: redacted request and output redaction', () => {
       expect(text).not.toContain(TOKEN);
       expect(text).toContain(REDACTED_PLACEHOLDER);
     });
+  });
+});
+
+describe('DiffViewDialog: secret masking', () => {
+  const user = userEvent.setup();
+  const NEW_TOKEN = 'eyJhbGciOiJIUzI1NiJ9.NEW-PAYLOAD.sig2';
+  const current: ParsedCurl = {
+    ...parsed,
+    headers: { ...parsed.headers, Authorization: `Bearer ${NEW_TOKEN}` },
+    data: { name: 'Jane', password: PASSWORD },
+  };
+  const renderDiff = () =>
+    render(<DiffViewDialog open onOpenChange={vi.fn()} originalParsed={parsed} currentParsed={current} onRevert={vi.fn()} />);
+
+  it('masks old and new secret values in the change table, with one reveal toggle per row', async () => {
+    renderDiff();
+    expectNoSecrets();
+    expect(pageText()).not.toContain(NEW_TOKEN);
+    // non-secret changes stay readable and get no toggle
+    expect(pageText()).toContain('Jane');
+    expect(screen.queryByRole('button', { name: 'Reveal value of data.name' })).not.toBeInTheDocument();
+
+    const toggle = screen.getByRole('button', { name: 'Reveal value of headers.Authorization' });
+    expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute('aria-pressed', 'true');
+    expect(pageText()).toContain(TOKEN);
+    expect(pageText()).toContain(NEW_TOKEN);
+    expect(pageText()).not.toContain(PASSWORD);
+    const reverts = screen.getAllByRole('button', { name: 'Revert change' });
+    expect(reverts.some((b) => b.getAttribute('aria-describedby') && /headers\.Authorization/.test(
+      document.getElementById(b.getAttribute('aria-describedby')!)?.textContent ?? '',
+    ))).toBe(true);
+  });
+
+  it('masks both Raw JSON panes, each with its own toggle', async () => {
+    renderDiff();
+    await user.click(screen.getByRole('tab', { name: 'Raw JSON' }));
+    expectNoSecrets();
+    expect(pageText()).not.toContain(NEW_TOKEN);
+    await user.click(screen.getByRole('button', { name: 'Reveal value of current request JSON' }));
+    expect(pageText()).toContain(NEW_TOKEN);
+    expect(pageText()).not.toContain(TOKEN); // the original pane stays masked
+    expect(screen.getByRole('button', { name: 'Reveal value of original request JSON' })).toHaveAttribute('aria-pressed', 'false');
   });
 });

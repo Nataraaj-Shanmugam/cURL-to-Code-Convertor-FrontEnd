@@ -3,14 +3,19 @@ import {
   EDITOR_STATE_TTL_MS,
   EDITOR_STATE_VERSION,
   EDITOR_STORAGE_KEY,
+  clearEditorRestore,
   clearEditorState,
   hasSavedEditorState,
+  rememberEditorRequest,
+  resolveEditorRestore,
+  touchEditorRestore,
   loadEditorState,
   redactHistoryState,
   migrateLegacyEditorState,
   saveEditorState,
 } from '@/lib/utils/editorStorage';
 import { REDACTED_PLACEHOLDER as R } from '@/lib/utils/redaction';
+import { forgetAllLiveRequests, recallLiveRequest } from '@/lib/utils/liveRequestStore';
 import type { ParsedCurl } from '@/types/curl';
 
 const TOKEN = 'sk_live_VERY_SECRET_TOKEN_1234';
@@ -153,5 +158,92 @@ describe('redactHistoryState', () => {
     expect(window.history.state).toEqual({ usr: null, key: 'k' });
     window.history.replaceState(null, '');
     expect(() => redactHistoryState()).not.toThrow();
+  });
+});
+
+describe('resolveEditorRestore / clearEditorRestore / touchEditorRestore', () => {
+  const T0 = 1_700_000_000_000;
+  const historyUsr = () => (window.history.state as { usr: Record<string, unknown> } | null)?.usr;
+  beforeEach(() => forgetAllLiveRequests());
+  afterEach(() => window.history.replaceState(null, ''));
+
+  it('uses a fresh navigation payload as is', () => {
+    expect(resolveEditorRestore({ parsed, originalCurl: curl }, T0)).toEqual({
+      source: 'live',
+      snapshot: { parsed, originalCurl: curl },
+    });
+  });
+
+  it('upgrades the redacted history copy to the live values kept in memory (in-app Back/Forward)', () => {
+    window.history.replaceState({ usr: { parsed, originalCurl: curl }, key: 'k', idx: 1 }, '');
+    rememberEditorRequest({ parsed, originalCurl: curl }, T0);
+    redactHistoryState(T0);
+    const usr = historyUsr()!;
+    expect(JSON.stringify(usr)).not.toContain(TOKEN);
+    expect(usr).toMatchObject({ redacted: true, savedAt: T0 });
+
+    const restored = resolveEditorRestore(usr, T0 + 1000);
+    expect(restored.source).toBe('live');
+    expect(restored.snapshot!.parsed.headers!.Authorization).toBe(`Bearer ${TOKEN}`);
+  });
+
+  it('falls back to the redacted copy when memory is gone (reload) or holds another request', () => {
+    window.history.replaceState({ usr: { parsed, originalCurl: curl } }, '');
+    redactHistoryState(T0);
+    const usr = historyUsr()!;
+    expect(resolveEditorRestore(usr, T0).source).toBe('redacted');
+
+    rememberEditorRequest({ parsed: { ...parsed, endpoint: '/other' } }, T0);
+    const restored = resolveEditorRestore(usr, T0);
+    expect(restored.source).toBe('redacted');
+    expect(restored.snapshot!.parsed.headers!.Authorization).toBe(`Bearer ${R}`);
+  });
+
+  it('upgrades the sessionStorage copy the same way', () => {
+    saveEditorState(parsed, curl, T0);
+    rememberEditorRequest({ parsed, originalCurl: curl }, T0);
+    expect(resolveEditorRestore(null, T0).snapshot!.originalCurl).toBe(curl);
+    forgetAllLiveRequests();
+    expect(resolveEditorRestore(null, T0)).toMatchObject({ source: 'redacted' });
+  });
+
+  it('reports an expired history or storage copy, and drops the expired live copy', () => {
+    window.history.replaceState({ usr: { parsed } }, '');
+    rememberEditorRequest({ parsed }, T0);
+    redactHistoryState(T0);
+    const later = T0 + EDITOR_STATE_TTL_MS + 1;
+    expect(resolveEditorRestore(historyUsr(), later)).toEqual({ source: 'expired', snapshot: null });
+    expect(recallLiveRequest('editor', later)).toBeNull();
+
+    saveEditorState(parsed, curl, T0);
+    expect(resolveEditorRestore(null, later)).toEqual({ source: 'expired', snapshot: null });
+    expect(sessionStorage.getItem(EDITOR_STORAGE_KEY)).toBeNull();
+    expect(resolveEditorRestore(null, later)).toEqual({ source: 'none', snapshot: null });
+  });
+
+  it('counts the TTL from the last activity, not from parse time', () => {
+    window.history.replaceState({ usr: { parsed, originalCurl: curl } }, '');
+    saveEditorState(parsed, curl, T0);
+    rememberEditorRequest({ parsed, originalCurl: curl }, T0);
+    redactHistoryState(T0);
+    const active = T0 + EDITOR_STATE_TTL_MS - 1000;
+    touchEditorRestore(active);
+    const later = T0 + EDITOR_STATE_TTL_MS + 60_000;
+    expect(resolveEditorRestore(historyUsr(), later).source).toBe('live');
+    expect(resolveEditorRestore(null, later).source).toBe('live');
+    expect(loadEditorState(later)).not.toBeNull();
+  });
+
+  it('Clear forgets the request in storage, in history.state and in memory, keeping router bookkeeping', () => {
+    window.history.replaceState({ usr: { parsed, originalCurl: curl, other: 1 }, key: 'k', idx: 2 }, '');
+    saveEditorState(parsed, curl, T0);
+    rememberEditorRequest({ parsed, originalCurl: curl }, T0);
+    redactHistoryState(T0);
+
+    clearEditorRestore();
+    expect(sessionStorage.getItem(EDITOR_STORAGE_KEY)).toBeNull();
+    expect(window.history.state).toEqual({ usr: { other: 1 }, key: 'k', idx: 2 });
+    expect(recallLiveRequest('editor', T0)).toBeNull();
+    expect(resolveEditorRestore(historyUsr(), T0)).toEqual({ source: 'none', snapshot: null });
   });
 });

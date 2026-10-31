@@ -17,7 +17,7 @@ import {
   Edit2, Trash2, Save, Download, Code, FolderPlus,
   Maximize2, Minimize2, RotateCcw, FileText, Undo2, Redo2, MoreHorizontal, Eye, GitCompare, ShieldAlert,
 } from "lucide-react";
-import { useState, useMemo, memo, useEffect, useCallback, useRef } from "react";
+import { useState, useMemo, memo, useEffect, useCallback, useId, useRef } from "react";
 import CodeGenerationDialog from "./CodeGenerationDialog";
 import RequestPreviewDialog from "./RequestPreviewDialog";
 import DiffViewDialog from "./DiffViewDialog";
@@ -130,8 +130,12 @@ function ParsedCurlEditor({
   const [showDiffDialog, setShowDiffDialog] = useState(false);
   const [showExportDialog, setShowExportDialog] = useState(false);
 
-  // Values redacted before this request was saved (or typed over since): the user must re-enter them.
-  const redactedCount = countRedactions(parsed) + countRedactions(originalCurl);
+  // Values redacted before this request was saved: the user must re-enter them before generating
+  // code. Counted on the working copy only, so the warning goes once every field is filled in again
+  // (the Original cURL card keeps its placeholders; it is labelled as such).
+  const redactedCount = countRedactions(parsed);
+  const originalCurlRedacted = countRedactions(originalCurl) > 0;
+  const redactedNoticeId = useId();
 
   // Confirmation dialog state — replaces window.confirm
   type ConfirmAction = { type: "reset" } | { type: "deleteSection"; key: string };
@@ -184,11 +188,12 @@ function ParsedCurlEditor({
       e.preventDefault();
       if (isUndo) undo();
       else if (isRedo) redo();
-      else setShowCodeDialog(true);
+      // Same rule as the Generate button: no generating from redacted placeholders (T53).
+      else if (redactedCount === 0) setShowCodeDialog(true);
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [undo, redo, isActive]);
+  }, [undo, redo, isActive, redactedCount]);
 
   const handleSave = () => {
     if (onSave) onSave(parsed);
@@ -307,7 +312,12 @@ function ParsedCurlEditor({
         {originalCurl && (
           <Card className="bg-muted/30">
             <CardHeader>
-              <CardTitle className="text-sm text-muted-foreground">Original cURL Command</CardTitle>
+              <CardTitle className="text-sm text-muted-foreground">
+                Original cURL Command
+                {originalCurlRedacted && (
+                  <span className="ml-2 font-normal text-xs">(secrets redacted when saved)</span>
+                )}
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <MaskedText
@@ -323,12 +333,16 @@ function ParsedCurlEditor({
         {redactedCount > 0 && (
           <div
             role="alert"
+            id={redactedNoticeId}
             className="flex items-start gap-2 p-3 rounded-lg border border-amber-500/40 bg-amber-500/10 text-sm text-amber-900 dark:text-amber-200"
           >
             <ShieldAlert className="w-4 h-4 mt-0.5 shrink-0" aria-hidden="true" />
             <span>
-              Secret values in this request were redacted when it was saved. Fields marked <strong>Redacted: re-enter
-              value</strong> must be filled in again; code generated now would contain the placeholder.
+              Secret values in this request were redacted when it was saved.{" "}
+              <strong>
+                Re-enter {redactedCount} redacted value{redactedCount === 1 ? "" : "s"} to generate code.
+              </strong>{" "}
+              They are the fields marked <strong>Redacted: re-enter value</strong>.
             </span>
           </div>
         )}
@@ -400,7 +414,18 @@ function ParsedCurlEditor({
               Changes
             </Button>
             {/* Primary action — always visible */}
-            <Button onClick={() => setShowCodeDialog(true)} size="sm" className="gap-1.5" title="Generate Code (Ctrl+G)">
+            <Button
+              onClick={() => setShowCodeDialog(true)}
+              size="sm"
+              className="gap-1.5"
+              disabled={redactedCount > 0}
+              aria-describedby={redactedCount > 0 ? redactedNoticeId : undefined}
+              title={
+                redactedCount > 0
+                  ? `Re-enter ${redactedCount} redacted value${redactedCount === 1 ? "" : "s"} to generate code`
+                  : "Generate Code (Ctrl+G)"
+              }
+            >
               <Code className="w-3.5 h-3.5" />
               Generate Code
             </Button>

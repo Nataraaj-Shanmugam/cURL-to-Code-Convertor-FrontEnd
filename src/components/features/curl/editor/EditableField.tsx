@@ -6,7 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Edit2, Trash2, Save } from "lucide-react";
 import { useEditorContext } from "./EditorContext";
 import { ROW_ACTIONS_VISIBILITY } from "./rowActions";
-import { RevealToggle } from "./SecretValue";
+import { MaskedString, RevealToggle } from "./SecretValue";
 import { MASK, countRedactions, isSecretField, redactFieldValue } from "@/lib/utils/redaction";
 import { decodePath, toDisplayPath } from "@/lib/utils/fieldPath";
 
@@ -95,7 +95,9 @@ function EditableField({ label, value, path }: EditableFieldProps) {
           )
         ) : (
           <pre className="text-xs font-mono whitespace-pre-wrap break-all bg-muted/50 p-2 rounded border border-border">
-            {typeof displayValue === "object" ? JSON.stringify(displayValue, null, 2) : String(displayValue ?? "N/A")}
+            <MaskedString
+              text={typeof displayValue === "object" ? JSON.stringify(displayValue, null, 2) : String(displayValue ?? "N/A")}
+            />
           </pre>
         )}
       </div>
