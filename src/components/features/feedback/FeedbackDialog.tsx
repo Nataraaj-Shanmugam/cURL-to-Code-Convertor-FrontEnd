@@ -8,10 +8,12 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Star, Send, CheckCircle2, AlertCircle } from "lucide-react";
 import { apiClient } from "@/lib/api/apiClient";
 import { ENV } from "@/lib/env";
 import { RATING_LABELS } from "@/constants/feedback";
+import { redactCurlString, redactText } from "@/lib/utils/redaction";
 
 const feedbackEndpoint = ENV.FEEDBACK_ENDPOINT;
 
@@ -20,6 +22,8 @@ interface FeedbackDialogProps {
     onOpenChange: (open: boolean) => void;
     curlCommand?: string;
     generatedCode?: string;
+    /** Exact secret values from the request, scrubbed from the attached code in addition to pattern matching. */
+    knownSecrets?: readonly string[];
 }
 
 function FeedbackDialog({
@@ -27,6 +31,7 @@ function FeedbackDialog({
     onOpenChange,
     curlCommand,
     generatedCode,
+    knownSecrets,
 }: FeedbackDialogProps) {
     const [rating, setRating] = useState(0);
     const [hoveredStar, setHoveredStar] = useState(0);
@@ -35,6 +40,11 @@ function FeedbackDialog({
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [submitted, setSubmitted] = useState(false);
     const [error, setError] = useState("");
+    // Attaching the request is opt-in, and whatever is attached has its secrets redacted.
+    const [attachRequest, setAttachRequest] = useState(false);
+    const canAttach = Boolean(curlCommand || generatedCode);
+    const attachedCurl = curlCommand ? redactCurlString(curlCommand, { knownSecrets }) : undefined;
+    const attachedCode = generatedCode ? redactText(generatedCode, { knownSecrets }) : undefined;
 
     const handleSubmit = async () => {
         if (rating === 0) {
@@ -49,8 +59,10 @@ function FeedbackDialog({
             const payload: Record<string, unknown> = { rating };
             if (comment.trim()) payload.comment = comment.trim();
             if (email.trim()) payload.email = email.trim();
-            if (curlCommand) payload.curl_command = curlCommand;
-            if (generatedCode) payload.generated_code = generatedCode;
+            if (attachRequest) {
+                if (attachedCurl) payload.curl_command = attachedCurl;
+                if (attachedCode) payload.generated_code = attachedCode;
+            }
 
             const { data: result } = await apiClient.post(
                 feedbackEndpoint,
@@ -79,6 +91,7 @@ function FeedbackDialog({
         setComment("");
         setEmail("");
         setError("");
+        setAttachRequest(false);
         setSubmitted(false);
         onOpenChange(false);
     };
@@ -192,11 +205,35 @@ function FeedbackDialog({
                                 />
                             </div>
 
-                            {/* Privacy notice */}
-                            {(curlCommand || generatedCode) && (
-                                <p className="text-xs text-muted-foreground bg-muted/50 rounded-md p-2 border border-border">
-                                    Your cURL command and generated code will be included with this feedback to help us improve the tool.
-                                </p>
+                            {/* Opt-in attachment */}
+                            {canAttach && (
+                                <div className="space-y-2 rounded-md border border-border bg-muted/50 p-3">
+                                    <label className="flex items-start gap-2 text-sm">
+                                        <Checkbox
+                                            id="feedback-attach-request"
+                                            checked={attachRequest}
+                                            onCheckedChange={(checked) => setAttachRequest(checked === true)}
+                                            className="mt-0.5"
+                                        />
+                                        <span>
+                                            Include my cURL command and generated code
+                                            <span className="block text-xs text-muted-foreground">
+                                                Off by default. Secrets (tokens, API keys, passwords, cookies) are
+                                                redacted before anything is sent.
+                                            </span>
+                                        </span>
+                                    </label>
+                                    {attachRequest && (
+                                        <details className="text-xs">
+                                            <summary className="cursor-pointer text-muted-foreground">
+                                                Preview what will be attached
+                                            </summary>
+                                            <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-all rounded border bg-background p-2 font-mono">
+                                                {[attachedCurl, attachedCode].filter(Boolean).join("\n\n")}
+                                            </pre>
+                                        </details>
+                                    )}
+                                </div>
                             )}
 
                             {/* Actions */}

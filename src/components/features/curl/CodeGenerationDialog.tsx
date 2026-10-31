@@ -1,14 +1,15 @@
-import { useState, useRef, useEffect, memo } from "react";
+import { useState, useRef, useEffect, useMemo, memo } from "react";
 import { Highlight, themes } from "prism-react-renderer";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Copy, CheckCircle2, Download, AlertCircle, MessageSquare } from "lucide-react";
+import { Copy, CheckCircle2, Download, AlertCircle, MessageSquare, ShieldAlert } from "lucide-react";
 import { apiClient, GENERATE_TIMEOUT_MS, SAFE_RETRIES } from "@/lib/api/apiClient";
 import { ENV } from "@/lib/env";
 import type { ParsedCurl, CodeGenConfig } from "@/types/curl";
 import FeedbackDialog from "@/components/features/feedback/FeedbackDialog";
+import { collectSecretValues, countRedactions, redactText } from "@/lib/utils/redaction";
 
 function CodeBlock({ code, language }: { code: string; language: string }) {
     return (
@@ -78,6 +79,11 @@ function CodeGenerationDialogInner({
     const [error, setError] = useState<string>('');
     const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
     const [feedbackOpen, setFeedbackOpen] = useState(false);
+    // Copy/download give the code exactly as generated unless the user opts into redaction.
+    const [redactOutput, setRedactOutput] = useState(false);
+    const secretValues = useMemo(() => collectSecretValues(parsedData), [parsedData]);
+    const redactedCount = countRedactions(parsedData);
+    const forExport = (code: string) => (redactOutput ? redactText(code, { knownSecrets: secretValues }) : code);
     const resultHeadingRef = useRef<HTMLSpanElement>(null);
 
     // Move focus to the result area when generation completes so screen readers announce it
@@ -230,7 +236,7 @@ ${dependencies.join('\n\n')}
                 : pomDependencies;
 
         try {
-            await navigator.clipboard.writeText(codeToCopy);
+            await navigator.clipboard.writeText(forExport(codeToCopy));
             setCopied(true);
             setTimeout(() => setCopied(false), 3000);
         } catch (err) {
@@ -257,7 +263,7 @@ ${dependencies.join('\n\n')}
                 break;
         }
 
-        const blob = new Blob([codeToDownload], { type: 'text/plain' });
+        const blob = new Blob([forExport(codeToDownload)], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -288,6 +294,7 @@ ${dependencies.join('\n\n')}
         setActiveTab('test');
         setError('');
         setFieldErrors({});
+        setRedactOutput(false);
         onOpenChange(false);
     };
 
@@ -317,6 +324,16 @@ ${dependencies.join('\n\n')}
                         : error ? `Error: ${error}`
                         : ''}
                 </div>
+
+                {redactedCount > 0 && (
+                    <div role="alert" className="flex items-start gap-2 p-3 rounded-md border border-amber-500/40 bg-amber-500/10 text-sm text-amber-900 dark:text-amber-200">
+                        <ShieldAlert className="w-4 h-4 mt-0.5 flex-shrink-0" aria-hidden="true" />
+                        <span>
+                            {redactedCount} secret value{redactedCount === 1 ? ' was' : 's were'} redacted from this request and not re-entered.
+                            The generated code will contain <code className="font-mono">[REDACTED]</code> in their place.
+                        </span>
+                    </div>
+                )}
 
                 {currentStep === 'config' ? (
                     <div className="space-y-6 overflow-y-auto flex-1 pr-2">
@@ -588,7 +605,15 @@ ${dependencies.join('\n\n')}
 
                         {/* Code Display */}
                         <div className="flex-1 flex flex-col overflow-hidden rounded-md border">
-                            <div className="flex justify-end gap-2 p-2 border-b bg-muted/30">
+                            <div className="flex justify-end items-center gap-3 p-2 border-b bg-muted/30">
+                                <label className="flex items-center gap-2 text-xs text-muted-foreground mr-auto">
+                                    <Checkbox
+                                        checked={redactOutput}
+                                        onCheckedChange={(checked) => setRedactOutput(checked === true)}
+                                        aria-label="Redact secrets when copying or downloading"
+                                    />
+                                    Redact secrets when copying or downloading
+                                </label>
                                 <Button
                                     variant="outline"
                                     size="sm"
@@ -654,6 +679,7 @@ ${dependencies.join('\n\n')}
                 open={feedbackOpen}
                 onOpenChange={setFeedbackOpen}
                 generatedCode={completeCode || generatedCode}
+                knownSecrets={secretValues}
             />
         </Dialog>
     );

@@ -1,8 +1,10 @@
-import { memo } from "react";
+import { memo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Edit2, Trash2, Save, ChevronDown, ChevronRight } from "lucide-react";
 import { useEditorContext } from "./EditorContext";
+import { RevealToggle } from "./SecretValue";
+import { MASK, countRedactions, isSecretField, redactFieldValue } from "@/lib/utils/redaction";
 
 interface BodyFieldNodeProps {
   fieldKey: string;
@@ -20,6 +22,12 @@ function BodyFieldNode({ fieldKey, value, path, level = 0 }: BodyFieldNodeProps)
   const isComplex = typeof value === "object" && value !== null;
   const isCollapsed = bodyCollapsed[path] || false;
   const indent = Math.min(level * 24, 120); // cap at 5 levels to prevent mobile overflow
+
+  // Leaf values under a secret-named key (password, token, ...) are masked until revealed.
+  const [revealed, setRevealed] = useState(false);
+  const isSecret = !isComplex && isSecretField(path, value);
+  const needsReentry = !isComplex && countRedactions(value) > 0;
+  const hidden = isSecret && !revealed;
 
   if (isComplex) {
     const isArray = Array.isArray(value);
@@ -110,13 +118,27 @@ function BodyFieldNode({ fieldKey, value, path, level = 0 }: BodyFieldNodeProps)
           <Input
             value={String(currentValue ?? "")}
             onChange={e => handleEditChange(path, e.target.value)}
+            type={hidden ? "password" : "text"}
+            autoComplete="off"
+            onFocus={needsReentry ? e => e.target.select() : undefined}
+            aria-label={`Value of ${fieldKey}`}
             className="font-mono text-xs h-7"
           />
         ) : (
           <span className="font-mono text-sm text-foreground">
-            {typeof value === "string" ? `"${value}"` : String(value ?? "null")}
+            {hidden
+              ? `"${String(redactFieldValue(path, value, { placeholder: MASK }))}"`
+              : typeof value === "string"
+                ? `"${value}"`
+                : String(value ?? "null")}
           </span>
         )}
+        {needsReentry && (
+          <span className="text-xs px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/40">
+            Redacted: re-enter value
+          </span>
+        )}
+        {isSecret && <RevealToggle label={fieldKey} revealed={revealed} onToggle={() => setRevealed(r => !r)} />}
       </div>
 
       <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">

@@ -27,6 +27,19 @@ export const mockParsedCurl = {
   },
 };
 
+// What the backend returns for `-d '{...}'`: the body as a JSON *string*, not an object. The editor
+// parses it for node-level editing, so this shape exercises body normalisation.
+export const mockBodyObject = {
+  name: 'John Doe',
+  email: 'john@example.com',
+  address: { city: 'New York', zip: '10001' },
+};
+
+export const mockParsedCurlStringBody = {
+  ...mockParsedCurl,
+  data: JSON.stringify(mockBodyObject),
+};
+
 // Sample code generation response
 export const mockGeneratedCode = `import io.restassured.RestAssured;
 import io.restassured.response.Response;
@@ -80,10 +93,10 @@ export const handlers = [
       }, { status: 422 });
     }
 
-    // Return parsed result
+    // `string-body` in the command makes the backend return the body as a JSON string
     return HttpResponse.json({
       success: true,
-      data: mockParsedCurl,
+      data: curlStr.includes('string-body') ? mockParsedCurlStringBody : mockParsedCurl,
     });
   }),
 

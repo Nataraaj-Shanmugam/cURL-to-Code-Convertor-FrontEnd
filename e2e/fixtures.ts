@@ -20,6 +20,12 @@ export const MOCK_PARSED_CURL = {
   cookies: { session_id: 'abc123' },
 };
 
+/** The backend returns `-d '{...}'` bodies as a JSON string; the editor must treat it as unedited. */
+export const MOCK_PARSED_CURL_STRING_BODY = {
+  ...MOCK_PARSED_CURL,
+  data: JSON.stringify(MOCK_PARSED_CURL.data),
+};
+
 export const MOCK_GENERATED_CODE = `import io.restassured.RestAssured;
 import io.restassured.response.Response;
 import static io.restassured.RestAssured.*;
@@ -85,7 +91,9 @@ export async function mockApi(page: Page) {
         },
       });
     }
-    return route.fulfill({ json: { success: true, data: MOCK_PARSED_CURL } });
+    // `string-body` in the command makes the backend return the body as a JSON string.
+    const data = body.curl.includes('string-body') ? MOCK_PARSED_CURL_STRING_BODY : MOCK_PARSED_CURL;
+    return route.fulfill({ json: { success: true, data } });
   });
 
   // Generate code
@@ -147,3 +155,6 @@ export const SAMPLE_CURL =
 
 export const SAMPLE_CURL_GET =
   'curl -X GET "https://api.example.com/users" -H "Accept: application/json"';
+
+/** String-body variant of SAMPLE_CURL (see MOCK_PARSED_CURL_STRING_BODY). */
+export const SAMPLE_CURL_STRING_BODY = `${SAMPLE_CURL} # string-body`;

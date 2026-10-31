@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { apiClient, SAFE_RETRIES } from "@/lib/api/apiClient";
 import { ENV } from "@/lib/env";
 import { EXAMPLE_CURLS, METHOD_COLORS } from "@/constants/curl";
-import { Terminal, Play, RotateCcw, AlertCircle, ChevronRight, Loader2, Upload, Plus, X, Layers } from "lucide-react";
+import { Terminal, Play, RotateCcw, AlertCircle, ChevronRight, Loader2, Upload, Plus, X, Layers, ShieldCheck } from "lucide-react";
 import ImportDialog from "@/components/features/import/ImportDialog";
 import { parseCurlBatch } from "@/lib/utils/parseCurlBatch";
 import type { BatchParseFailure } from "@/types/batch";
@@ -275,6 +275,14 @@ function CurlPlayground() {
           <Plus className="w-4 h-4 transition-transform group-hover/add:scale-110" />
           <span className="text-sm font-medium">Add another cURL</span>
         </button>
+
+        <p className="flex items-start gap-1.5 text-xs text-muted-foreground" data-testid="curl-data-notice">
+          <ShieldCheck className="w-3.5 h-3.5 mt-0.5 shrink-0" aria-hidden="true" />
+          <span>
+            Your cURL is sent to the cURLCraft backend to be parsed (and later to generate code). This page doesn&apos;t
+            store it beyond your browser session.
+          </span>
+        </p>
       </div>
 
       {/* Actions */}

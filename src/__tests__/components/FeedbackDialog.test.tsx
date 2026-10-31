@@ -54,15 +54,82 @@ describe('FeedbackDialog', () => {
     });
   });
 
-  describe('privacy notice', () => {
-    it('shows privacy notice when curlCommand is provided', () => {
-      renderDialog({ curlCommand: 'curl https://example.com', generatedCode: 'code' });
-      expect(screen.getByText(/Your cURL command and generated code will be included/i)).toBeInTheDocument();
+  describe('attaching the request (opt-in)', () => {
+    const TOKEN = 'eyJhbGciOiJIUzI1NiJ9.SECRET-PAYLOAD.sig';
+    const curl = `curl https://api.test/x?api_key=KEY-123456 -H 'Authorization: Bearer ${TOKEN}' -u admin:hunter22`;
+    const code = `given().header("Authorization", "Bearer ${TOKEN}").queryParam("api_key", "KEY-123456").get("/x")`;
+
+    function capture() {
+      const captured: { payload: Record<string, unknown> } = { payload: {} };
+      server.use(
+        http.post(feedbackEndpoint, async ({ request }) => {
+          captured.payload = (await request.json()) as Record<string, unknown>;
+          return HttpResponse.json({ success: true });
+        }),
+      );
+      return captured;
+    }
+
+    it('offers an unchecked checkbox when a cURL or code is available', () => {
+      renderDialog({ curlCommand: curl, generatedCode: code });
+      const box = screen.getByRole('checkbox', { name: /Include my cURL command and generated code/i });
+      expect(box).not.toBeChecked();
+      expect(screen.getByText(/redacted before anything is sent/i)).toBeInTheDocument();
     });
 
-    it('does not show privacy notice when no curlCommand or generatedCode', () => {
+    it('does not show the checkbox when there is nothing to attach', () => {
       renderDialog();
-      expect(screen.queryByText(/Your cURL command and generated code/i)).not.toBeInTheDocument();
+      expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+    });
+
+    it('sends only the form fields by default', async () => {
+      const captured = capture();
+      const user = userEvent.setup();
+      renderDialog({ curlCommand: curl, generatedCode: code });
+      await user.click(screen.getByRole('radio', { name: /Good.*3 out of 5/i }));
+      await user.click(screen.getByRole('button', { name: /Submit Feedback/i }));
+      await waitFor(() => expect(captured.payload.rating).toBe(3));
+      expect(captured.payload).not.toHaveProperty('curl_command');
+      expect(captured.payload).not.toHaveProperty('generated_code');
+      expect(JSON.stringify(captured.payload)).not.toContain(TOKEN);
+    });
+
+    it('attaches redacted cURL and code once opted in', async () => {
+      const captured = capture();
+      const user = userEvent.setup();
+      renderDialog({ curlCommand: curl, generatedCode: code, knownSecrets: [TOKEN] });
+      await user.click(screen.getByRole('checkbox', { name: /Include my cURL command/i }));
+      await user.click(screen.getByRole('radio', { name: /Good.*3 out of 5/i }));
+      await user.click(screen.getByRole('button', { name: /Submit Feedback/i }));
+      await waitFor(() => expect(captured.payload.curl_command).toBeTruthy());
+
+      const sent = JSON.stringify(captured.payload);
+      for (const secret of [TOKEN, 'KEY-123456', 'hunter22', 'admin:']) expect(sent).not.toContain(secret);
+      expect(captured.payload.curl_command).toContain('Authorization: Bearer [REDACTED]');
+      expect(captured.payload.generated_code).toContain('.queryParam("api_key", "[REDACTED]")');
+      expect(captured.payload.generated_code).toContain('.get("/x")');
+    });
+
+    it('previews exactly the redacted text that will be attached', async () => {
+      const user = userEvent.setup();
+      renderDialog({ curlCommand: curl });
+      expect(screen.queryByText(/Preview what will be attached/i)).not.toBeInTheDocument();
+      await user.click(screen.getByRole('checkbox', { name: /Include my cURL command/i }));
+      await user.click(screen.getByText(/Preview what will be attached/i));
+      const preview = document.querySelector('details pre')!;
+      expect(preview.textContent).toContain('[REDACTED]');
+      expect(preview.textContent).not.toContain(TOKEN);
+    });
+
+    it('resets the opt-in when the dialog is closed', async () => {
+      const user = userEvent.setup();
+      const props = { curlCommand: curl, onOpenChange: vi.fn() };
+      const { rerender } = render(<FeedbackDialog open={true} {...props} />);
+      await user.click(screen.getByRole('checkbox', { name: /Include my cURL command/i }));
+      await user.click(screen.getByRole('button', { name: /Cancel/i }));
+      rerender(<FeedbackDialog open={false} {...props} />);
+      rerender(<FeedbackDialog open={true} {...props} />);
+      expect(screen.getByRole('checkbox', { name: /Include my cURL command/i })).not.toBeChecked();
     });
   });
 
@@ -117,24 +184,6 @@ describe('FeedbackDialog', () => {
       renderDialog();
       // Submit button should be disabled; clicking it does nothing
       expect(screen.getByRole('button', { name: /Submit Feedback/i })).toBeDisabled();
-    });
-
-    it('sends curlCommand and generatedCode in payload when provided', async () => {
-      let capturedPayload: Record<string, unknown> = {};
-      server.use(
-        http.post(feedbackEndpoint, async ({ request }) => {
-          capturedPayload = await request.json() as Record<string, unknown>;
-          return HttpResponse.json({ success: true });
-        })
-      );
-      const user = userEvent.setup();
-      renderDialog({ curlCommand: 'curl https://test.com', generatedCode: 'java code' });
-      await user.click(screen.getByRole('radio', { name: /Good.*3 out of 5/i }));
-      await user.click(screen.getByRole('button', { name: /Submit Feedback/i }));
-      await waitFor(() => {
-        expect(capturedPayload.curl_command).toBe('curl https://test.com');
-        expect(capturedPayload.generated_code).toBe('java code');
-      });
     });
   });
 

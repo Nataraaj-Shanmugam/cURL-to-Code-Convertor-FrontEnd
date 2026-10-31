@@ -10,6 +10,11 @@ function env(key: string, fallback: string): string {
   return value || fallback;
 }
 
+/** Optional boolean flag: only the literal string "true" turns it on; unset means off (no dev warning). */
+function flag(key: string): boolean {
+  return (import.meta.env[key] as string | undefined)?.trim().toLowerCase() === 'true';
+}
+
 export const ENV = {
   API_URL:            env('VITE_CURL_CRAFT_API_URL',                  'http://127.0.0.1:8000'),
   PARSE_ENDPOINT:     env('VITE_CURL_CRAFT_API_PARSE_ENDPOINT',       '/api/parse'),
@@ -19,4 +24,9 @@ export const ENV = {
   FEEDBACK_ENDPOINT:  env('VITE_CURL_CRAFT_API_FEEDBACK_ENDPOINT',    '/api/feedback'),
   BODY_EDIT_ENDPOINT: env('VITE_CURL_CRAFT_API_BODY_EDIT_ENDPOINT',   '/api/body/edit'),
   BODY_DELETE_ENDPOINT: env('VITE_CURL_CRAFT_API_BODY_DELETE_ENDPOINT', '/api/body/delete'),
+  /**
+   * Off by default. Body edits and deletes always apply locally; when this is on, the editor also
+   * mirrors them to BODY_EDIT_ENDPOINT / BODY_DELETE_ENDPOINT, and a failure never undoes the edit.
+   */
+  BODY_API_ENABLED:   flag('VITE_CURL_CRAFT_BODY_API_ENABLED'),
 } as const;
