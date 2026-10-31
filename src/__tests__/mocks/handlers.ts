@@ -40,6 +40,25 @@ export const mockParsedCurlStringBody = {
   data: JSON.stringify(mockBodyObject),
 };
 
+/** A stand-in for the backend's pomXml. The full POM wires surefire to testng.xml, as the backend's does. */
+export const mockPomXml = (pomType?: string) =>
+  pomType === 'full'
+    ? `<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.example</groupId>
+  <dependencies>
+    <dependency><groupId>io.rest-assured</groupId><artifactId>rest-assured</artifactId></dependency>
+    <dependency><groupId>org.testng</groupId><artifactId>testng</artifactId></dependency>
+  </dependencies>
+  <build><plugins><plugin><artifactId>maven-surefire-plugin</artifactId><configuration>
+    <suiteXmlFiles><suiteXmlFile>testng.xml</suiteXmlFile></suiteXmlFiles>
+  </configuration></plugin></plugins></build>
+</project>`
+    : `<dependencies>
+  <dependency><groupId>io.rest-assured</groupId><artifactId>rest-assured</artifactId></dependency>
+  <dependency><groupId>org.testng</groupId><artifactId>testng</artifactId></dependency>
+</dependencies>`;
+
 // Sample code generation response
 export const mockGeneratedCode = `import io.restassured.RestAssured;
 import io.restassured.response.Response;
@@ -102,7 +121,10 @@ export const handlers = [
 
   // Generate code endpoint
   http.post('*/api/generate-from-parsed', async ({ request }) => {
-    const body = await request.json() as { parsed_data?: unknown; config?: { option?: string; needPojo?: boolean } };
+    const body = await request.json() as {
+      parsed_data?: unknown;
+      config?: { option?: string; needPojo?: boolean; generatePom?: boolean; pomConfig?: { pomType?: string } };
+    };
     const config = body?.config;
 
     if (!config?.option) {
@@ -119,6 +141,8 @@ export const handlers = [
       pojo_code: config.needPojo
         ? `import lombok.Data;\nimport lombok.Builder;\n\n@Data\n@Builder\npublic class RequestBody {\n    private String name;\n    private String email;\n}`
         : '',
+      // Production's response field: the backend builds the POM (only when config.generatePom is set).
+      pomXml: config.generatePom ? mockPomXml(config.pomConfig?.pomType) : undefined,
       warnings: [],
       language: 'java',
     });

@@ -160,9 +160,9 @@ describe('CodeGenerationDialog', () => {
         expect(screen.getByText('Generated Code')).toBeInTheDocument();
       });
 
-      // Should show test code tab
+      // Should show test code tab; the POM comes from the backend, so there is none unless it was asked for
       expect(screen.getByText('Test Code')).toBeInTheDocument();
-      expect(screen.getByText('Dependencies (pom.xml)')).toBeInTheDocument();
+      expect(screen.queryByText(/pom\.xml/)).not.toBeInTheDocument();
     });
 
     it('should show POJO tab when POJO generation is enabled', async () => {
@@ -249,7 +249,9 @@ describe('CodeGenerationDialog', () => {
     it('should have Copy button', async () => {
       await generateCode();
 
-      expect(screen.getByText('Copy')).toBeInTheDocument();
+      // The mock code contains a bearer token, so the default copy is the redacted one.
+      expect(screen.getByRole('button', { name: 'Copy redacted' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Copy with secrets' })).toBeInTheDocument();
     });
 
     it('should have Download button for full test class', async () => {
@@ -280,66 +282,19 @@ describe('CodeGenerationDialog', () => {
       expect(screen.getByText('Feedback')).toBeInTheDocument();
     });
 
-    it('should switch between tabs', async () => {
-      await generateCode();
-
-      const pomTab = screen.getByText('Dependencies (pom.xml)');
-      await user.click(pomTab);
-
-      // Should show POM content (prism-react-renderer renders into a <pre>, no <code> wrapper)
-      const preEl = document.querySelector('pre');
-      expect(preEl?.textContent).toContain('maven');
-    });
-
-    it('should generate POM with REST Assured and TestNG dependencies', async () => {
-      await generateCode();
-
-      const pomTab = screen.getByText('Dependencies (pom.xml)');
-      await user.click(pomTab);
-
-      const codeBlock = document.querySelector('pre');
-      const pomContent = codeBlock?.textContent || '';
-
-      expect(pomContent).toContain('rest-assured');
-      expect(pomContent).toContain('testng');
-    });
-
-    it('should include Lombok in POM when POJO is enabled', async () => {
+    it('shows the POM the backend returned, in its own tab', async () => {
       renderDialog();
+      await user.click(screen.getByLabelText(/Full Test Class/));
+      await user.click(screen.getByRole('button', { name: /Maven & advanced/ }));
+      await user.click(screen.getByRole('checkbox', { name: 'Generate pom.xml' }));
+      await user.click(screen.getByRole('button', { name: /^Generate Code$/ }));
+      await screen.findByText('Generated Code', { exact: true });
 
-      const fullRadio = screen.getByLabelText(/Full Test Class/);
-      await user.click(fullRadio);
-
-      const pojoCheckbox = screen.getByText('Generate POJO Classes');
-      await user.click(pojoCheckbox);
-
-      const generateButton = screen.getByText('Generate Code').closest('button')!;
-      await user.click(generateButton);
-
-      await waitFor(() => {
-        expect(screen.getByText('Generated Code')).toBeInTheDocument();
-      });
-
-      const pomTab = screen.getByText('Dependencies (pom.xml)');
-      await user.click(pomTab);
-
-      const codeBlock = document.querySelector('pre');
-      const pomContent = codeBlock?.textContent || '';
-
-      expect(pomContent).toContain('lombok');
-      expect(pomContent).toContain('jackson-databind');
-    });
-
-    it('should include json-path in POM when parsed data has body', async () => {
-      await generateCode();
-
-      const pomTab = screen.getByText('Dependencies (pom.xml)');
-      await user.click(pomTab);
-
-      const codeBlock = document.querySelector('pre');
-      const pomContent = codeBlock?.textContent || '';
-
-      expect(pomContent).toContain('json-path');
+      await user.click(screen.getByRole('tab', { name: 'pom.xml' }));
+      const pre = document.querySelector('pre');
+      expect(pre?.textContent).toContain('maven-surefire-plugin');
+      expect(pre?.textContent).toContain('rest-assured');
+      expect(pre?.textContent).toContain('testng');
     });
   });
 

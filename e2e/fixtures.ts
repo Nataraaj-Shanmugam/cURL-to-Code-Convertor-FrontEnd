@@ -51,6 +51,23 @@ public class ApiTest {
     }
 }`;
 
+export const MOCK_POM_XML = {
+  full: `<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <dependencies>
+    <dependency><groupId>io.rest-assured</groupId><artifactId>rest-assured</artifactId></dependency>
+    <dependency><groupId>org.testng</groupId><artifactId>testng</artifactId></dependency>
+  </dependencies>
+  <build><plugins><plugin><artifactId>maven-surefire-plugin</artifactId><configuration>
+    <suiteXmlFiles><suiteXmlFile>testng.xml</suiteXmlFile></suiteXmlFiles>
+  </configuration></plugin></plugins></build>
+</project>`,
+  deps: `<dependencies>
+  <dependency><groupId>io.rest-assured</groupId><artifactId>rest-assured</artifactId></dependency>
+  <dependency><groupId>org.testng</groupId><artifactId>testng</artifactId></dependency>
+</dependencies>`,
+};
+
 export const MOCK_POJO_CODE = `import lombok.Data;
 import lombok.Builder;
 
@@ -115,6 +132,8 @@ export async function mockApi(page: Page) {
         generated_code: MOCK_GENERATED_CODE,
         complete_code: MOCK_GENERATED_CODE,
         pojo_code: config.needPojo ? MOCK_POJO_CODE : '',
+        // Production's response field; the backend only builds a POM when generatePom is set.
+        pomXml: config.generatePom ? MOCK_POM_XML[config.pomConfig?.pomType === 'full' ? 'full' : 'deps'] : undefined,
         warnings: [],
         language: 'java',
       },
