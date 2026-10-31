@@ -1,5 +1,5 @@
-import { memo, useMemo, useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { memo, useId, useMemo, useState } from "react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -7,6 +7,8 @@ import type { ParsedCurl } from "@/types/curl";
 import { computeDiff } from "@/lib/utils/diffEngine";
 import type { DiffEntry } from "@/types/diff";
 import { RotateCcw } from "lucide-react";
+import { MASK, maskParsedCurl, redactFieldValue } from "@/lib/utils/redaction";
+import { MaskedString, MaskedText, RevealToggle } from "./editor/SecretValue";
 
 interface DiffViewDialogProps {
   open: boolean;
@@ -59,6 +61,63 @@ function typeBadge(type: DiffEntry["type"]) {
   }
 }
 
+/** One changed field. Secret values (old and new) stay masked until the row's toggle is pressed. */
+function DiffRow({ entry, onRevert }: { entry: DiffEntry; onRevert: (path: string) => void }) {
+  const [revealed, setRevealed] = useState(false);
+  const valuesId = useId();
+  const oldText = formatValue(entry.oldValue);
+  const newText = formatValue(entry.newValue);
+  const maskedOld = entry.oldValue === undefined ? oldText : formatValue(redactFieldValue(entry.path, entry.oldValue, { placeholder: MASK }));
+  const maskedNew = entry.newValue === undefined ? newText : formatValue(redactFieldValue(entry.path, entry.newValue, { placeholder: MASK }));
+  const hasSecret = maskedOld !== oldText || maskedNew !== newText;
+  const hidden = hasSecret && !revealed;
+
+  return (
+    <tr className={`border-b last:border-0 ${rowBg(entry.type)}`}>
+      <td id={`${valuesId}-path`} className="px-3 py-2 font-mono break-all align-top">
+        {entry.path}
+      </td>
+      <td className="px-3 py-2 font-mono break-all align-top max-w-[160px]">
+        <span id={`${valuesId}-old`} className="whitespace-pre-wrap line-clamp-3 text-red-700 dark:text-red-400">
+          {hidden ? <MaskedString text={maskedOld} /> : oldText}
+        </span>
+      </td>
+      <td className="px-3 py-2 font-mono break-all align-top max-w-[160px]">
+        <div className="flex items-start gap-1">
+          <span id={`${valuesId}-new`} className="flex-1 min-w-0 whitespace-pre-wrap line-clamp-3 text-green-700 dark:text-green-400">
+            {hidden ? <MaskedString text={maskedNew} /> : newText}
+          </span>
+          {hasSecret && (
+            <RevealToggle
+              label={entry.path}
+              revealed={revealed}
+              onToggle={() => setRevealed((r) => !r)}
+              controls={`${valuesId}-old ${valuesId}-new`}
+            />
+          )}
+        </div>
+      </td>
+      <td className="px-3 py-2 align-top">{typeBadge(entry.type)}</td>
+      <td className="px-3 py-2 align-top">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6"
+          title="Revert this change"
+          aria-label="Revert change"
+          aria-describedby={`${valuesId}-path`}
+          onClick={() => onRevert(entry.path)}
+        >
+          <RotateCcw className="w-3 h-3" aria-hidden="true" />
+        </Button>
+      </td>
+    </tr>
+  );
+}
+
+const RAW_JSON_CLASS =
+  "text-xs font-mono bg-slate-950 text-slate-50 p-3 rounded-md overflow-auto max-h-[50vh] whitespace-pre-wrap break-all";
+
 function DiffViewDialog({
   open,
   onOpenChange,
@@ -73,6 +132,11 @@ function DiffViewDialog({
     [originalParsed, currentParsed]
   );
 
+  const originalJson = useMemo(() => JSON.stringify(originalParsed, null, 2), [originalParsed]);
+  const currentJson = useMemo(() => JSON.stringify(currentParsed, null, 2), [currentParsed]);
+  const maskedOriginalJson = useMemo(() => JSON.stringify(maskParsedCurl(originalParsed), null, 2), [originalParsed]);
+  const maskedCurrentJson = useMemo(() => JSON.stringify(maskParsedCurl(currentParsed), null, 2), [currentParsed]);
+
   const additions = diffs.filter((d) => d.type === "added").length;
   const modifications = diffs.filter((d) => d.type === "modified").length;
   const deletions = diffs.filter((d) => d.type === "removed").length;
@@ -82,6 +146,7 @@ function DiffViewDialog({
       <DialogContent className="max-w-3xl max-h-[85vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>Review Changes</DialogTitle>
+          <DialogDescription>Secret values are hidden; use the eye button on a row or pane to reveal them.</DialogDescription>
         </DialogHeader>
 
         {/* Summary */}
@@ -129,36 +194,7 @@ function DiffViewDialog({
                   </thead>
                   <tbody>
                     {diffs.map((entry) => (
-                      <tr
-                        key={entry.path}
-                        className={`border-b last:border-0 ${rowBg(entry.type)}`}
-                      >
-                        <td className="px-3 py-2 font-mono break-all align-top">
-                          {entry.path}
-                        </td>
-                        <td className="px-3 py-2 font-mono break-all align-top max-w-[160px]">
-                          <span className="whitespace-pre-wrap line-clamp-3 text-red-700 dark:text-red-400">
-                            {formatValue(entry.oldValue)}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2 font-mono break-all align-top max-w-[160px]">
-                          <span className="whitespace-pre-wrap line-clamp-3 text-green-700 dark:text-green-400">
-                            {formatValue(entry.newValue)}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2 align-top">{typeBadge(entry.type)}</td>
-                        <td className="px-3 py-2 align-top">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6"
-                            title="Revert this change"
-                            onClick={() => onRevert(entry.path)}
-                          >
-                            <RotateCcw className="w-3 h-3" />
-                          </Button>
-                        </td>
-                      </tr>
+                      <DiffRow key={entry.path} entry={entry} onRevert={onRevert} />
                     ))}
                   </tbody>
                 </table>
@@ -170,15 +206,11 @@ function DiffViewDialog({
             <div className="grid grid-cols-2 gap-3 h-full">
               <div className="space-y-1">
                 <p className="text-xs font-medium text-muted-foreground">Original</p>
-                <pre className="text-xs font-mono bg-slate-950 text-slate-50 p-3 rounded-md overflow-auto max-h-[50vh] whitespace-pre-wrap break-all">
-                  {JSON.stringify(originalParsed, null, 2)}
-                </pre>
+                <MaskedText label="original request JSON" text={originalJson} maskedText={maskedOriginalJson} className={RAW_JSON_CLASS} />
               </div>
               <div className="space-y-1">
                 <p className="text-xs font-medium text-muted-foreground">Current</p>
-                <pre className="text-xs font-mono bg-slate-950 text-slate-50 p-3 rounded-md overflow-auto max-h-[50vh] whitespace-pre-wrap break-all">
-                  {JSON.stringify(currentParsed, null, 2)}
-                </pre>
+                <MaskedText label="current request JSON" text={currentJson} maskedText={maskedCurrentJson} className={RAW_JSON_CLASS} />
               </div>
             </div>
           </TabsContent>
