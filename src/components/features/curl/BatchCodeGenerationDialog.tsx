@@ -10,6 +10,7 @@ import { ENV } from "@/lib/env";
 import { isInsecureCurl, withRelaxedHttps } from "@/lib/utils/insecureFlag";
 import {
   javaIdentifierError,
+  statusCodeError,
 } from "@/lib/utils/codegenValidation";
 import { deriveMethodName, uniqueName } from "@/lib/hooks/useBatchEditor";
 import type { BatchItem } from "@/types/batch";
@@ -71,6 +72,8 @@ function BatchCodeGenerationDialog({
   const [methodNames, setMethodNames] = useState<Record<string, string>>(() =>
     suggestMethodNames(items)
   );
+  // Only statuses the user typed are stored; the rest come from the item's config.
+  const [statusOverrides, setStatusOverrides] = useState<Record<string, string>>({});
   const [failures, setFailures] = useState<GenerationFailure[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -79,6 +82,9 @@ function BatchCodeGenerationDialog({
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"test" | "pom">("test");
   const [copied, setCopied] = useState(false);
+
+  const statusFor = (item: BatchItem) =>
+    statusOverrides[item.id] ?? item.config.statusCode;
 
   // Every name must compile: a Java identifier, and no two methods in the class may share one.
   const classNameError = javaIdentifierError(className);
@@ -90,12 +96,13 @@ function BatchCodeGenerationDialog({
         let method = javaIdentifierError(name);
         if (!method && seen.has(name)) method = "Already used by another request";
         if (!method) seen.add(name);
-        return [item.id, { method }] as const;
+        const status = statusCodeError(statusOverrides[item.id] ?? item.config.statusCode);
+        return [item.id, { method, status }] as const;
       })
     );
-  }, [items, methodNames]);
+  }, [items, methodNames, statusOverrides]);
   const hasErrors =
-    !!classNameError || items.some((item) => rowErrors[item.id]?.method);
+    !!classNameError || items.some((item) => rowErrors[item.id]?.method || rowErrors[item.id]?.status);
 
   const handleGenerateAll = async () => {
     if (hasErrors) return;
@@ -116,6 +123,7 @@ function BatchCodeGenerationDialog({
         option: "method",
         className: className.trim(),
         methodName: (methodNames[item.id] ?? "").trim(),
+        statusCode: statusFor(item).trim(),
       };
 
       try {
@@ -262,7 +270,7 @@ ${methods.map((m) => "    " + m.replace(/\n/g, "\n    ")).join("\n\n")}
             </div>
 
             <div className="space-y-2">
-              <p className="text-sm font-medium">Method Names</p>
+              <p className="text-sm font-medium">Methods and expected status</p>
               <div className="border rounded-md overflow-hidden max-h-64 overflow-y-auto">
                 {items.map((item) => {
                   const errors = rowErrors[item.id];
@@ -292,6 +300,28 @@ ${methods.map((m) => "    " + m.replace(/\n/g, "\n    ")).join("\n\n")}
                         {errors?.method && (
                           <p id={`method-error-${item.id}`} className="text-xs text-destructive mt-1">
                             {errors.method}
+                          </p>
+                        )}
+                      </div>
+                      <div className="w-24 shrink-0">
+                        <Input
+                          type="number"
+                          inputMode="numeric"
+                          min={100}
+                          max={599}
+                          value={statusFor(item)}
+                          onChange={(e) =>
+                            setStatusOverrides((prev) => ({ ...prev, [item.id]: e.target.value }))
+                          }
+                          className="font-mono text-xs h-7"
+                          placeholder="200"
+                          aria-label={`Expected status for ${item.name}`}
+                          aria-invalid={errors?.status ? true : undefined}
+                          aria-describedby={errors?.status ? `status-error-${item.id}` : undefined}
+                        />
+                        {errors?.status && (
+                          <p id={`status-error-${item.id}`} className="text-xs text-destructive mt-1">
+                            {errors.status}
                           </p>
                         )}
                       </div>

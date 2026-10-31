@@ -58,6 +58,7 @@ const open = (items: BatchItem[]) =>
 
 const generateBtn = () => screen.getByRole('button', { name: 'Generate All' });
 const methodInput = (name: string) => screen.getByRole('textbox', { name: `Method name for ${name}` });
+const statusInput = (name: string) => screen.getByRole('spinbutton', { name: `Expected status for ${name}` });
 
 const ITEMS = () => [makeItem('1', 'GET', '/users'), makeItem('2', 'POST', '/users')];
 
@@ -114,6 +115,41 @@ describe('BatchCodeGenerationDialog suggested names (QF-21)', () => {
   });
 });
 
+describe('BatchCodeGenerationDialog expected status (T29, QF-20)', () => {
+  it('lets one row override its status without touching the others', async () => {
+    const user = userEvent.setup();
+    const bodies = mockGenerate();
+    open(ITEMS());
+
+    await user.clear(statusInput('POST /users'));
+    await user.type(statusInput('POST /users'), '202');
+    await user.click(generateBtn());
+    await screen.findByText(/public class BatchApiTest/);
+
+    expect(bodies.map((b) => b.config.statusCode)).toEqual(['200', '202']);
+  });
+
+  it('refuses an empty status or one outside 100-599', async () => {
+    const user = userEvent.setup();
+    const bodies = mockGenerate();
+    open(ITEMS());
+
+    await user.clear(statusInput('GET /users'));
+    expect(screen.getByText('Required')).toBeInTheDocument();
+    expect(generateBtn()).toBeDisabled();
+
+    await user.type(statusInput('GET /users'), '999');
+    expect(screen.getByText(/100 to 599/)).toBeInTheDocument();
+    expect(statusInput('GET /users')).toHaveAttribute('aria-invalid', 'true');
+    expect(generateBtn()).toBeDisabled();
+    expect(bodies).toHaveLength(0);
+
+    await user.clear(statusInput('GET /users'));
+    await user.type(statusInput('GET /users'), '404');
+    expect(generateBtn()).toBeEnabled();
+  });
+});
+
 describe('BatchCodeGenerationDialog failures (QF-8)', () => {
   it('shows an error and stays on the config step when every request fails', async () => {
     const user = userEvent.setup();
@@ -166,5 +202,20 @@ describe('BatchCodeGenerationDialog failures (QF-8)', () => {
 
     await screen.findByText('Generated Batch Code');
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+});
+
+describe('BatchCodeGenerationDialog request body shape (QF-17)', () => {
+  it('sends each item exactly as it is held', async () => {
+    const user = userEvent.setup();
+    const bodies = mockGenerate();
+    const obj = { name: 'x' };
+    open([makeItem('1', 'POST', '/a', { data: obj }), makeItem('2', 'POST', '/b', { data: obj })]);
+
+    await user.click(generateBtn());
+    await screen.findByText(/public class BatchApiTest/);
+
+    expect(bodies[0]!.parsed_data.data).toEqual(obj);
+    expect(bodies[1]!.parsed_data.data).toEqual(obj);
   });
 });

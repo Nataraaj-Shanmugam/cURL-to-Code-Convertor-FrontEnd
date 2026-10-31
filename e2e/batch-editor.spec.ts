@@ -392,7 +392,7 @@ test.describe('Batch Editor Page', () => {
 
   // ── Generate All validation, failures, status, redaction ─────────────────
 
-  test('Generate All refuses invalid or duplicate names', async ({ mockPage: page }) => {
+  test('Generate All refuses invalid or duplicate names and a status outside 100-599', async ({ mockPage: page }) => {
     await parseAll(page, [CURL_USERS, CURL_ORDERS]);
     await page.getByRole('button', { name: /Generate All/i }).click();
     const dialog = page.getByRole('dialog');
@@ -408,10 +408,13 @@ test.describe('Batch Editor Page', () => {
     await expect(dialog).toContainText('Already used by another request');
     await expect(generate).toBeDisabled();
     await dialog.getByRole('textbox', { name: 'Method name for POST /orders' }).fill('create');
+    await dialog.getByRole('spinbutton', { name: 'Expected status for GET /users' }).fill('999');
+    await expect(generate).toBeDisabled();
+    await dialog.getByRole('spinbutton', { name: 'Expected status for GET /users' }).fill('200');
     await expect(generate).toBeEnabled();
   });
 
-  test('Generate All reports the requests that failed', async ({ mockPage: page }) => {
+  test('Generate All sends 201 for POST by default and reports failed requests', async ({ mockPage: page }) => {
     const sent: { method: string; status: string }[] = [];
     await page.route(/\/api\/generate-from-parsed/, async (route) => {
       const { parsed_data: parsed, config } = JSON.parse(route.request().postData() ?? '{}');

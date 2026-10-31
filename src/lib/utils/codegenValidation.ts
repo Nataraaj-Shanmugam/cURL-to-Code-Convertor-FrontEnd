@@ -1,6 +1,6 @@
 /**
  * Validation and defaults for the code-generation settings the batch dialog collects. They mirror
- * the rules of the single-request dialog.
+ * the rules of the single-request dialog (a Java identifier, a status code in 100-599).
  */
 
 const JAVA_IDENTIFIER = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/;
@@ -11,6 +11,16 @@ export function javaIdentifierError(value: string): string | null {
   if (!trimmed) return "Required";
   if (!JAVA_IDENTIFIER.test(trimmed)) {
     return "Must be a valid Java identifier (no spaces or special characters)";
+  }
+  return null;
+}
+
+/** Returns an error message, or null when `value` is a whole HTTP status code from 100 to 599. */
+export function statusCodeError(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) return "Required";
+  if (!/^\d{3}$/.test(trimmed) || Number(trimmed) < 100 || Number(trimmed) > 599) {
+    return "Must be a status code from 100 to 599";
   }
   return null;
 }

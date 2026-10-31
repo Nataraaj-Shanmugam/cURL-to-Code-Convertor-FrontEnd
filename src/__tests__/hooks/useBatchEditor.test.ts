@@ -33,7 +33,7 @@ describe('useBatchEditor', () => {
       const { result } = renderHook(() => useBatchEditor([first]));
 
       expect(result.current.items[0]!.originalCurl).toBe(first.originalCurl);
-      expect(result.current.items[0]!.parsed).toBe(first.parsed);
+      expect(result.current.items[0]!.parsed).toEqual(first.parsed);
     });
 
     it('handles an empty list without a selection', () => {
@@ -272,6 +272,30 @@ describe('useBatchEditor', () => {
 
       const names = result.current.items.map((i) => i.config.methodName);
       expect(new Set(names).size).toBe(names.length);
+    });
+  });
+
+  describe('body normalisation (QF-17)', () => {
+    const body = { name: 'John', address: { city: 'NYC' } };
+
+    it('turns a JSON-string body into an object for every item, edited or not', () => {
+      const { result } = renderHook(() =>
+        useBatchEditor([
+          entry('POST', '/a', { data: JSON.stringify(body) }),
+          entry('POST', '/b', { data: JSON.stringify(body) }),
+        ]),
+      );
+
+      expect(result.current.items.map((i) => i.parsed.data)).toEqual([body, body]);
+    });
+
+    it('leaves form-style and non-JSON bodies alone, and does not mutate the input', () => {
+      const form = entry('POST', '/f', { data: 'a=1&b=2' });
+      const json = entry('POST', '/j', { data: '{"x":1}' });
+      const { result } = renderHook(() => useBatchEditor([form, json]));
+
+      expect(result.current.items[0]!.parsed.data).toBe('a=1&b=2');
+      expect(json.parsed.data).toBe('{"x":1}');
     });
   });
 

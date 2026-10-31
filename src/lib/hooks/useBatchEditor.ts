@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo } from "react";
 import type { BatchItem, ParsedCurlEntry } from "@/types/batch";
 import type { ParsedCurl, CodeGenConfig } from "@/types/curl";
+import { parseBodyData } from "@/lib/hooks/useEditorState";
 import { deepEqual } from "@/lib/utils/deepEqual";
 
 const DEFAULT_CONFIG: CodeGenConfig = {
@@ -62,7 +63,9 @@ function createItem(
   // Default method names must be unique: two `testGet_users` would not compile in one class.
   const methodName = uniqueName(deriveMethodName(entry.parsed, index), taken);
   taken.add(methodName);
-  const parsed = entry.parsed;
+  // Bodies are normalised exactly as the single editor does on load (a JSON string becomes an
+  // object), so every item reaches the generator in the same shape whether or not it was edited.
+  const parsed = parseBodyData(entry.parsed);
   return {
     id,
     originalCurl: entry.originalCurl,
