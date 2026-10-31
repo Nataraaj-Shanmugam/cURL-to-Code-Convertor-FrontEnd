@@ -199,3 +199,15 @@ test.describe('Scroll on navigation (T40)', () => {
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
   });
 });
+
+test.describe('Footer links (T35)', () => {
+  test('Feedback, GitHub and nataraaj.dev are in the footer on every page', async ({ mockPage: page }) => {
+    for (const path of ['/', '/playground', '/feedback', '/no-such-page']) {
+      await page.goto(path);
+      const footer = page.getByRole('contentinfo');
+      await expect(footer.getByRole('link', { name: 'Feedback' })).toHaveAttribute('href', '/feedback');
+      await expect(footer.getByRole('link', { name: /GitHub/ })).toHaveAttribute('href', /github\.com\/Nataraaj-Shanmugam/);
+      await expect(footer.getByRole('link', { name: /nataraaj\.dev/ })).toHaveAttribute('href', 'https://nataraaj.dev');
+    }
+  });
+});

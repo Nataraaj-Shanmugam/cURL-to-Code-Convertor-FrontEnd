@@ -1,5 +1,17 @@
 import { Code2 } from "lucide-react";
 import { Link } from "react-router-dom";
+import { GITHUB_URL, PORTFOLIO_URL } from "@/constants/links";
+
+const linkClass = "hover:text-foreground transition-colors underline-offset-4 hover:underline";
+
+function ExternalLink({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer" className={linkClass}>
+      {children}
+      <span className="sr-only"> (opens in a new tab)</span>
+    </a>
+  );
+}
 
 export default function Footer() {
   const currentYear = new Date().getFullYear();
@@ -8,20 +20,19 @@ export default function Footer() {
     <footer className="border-t border-border py-6 mt-8">
       <div className="container mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
         <div className="flex items-center gap-2">
-          <Code2 className="w-4 h-4 text-primary" />
+          <Code2 className="w-4 h-4 text-primary" aria-hidden="true" />
           <span>&copy; {currentYear} CurlCraft Assured</span>
         </div>
-        <div className="flex items-center gap-4">
-          <Link to="/playground" className="hover:text-foreground transition-colors">
+        <nav aria-label="Footer" className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
+          <Link to="/playground" className={linkClass}>
             Playground
           </Link>
-          <span className="text-border">|</span>
-          <Link to="/feedback" className="hover:text-foreground transition-colors">
+          <Link to="/feedback" className={linkClass}>
             Feedback
           </Link>
-          <span className="text-border">|</span>
-          <span>cURL to REST Assured</span>
-        </div>
+          <ExternalLink href={GITHUB_URL}>GitHub</ExternalLink>
+          <ExternalLink href={PORTFOLIO_URL}>nataraaj.dev</ExternalLink>
+        </nav>
       </div>
     </footer>
   );
