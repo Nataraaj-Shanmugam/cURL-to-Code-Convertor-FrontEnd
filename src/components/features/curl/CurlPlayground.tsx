@@ -3,8 +3,10 @@ import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { apiClient } from "@/lib/api/apiClient";
 import { ENV } from "@/lib/env";
-import { EXAMPLE_CURLS, METHOD_COLORS } from "@/constants/curl";
-import { Terminal, Play, RotateCcw, AlertCircle, ChevronRight, Loader2, Upload, Plus, X, Layers, ShieldCheck } from "lucide-react";
+import { EXAMPLE_CURLS } from "@/constants/curl";
+import { Alert } from "@/components/ui/alert";
+import { MethodBadge } from "@/components/ui/method-badge";
+import { Terminal, Play, RotateCcw, ChevronRight, Loader2, Upload, Plus, X, Layers, ShieldCheck } from "lucide-react";
 import ImportDialog from "@/components/features/import/ImportDialog";
 import { parseCurlBatch } from "@/lib/utils/parseCurlBatch";
 import type { BatchParseFailure } from "@/types/batch";
@@ -178,13 +180,9 @@ function CurlPlayground() {
 
   return (
     <div className="max-w-5xl mx-auto p-4 space-y-6 bg-grid min-h-[calc(100vh-12rem)]">
-      {/* Screen-reader live region for async status */}
+      {/* Screen-reader live region for async status; errors are announced by their own alerts */}
       <div aria-live="polite" aria-atomic="true" className="sr-only">
-        {loading
-          ? "Parsing cURL command\u2026"
-          : error
-            ? `Error: ${[error, ...Object.values(entryErrors)].join(". ")}`
-            : ""}
+        {loading ? "Parsing cURL command\u2026" : ""}
       </div>
 
       {/* Header */}
@@ -230,10 +228,11 @@ function CurlPlayground() {
               {entries.length > 1 && (
                 <button
                   onClick={() => removeEntry(entry.id)}
-                  className="opacity-0 group-hover/card:opacity-100 transition-opacity p-1 rounded hover:bg-destructive/10 hover:text-destructive text-muted-foreground"
+                  className="opacity-0 group-hover/card:opacity-100 focus-visible:opacity-100 transition-opacity -my-1 -mr-2 inline-flex h-7 w-7 items-center justify-center rounded hover:bg-destructive/10 hover:text-destructive text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:opacity-100"
                   title="Remove this cURL"
+                  type="button"
                 >
-                  <X className="w-3.5 h-3.5" />
+                  <X className="w-3.5 h-3.5" aria-hidden="true" />
                 </button>
               )}
             </div>
@@ -252,16 +251,12 @@ function CurlPlayground() {
               aria-invalid={entryErrors[entry.id] ? true : undefined}
             />
             {entryErrors[entry.id] && (
-              <div
-                role="alert"
-                className="flex items-start gap-2 px-4 py-2 bg-destructive/10 text-destructive text-sm border-t border-destructive/30"
-              >
-                <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <Alert variant="destructive" className="rounded-none border-x-0 border-b-0 px-4 py-2">
                 <span>
                   {isMulti ? `curl-input-${idx + 1}: ` : ""}
                   {entryErrors[entry.id]}
                 </span>
-              </div>
+              </Alert>
             )}
           </div>
         ))}
@@ -326,10 +321,9 @@ function CurlPlayground() {
 
       {/* Error */}
       {error && (
-        <div className="flex items-start gap-2 p-3 bg-destructive/10 text-destructive rounded-lg text-sm border border-destructive/30">
-          <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+        <Alert variant="destructive">
           <span>{error}</span>
-        </div>
+        </Alert>
       )}
 
       {/* Import Dialog */}
@@ -370,11 +364,7 @@ function CurlPlayground() {
                 className="group flex flex-col gap-2.5 p-4 rounded-lg border border-border bg-card hover:border-primary/40 hover:shadow-md transition-all text-left"
               >
                 <div className="flex items-center gap-2">
-                  <span
-                    className={`px-2 py-0.5 rounded text-[10px] font-bold font-mono ${METHOD_COLORS[example.method] || ""}`}
-                  >
-                    {example.method}
-                  </span>
+                  <MethodBadge method={example.method} />
                   <span className="text-sm font-semibold text-foreground">{example.label}</span>
                 </div>
                 <p className="text-[11px] text-muted-foreground font-mono truncate w-full">{example.curl}</p>

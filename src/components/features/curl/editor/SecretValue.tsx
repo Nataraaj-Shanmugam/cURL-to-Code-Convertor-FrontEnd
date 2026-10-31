@@ -18,12 +18,12 @@ export function RevealToggle({ label, revealed, onToggle, className }: RevealTog
       type="button"
       variant="ghost"
       size="icon"
-      className={cn("h-6 w-6 shrink-0", className)}
+      className={cn("h-7 w-7 shrink-0 pointer-coarse:h-10 pointer-coarse:w-10", className)}
       aria-label={`Reveal value of ${label}`}
       aria-pressed={revealed}
       onClick={onToggle}
     >
-      {revealed ? <EyeOff className="h-3 w-3" aria-hidden="true" /> : <Eye className="h-3 w-3" aria-hidden="true" />}
+      {revealed ? <EyeOff className="h-3.5 w-3.5" aria-hidden="true" /> : <Eye className="h-3.5 w-3.5" aria-hidden="true" />}
     </Button>
   );
 }

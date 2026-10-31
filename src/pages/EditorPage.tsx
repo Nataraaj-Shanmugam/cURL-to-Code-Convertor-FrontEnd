@@ -1,6 +1,7 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { useCallback, useEffect, useMemo, useRef, useState, Suspense, lazy } from "react";
 import { Terminal, ArrowRight, ShieldCheck } from "lucide-react";
+import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { useUnsavedChangesGuard } from "@/lib/hooks/useUnsavedChangesGuard";
 import UnsavedChangesDialog from "@/components/features/curl/UnsavedChangesDialog";
@@ -107,22 +108,24 @@ export default function EditorPage() {
     <>
       {savedCopy !== "none" && (
         <div className="max-w-6xl mx-auto px-4 pt-4">
-          <div
-            role="status"
-            className="flex items-center justify-between gap-3 flex-wrap rounded-lg border bg-muted/30 px-3 py-2 text-xs text-muted-foreground"
+          <Alert
+            variant="info"
+            icon={<ShieldCheck className="w-4 h-4 mt-0.5 shrink-0" aria-hidden="true" />}
+            className="items-center"
           >
-            <span className="flex items-center gap-1.5">
-              <ShieldCheck className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-              {savedCopy === "saved"
-                ? "A copy of this request, with secrets redacted, is kept for this browser session so a reload can restore it."
-                : "Saved copy cleared. Reloading this page will not restore this request."}
-            </span>
-            {savedCopy === "saved" && (
-              <Button variant="outline" size="sm" onClick={handleClearSaved}>
-                Clear saved request
-              </Button>
-            )}
-          </div>
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <span>
+                {savedCopy === "saved"
+                  ? "A copy of this request, with secrets redacted, is kept for this browser session so a reload can restore it."
+                  : "Saved copy cleared. Reloading this page will not restore this request."}
+              </span>
+              {savedCopy === "saved" && (
+                <Button variant="outline" size="sm" onClick={handleClearSaved}>
+                  Clear saved request
+                </Button>
+              )}
+            </div>
+          </Alert>
         </div>
       )}
       <Suspense fallback={<EditorSkeleton />}>

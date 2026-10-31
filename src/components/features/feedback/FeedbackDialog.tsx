@@ -3,13 +3,16 @@ import { Button } from "@/components/ui/button";
 import {
     Dialog,
     DialogContent,
+    DialogDescription,
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Star, Send, CheckCircle2, AlertCircle } from "lucide-react";
+import { Send, CheckCircle2 } from "lucide-react";
+import { Alert } from "@/components/ui/alert";
+import { StarRating } from "@/components/ui/star-rating";
 import { apiClient } from "@/lib/api/apiClient";
 import { ENV } from "@/lib/env";
 import { RATING_LABELS } from "@/constants/feedback";
@@ -34,7 +37,6 @@ function FeedbackDialog({
     knownSecrets,
 }: FeedbackDialogProps) {
     const [rating, setRating] = useState(0);
-    const [hoveredStar, setHoveredStar] = useState(0);
     const [comment, setComment] = useState("");
     const [email, setEmail] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -85,7 +87,6 @@ function FeedbackDialog({
 
     const handleClose = () => {
         setRating(0);
-        setHoveredStar(0);
         setComment("");
         setEmail("");
         setError("");
@@ -100,8 +101,11 @@ function FeedbackDialog({
             <DialogContent className="max-w-md">
                 <DialogHeader>
                     <DialogTitle>
-                        {submitted ? "Thank You!" : "How was your experience?"}
+                        {submitted ? "Thank you!" : "How was your experience?"}
                     </DialogTitle>
+                    <DialogDescription className="sr-only">
+                        Rate your experience and optionally tell us more.
+                    </DialogDescription>
                 </DialogHeader>
 
                 <div>
@@ -121,42 +125,23 @@ function FeedbackDialog({
                         <div className="space-y-5 animate-fade-up">
 
                             {error && (
-                                <div className="flex items-start gap-2 p-3 bg-destructive/10 text-destructive rounded-md text-sm border border-destructive/30">
-                                    <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                                <Alert variant="destructive">
                                     <span>{error}</span>
-                                </div>
+                                </Alert>
                             )}
 
                             {/* Star Rating */}
                             <div className="flex flex-col items-center gap-2">
-                                <div role="radiogroup" aria-label="Rating" className="flex gap-1">
-                                    {[1, 2, 3, 4, 5].map((star) => (
-                                        <button
-                                            key={star}
-                                            type="button"
-                                            role="radio"
-                                            aria-checked={rating === star}
-                                            aria-label={`${RATING_LABELS[star]} — ${star} out of 5`}
-                                            onClick={() => {
-                                                setRating(star);
-                                                setError("");
-                                            }}
-                                            onMouseEnter={() => setHoveredStar(star)}
-                                            onMouseLeave={() => setHoveredStar(0)}
-                                            className="p-1 transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
-                                        >
-                                            <Star
-                                                className={`w-8 h-8 transition-colors ${
-                                                    star <= (hoveredStar || rating)
-                                                        ? "fill-yellow-400 text-yellow-400"
-                                                        : "text-muted-foreground/30"
-                                                }`}
-                                            />
-                                        </button>
-                                    ))}
-                                </div>
+                                <StarRating
+                                    value={rating}
+                                    onChange={(next) => {
+                                        setRating(next);
+                                        setError("");
+                                    }}
+                                    labels={RATING_LABELS}
+                                />
                                 <span aria-live="polite" className="text-xs text-muted-foreground min-h-[1em]">
-                                    {(hoveredStar || rating) > 0 ? RATING_LABELS[hoveredStar || rating] : ''}
+                                    {rating > 0 ? RATING_LABELS[rating] : ''}
                                 </span>
                             </div>
 
@@ -235,14 +220,19 @@ function FeedbackDialog({
                             )}
 
                             {/* Actions */}
-                            <div className="flex justify-end gap-2 pt-2 border-t">
+                            <div className="flex flex-col gap-2 pt-2 border-t sm:flex-row sm:items-center sm:justify-end">
+                                {rating === 0 && (
+                                    <p id="feedback-submit-hint" className="text-xs text-muted-foreground sm:mr-auto">
+                                        Pick a rating to continue
+                                    </p>
+                                )}
                                 <Button variant="outline" onClick={handleClose}>
                                     Cancel
                                 </Button>
                                 <Button
                                     onClick={handleSubmit}
                                     disabled={rating === 0 || isSubmitting}
-                                    className="bg-primary"
+                                    aria-describedby={rating === 0 ? "feedback-submit-hint" : undefined}
                                 >
                                     {isSubmitting ? (
                                         "Submitting..."

@@ -42,6 +42,8 @@
 
     --warning: 38 92% 50%;
     --warning-foreground: 210 20% 12%;
+    /* Text/icon colour for warnings on a light or tinted surface (>= 4.5:1 on background and on warning/10) */
+    --warning-text: 32 90% 24%;
 
     --radius: 0.625rem;
 
@@ -83,6 +85,7 @@
 
     --warning: 38 92% 50%;
     --warning-foreground: 220 18% 5%;
+    --warning-text: 38 92% 66%;
   }
 }
 

@@ -1,5 +1,5 @@
 import { memo, useState, useCallback, useRef } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -191,6 +191,9 @@ function ImportDialog({
             <Upload className="w-5 h-5" />
             Import from Postman / OpenAPI
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            Paste or upload a Postman collection or OpenAPI spec and choose the requests to import.
+          </DialogDescription>
         </DialogHeader>
 
         <Tabs

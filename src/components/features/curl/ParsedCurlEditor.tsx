@@ -3,7 +3,9 @@ import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Alert } from "@/components/ui/alert";
+import { notifySaved } from "@/lib/utils/notify";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   DropdownMenu,
@@ -182,7 +184,10 @@ function ParsedCurlEditor({
   }, [undo, redo, isActive]);
 
   const handleSave = () => {
-    if (onSave) onSave(parsed);
+    if (onSave) {
+      onSave(parsed);
+      notifySaved();
+    }
   };
 
   const getSectionDisplayName = (key: string): string => {
@@ -312,16 +317,17 @@ function ParsedCurlEditor({
         )}
 
         {redactedCount > 0 && (
-          <div
+          // role="alert" is kept on purpose: the user has to act (re-enter the values) before generating code.
+          <Alert
+            variant="warning"
             role="alert"
-            className="flex items-start gap-2 p-3 rounded-lg border border-amber-500/40 bg-amber-500/10 text-sm text-amber-900 dark:text-amber-200"
+            icon={<ShieldAlert className="w-4 h-4 mt-0.5 shrink-0" aria-hidden="true" />}
           >
-            <ShieldAlert className="w-4 h-4 mt-0.5 shrink-0" aria-hidden="true" />
             <span>
               Secret values in this request were redacted when it was saved. Fields marked <strong>Redacted: re-enter
               value</strong> must be filled in again; code generated now would contain the placeholder.
             </span>
-          </div>
+          </Alert>
         )}
 
         {/* Toolbar */}
@@ -518,25 +524,25 @@ function ParsedCurlEditor({
               <DialogTitle>
                 {pendingConfirm?.type === "reset" ? "Reset all changes?" : "Delete section?"}
               </DialogTitle>
+              <DialogDescription>
+                {pendingConfirm?.type === "reset"
+                  ? "This will restore all fields to their original parsed values. Any edits you made will be lost."
+                  : `The "${
+                      pendingConfirm?.type === "deleteSection"
+                        ? VALID_SECTIONS[pendingConfirm.key as keyof typeof VALID_SECTIONS] ||
+                          pendingConfirm.key
+                        : ""
+                    }" section and all its entries will be permanently removed.`}
+              </DialogDescription>
             </DialogHeader>
-            <p className="text-sm text-muted-foreground">
-              {pendingConfirm?.type === "reset"
-                ? "This will restore all fields to their original parsed values. Any edits you made will be lost."
-                : `The "${
-                    pendingConfirm?.type === "deleteSection"
-                      ? VALID_SECTIONS[pendingConfirm.key as keyof typeof VALID_SECTIONS] ||
-                        pendingConfirm.key
-                      : ""
-                  }" section and all its entries will be permanently removed.`}
-            </p>
-            <div className="flex justify-end gap-2 pt-2">
+            <DialogFooter>
               <Button variant="outline" onClick={() => setPendingConfirm(null)}>
                 Cancel
               </Button>
               <Button variant="destructive" onClick={executeConfirm}>
                 {pendingConfirm?.type === "reset" ? "Reset" : "Delete"}
               </Button>
-            </div>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
 
@@ -549,15 +555,19 @@ function ParsedCurlEditor({
                   ? "Add Flag"
                   : "Add New Entry"}
               </DialogTitle>
+              <DialogDescription className="sr-only">
+                Enter the details of the entry to add to this section.
+              </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <div>
-                <label className="text-sm font-medium mb-2 block">
+                <label htmlFor="add-entry-key" className="text-sm font-medium mb-2 block">
                   {addDialogSection === "flags" || addDialogSection === "ssl_config"
                     ? "Flag Name"
                     : "Key"}
                 </label>
                 <Input
+                  id="add-entry-key"
                   value={newKey}
                   onChange={e => setNewKey(e.target.value)}
                   placeholder={
@@ -569,15 +579,16 @@ function ParsedCurlEditor({
               </div>
               {addDialogSection !== "flags" && addDialogSection !== "ssl_config" && (
                 <div>
-                  <label className="text-sm font-medium mb-2 block">Value</label>
+                  <label htmlFor="add-entry-value" className="text-sm font-medium mb-2 block">Value</label>
                   <Input
+                    id="add-entry-value"
                     value={newValue}
                     onChange={e => setNewValue(e.target.value)}
                     placeholder="Enter value"
                   />
                 </div>
               )}
-              <div className="flex justify-end gap-2">
+              <DialogFooter>
                 <Button variant="outline" onClick={() => setShowAddDialog(false)}>
                   Cancel
                 </Button>
@@ -586,7 +597,7 @@ function ParsedCurlEditor({
                     ? "Add Flag"
                     : "Add Entry"}
                 </Button>
-              </div>
+              </DialogFooter>
             </div>
           </DialogContent>
         </Dialog>
@@ -596,12 +607,13 @@ function ParsedCurlEditor({
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Add Missing Section</DialogTitle>
+              <DialogDescription className="sr-only">Choose a section to add to this request.</DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <div>
-                <label className="text-sm font-medium mb-2 block">Select Section</label>
+                <label htmlFor="add-section-select" className="text-sm font-medium mb-2 block">Select Section</label>
                 <Select value={newSectionName} onValueChange={setNewSectionName}>
-                  <SelectTrigger>
+                  <SelectTrigger id="add-section-select">
                     <SelectValue placeholder="Choose a section" />
                   </SelectTrigger>
                   <SelectContent>
@@ -613,14 +625,14 @@ function ParsedCurlEditor({
                   </SelectContent>
                 </Select>
               </div>
-              <div className="flex justify-end gap-2">
+              <DialogFooter>
                 <Button variant="outline" onClick={() => setShowNewSectionDialog(false)}>
                   Cancel
                 </Button>
                 <Button onClick={saveNewSection} disabled={!newSectionName}>
                   Add Section
                 </Button>
-              </div>
+              </DialogFooter>
             </div>
           </DialogContent>
         </Dialog>
@@ -693,10 +705,11 @@ function ParsedCurlEditor({
                     </AccordionTrigger>
                     <AccordionContent>
                       {bodyApiError && (
-                        <div className="flex items-start gap-2 mb-2 p-2 bg-destructive/10 text-destructive rounded-md text-xs border border-destructive/30">
-                          <span className="font-medium">Body API error:</span>
-                          <span>{bodyApiError}</span>
-                        </div>
+                        <Alert variant="destructive" className="mb-2 p-2 text-xs">
+                          <span>
+                            <span className="font-medium">Body API error:</span> {bodyApiError}
+                          </span>
+                        </Alert>
                       )}
                       <div className="bg-muted/30 rounded-md p-3 font-mono text-sm overflow-x-auto">
                         {typeof parsed.data === "object" && parsed.data !== null ? (

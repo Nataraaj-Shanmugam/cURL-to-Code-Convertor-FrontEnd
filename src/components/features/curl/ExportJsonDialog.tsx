@@ -2,7 +2,9 @@ import { memo, useMemo, useState } from "react";
 import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { CodeBlock } from "@/components/ui/code-block";
+import { notifyDownloaded } from "@/lib/utils/notify";
 import type { ParsedCurl } from "@/types/curl";
 import { listSecretFields, maskParsedCurl, redactParsedCurl } from "@/lib/utils/redaction";
 import { RevealToggle } from "./editor/SecretValue";
@@ -47,6 +49,7 @@ function ExportJsonDialog({ open, onOpenChange, parsedData }: ExportJsonDialogPr
     link.download = EXPORT_FILE_NAME;
     link.click();
     URL.revokeObjectURL(url);
+    notifyDownloaded(EXPORT_FILE_NAME);
   };
 
   return (
@@ -54,6 +57,9 @@ function ExportJsonDialog({ open, onOpenChange, parsedData }: ExportJsonDialogPr
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>Export JSON</DialogTitle>
+          <DialogDescription className="sr-only">
+            Review the request as JSON, then download it or copy it.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto space-y-4 pr-1">
@@ -78,11 +84,8 @@ function ExportJsonDialog({ open, onOpenChange, parsedData }: ExportJsonDialogPr
             </section>
           )}
 
-          <pre
-            className="text-xs font-mono bg-slate-950 text-slate-50 p-4 rounded-md overflow-auto max-h-80 whitespace-pre-wrap break-all"
-          >
-            {JSON.stringify(shown, null, 2)}
-          </pre>
+          {/* Copy takes what is on screen: masked values stay masked until revealed. */}
+          <CodeBlock code={JSON.stringify(shown, null, 2)} label="Request JSON" wrap />
         </div>
 
         <div className="flex items-center justify-between gap-3 flex-wrap pt-3 border-t">

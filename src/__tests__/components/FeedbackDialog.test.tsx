@@ -161,7 +161,7 @@ describe('FeedbackDialog', () => {
       await user.click(screen.getByRole('radio', { name: /Good.*3 out of 5/i }));
       await user.click(screen.getByRole('button', { name: /Submit Feedback/i }));
       await waitFor(() => {
-        expect(screen.getByText('Thank You!')).toBeInTheDocument();
+        expect(screen.getByText('Thank you!')).toBeInTheDocument();
       });
     });
 
