@@ -1,0 +1,276 @@
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { http, HttpResponse } from 'msw';
+import { server } from '../mocks/server';
+import { renderWithProviders } from '../test-utils';
+import BatchCodeGenerationDialog from '@/components/features/curl/BatchCodeGenerationDialog';
+import type { BatchItem } from '@/types/batch';
+import type { ParsedCurl } from '@/types/curl';
+
+// These tests mount the dialog and type into several inputs; allow for a busy machine.
+vi.setConfig({ testTimeout: 30_000 });
+
+const makeItem = (id: string, method: string, endpoint: string, extra: Partial<ParsedCurl> = {}): BatchItem => ({
+  id,
+  originalCurl: `curl -X ${method} https://api.example.com${endpoint}`,
+  parsed: { method, base_url: 'https://api.example.com', endpoint, ...extra },
+  config: {
+    option: 'full',
+    className: 'BatchApiTest',
+    methodName: 'stale',
+    assertionRequired: true,
+    statusCode: '200',
+    loggingRequired: true,
+    needPojo: false,
+  },
+  name: `${method} ${endpoint}`,
+});
+
+interface GenerateBody {
+  parsed_data: ParsedCurl;
+  config: { className: string; methodName: string; statusCode: string };
+}
+
+const codeFor = (b: GenerateBody) => `import io.restassured.RestAssured;
+import org.testng.annotations.*;
+
+public class Whatever {
+    @Test
+    public void ${b.config.methodName}() {
+        given().header("Authorization", "Bearer abc123tokenvalue").when().get("/x").then().statusCode(${b.config.statusCode});
+    }
+}`;
+
+/** Records every generate request and answers with `reply(body)`. */
+function mockGenerate(reply: (b: GenerateBody) => Response | Promise<Response> = (b) =>
+  HttpResponse.json({ success: true, generated_code: codeFor(b) })) {
+  const bodies: GenerateBody[] = [];
+  server.use(
+    http.post('*/api/generate-from-parsed', async ({ request }) => {
+      const body = (await request.json()) as GenerateBody;
+      bodies.push(body);
+      return reply(body);
+    }),
+  );
+  return bodies;
+}
+
+const open = (items: BatchItem[]) =>
+  renderWithProviders(<BatchCodeGenerationDialog open onOpenChange={vi.fn()} items={items} />);
+
+const generateBtn = () => screen.getByRole('button', { name: 'Generate All' });
+const methodInput = (name: string) => screen.getByRole('textbox', { name: `Method name for ${name}` });
+const statusInput = (name: string) => screen.getByRole('spinbutton', { name: `Expected status for ${name}` });
+
+const ITEMS = () => [makeItem('1', 'GET', '/users'), makeItem('2', 'POST', '/users')];
+
+describe('BatchCodeGenerationDialog validation (QF-7, QS-8)', () => {
+  it('rejects an empty method name, a name with spaces and duplicates, and a bad class name', async () => {
+    const user = userEvent.setup();
+    const bodies = mockGenerate();
+    open(ITEMS());
+    expect(generateBtn()).toBeEnabled();
+
+    await user.clear(methodInput('GET /users'));
+    expect(generateBtn()).toBeDisabled();
+    expect(screen.getByText('Required')).toBeInTheDocument();
+    expect(methodInput('GET /users')).toHaveAttribute('aria-invalid', 'true');
+
+    await user.type(methodInput('GET /users'), 'same name');
+    expect(screen.getByText(/valid Java identifier/)).toBeInTheDocument();
+    expect(generateBtn()).toBeDisabled();
+
+    await user.clear(methodInput('GET /users'));
+    await user.type(methodInput('GET /users'), 'dup');
+    await user.clear(methodInput('POST /users'));
+    await user.type(methodInput('POST /users'), 'dup');
+    expect(screen.getByText('Already used by another request')).toBeInTheDocument();
+    expect(generateBtn()).toBeDisabled();
+
+    await user.clear(methodInput('POST /users'));
+    await user.type(methodInput('POST /users'), 'other');
+    expect(generateBtn()).toBeEnabled();
+
+    const className = screen.getByLabelText('Test Class Name');
+    await user.clear(className);
+    await user.type(className, 'My Test Class');
+    expect(generateBtn()).toBeDisabled();
+    await user.click(generateBtn());
+    expect(bodies).toHaveLength(0);
+
+    await user.clear(className);
+    await user.type(className, 'MyTestClass');
+    await user.click(generateBtn());
+    expect(await screen.findByText(/public class MyTestClass/)).toBeInTheDocument();
+    expect(bodies.map((b) => b.config.methodName)).toEqual(['dup', 'other']);
+  });
+});
+
+describe('BatchCodeGenerationDialog suggested names (QF-21)', () => {
+  it('derives method names from the current method and endpoint, uniquely', () => {
+    const edited = makeItem('1', 'PUT', '/v2/people');
+    edited.config.methodName = 'testGet_users'; // what the item was seeded with before it was edited
+    open([edited, makeItem('2', 'PUT', '/v2/people')]);
+
+    const inputs = screen.getAllByRole('textbox', { name: /Method name for/ });
+    expect(inputs.map((i) => (i as HTMLInputElement).value)).toEqual(['testPut_v2_people', 'testPut_v2_people_2']);
+  });
+});
+
+describe('BatchCodeGenerationDialog expected status (T29, QF-20)', () => {
+  it('defaults to 201 for POST, 204 for DELETE and 200 otherwise, and sends them', async () => {
+    const user = userEvent.setup();
+    const bodies = mockGenerate();
+    open([makeItem('1', 'GET', '/a'), makeItem('2', 'POST', '/b'), makeItem('3', 'DELETE', '/c'), makeItem('4', 'PUT', '/d')]);
+
+    expect(['GET /a', 'POST /b', 'DELETE /c', 'PUT /d'].map((n) => (statusInput(n) as HTMLInputElement).value)).toEqual([
+      '200', '201', '204', '200',
+    ]);
+    await user.click(generateBtn());
+    await screen.findByText(/public class BatchApiTest/);
+    expect(bodies.map((b) => b.config.statusCode)).toEqual(['200', '201', '204', '200']);
+  });
+
+  it('lets one row override its status without touching the others', async () => {
+    const user = userEvent.setup();
+    const bodies = mockGenerate();
+    open(ITEMS());
+
+    await user.clear(statusInput('POST /users'));
+    await user.type(statusInput('POST /users'), '202');
+    await user.click(generateBtn());
+    await screen.findByText(/public class BatchApiTest/);
+
+    expect(bodies.map((b) => b.config.statusCode)).toEqual(['200', '202']);
+  });
+
+  it('refuses an empty status or one outside 100-599', async () => {
+    const user = userEvent.setup();
+    const bodies = mockGenerate();
+    open(ITEMS());
+
+    await user.clear(statusInput('GET /users'));
+    expect(screen.getByText('Required')).toBeInTheDocument();
+    expect(generateBtn()).toBeDisabled();
+
+    await user.type(statusInput('GET /users'), '999');
+    expect(screen.getByText(/100 to 599/)).toBeInTheDocument();
+    expect(statusInput('GET /users')).toHaveAttribute('aria-invalid', 'true');
+    expect(generateBtn()).toBeDisabled();
+    expect(bodies).toHaveLength(0);
+
+    await user.clear(statusInput('GET /users'));
+    await user.type(statusInput('GET /users'), '404');
+    expect(generateBtn()).toBeEnabled();
+  });
+});
+
+describe('BatchCodeGenerationDialog failures (QF-8)', () => {
+  it('shows an error and stays on the config step when every request fails', async () => {
+    const user = userEvent.setup();
+    mockGenerate(() => HttpResponse.json({ success: false, error: { message: 'boom' } }));
+    open(ITEMS());
+
+    await user.click(generateBtn());
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Code generation failed for all 2 requests');
+    expect(alert).toHaveTextContent('GET /users: boom');
+    expect(alert).toHaveTextContent('POST /users: boom');
+    expect(screen.queryByText('Generated Batch Code')).not.toBeInTheDocument();
+    expect(generateBtn()).toBeEnabled(); // can be retried
+  });
+
+  it('also treats network/server errors as failures', async () => {
+    const user = userEvent.setup();
+    mockGenerate(() => new HttpResponse(null, { status: 500 }));
+    open(ITEMS());
+
+    await user.click(generateBtn());
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Code generation failed for all 2 requests');
+  });
+
+  it('warns on the result step, naming the requests that failed, when only some fail', async () => {
+    const user = userEvent.setup();
+    mockGenerate((b) =>
+      b.parsed_data.method === 'POST'
+        ? HttpResponse.json({ success: false, error: 'bad body' })
+        : HttpResponse.json({ success: true, generated_code: codeFor(b) }),
+    );
+    open(ITEMS());
+
+    await user.click(generateBtn());
+
+    expect(await screen.findByText('Generated Batch Code')).toBeInTheDocument();
+    const alert = screen.getByRole('alert');
+    expect(alert).toHaveTextContent('1 of 2 requests');
+    expect(alert).toHaveTextContent('POST /users: bad body');
+  });
+
+  it('shows no warning when everything succeeds', async () => {
+    const user = userEvent.setup();
+    mockGenerate();
+    open(ITEMS());
+
+    await user.click(generateBtn());
+
+    await screen.findByText('Generated Batch Code');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+});
+
+describe('BatchCodeGenerationDialog request body shape (QF-17)', () => {
+  it('sends each item exactly as it is held', async () => {
+    const user = userEvent.setup();
+    const bodies = mockGenerate();
+    const obj = { name: 'x' };
+    open([makeItem('1', 'POST', '/a', { data: obj }), makeItem('2', 'POST', '/b', { data: obj })]);
+
+    await user.click(generateBtn());
+    await screen.findByText(/public class BatchApiTest/);
+
+    expect(bodies[0]!.parsed_data.data).toEqual(obj);
+    expect(bodies[1]!.parsed_data.data).toEqual(obj);
+  });
+});
+
+describe('BatchCodeGenerationDialog redact on copy (QU-6)', () => {
+  const writeText = vi.fn().mockResolvedValue(undefined);
+  afterEach(() => writeText.mockClear());
+
+  const setup = async () => {
+    const user = userEvent.setup(); // installs its own clipboard stub, so override it afterwards
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    mockGenerate();
+    open([makeItem('1', 'GET', '/a', { headers: { Authorization: 'Bearer abc123tokenvalue' } })]);
+    await user.click(generateBtn());
+    await screen.findByText('Generated Batch Code');
+    return user;
+  };
+
+  it('is on by default and masks secrets in the copied text only', async () => {
+    const user = await setup();
+    const box = screen.getByRole('checkbox', { name: 'Redact secrets when copying' });
+    expect(box).toBeChecked();
+
+    await user.click(screen.getByRole('button', { name: /Copy/ }));
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+    const copied = writeText.mock.calls[0]![0] as string;
+    expect(copied).not.toContain('abc123tokenvalue');
+    expect(copied).toContain('[REDACTED]');
+    expect(await screen.findByText('Copied')).toBeInTheDocument();
+  });
+
+  it('copies the code as generated once the user turns it off', async () => {
+    const user = await setup();
+    await user.click(screen.getByRole('checkbox', { name: 'Redact secrets when copying' }));
+
+    await user.click(screen.getByRole('button', { name: /Copy/ }));
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+    expect(writeText.mock.calls[0]![0]).toContain('abc123tokenvalue');
+  });
+});

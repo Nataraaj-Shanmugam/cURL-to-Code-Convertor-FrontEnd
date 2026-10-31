@@ -234,7 +234,7 @@ test.describe('Batch Editor Page', () => {
     await sidebarRow(page, 'POST /orders').click();
     await sidebarRow(page, 'GET /users/v2').click();
 
-    await expect(page.getByText('/users/v2', { exact: true })).toBeVisible();
+    await expect(page.getByTestId('batch-editor-panel').getByText('/users/v2', { exact: true })).toBeVisible();
     // The other request was not touched.
     await expect(sidebarRow(page, 'POST /orders')).toBeVisible();
   });
@@ -249,7 +249,7 @@ test.describe('Batch Editor Page', () => {
     await expect(page.getByRole('textbox')).toHaveValue('/typing-in-progress');
   });
 
-  test('removing a request never makes a later Save overwrite a different one', async ({ mockPage: page }) => {
+  test('removing a request never makes a later edit overwrite a different one', async ({ mockPage: page }) => {
     await parseAll(page, [CURL_USERS, CURL_ORDERS, CURL_ITEMS]);
 
     await sidebarRow(page, 'POST /orders').click();
@@ -259,7 +259,7 @@ test.describe('Batch Editor Page', () => {
     await expect(sidebarRow(page, 'POST /orders')).toHaveAttribute('aria-current', 'true');
 
     await editEndpoint(page, '/orders/saved');
-    await page.getByRole('button', { name: /^Save$/ }).click();
+    await expect(page.getByRole('button', { name: /^Save$/ })).toHaveCount(0);
 
     await expect(sidebarRow(page, 'POST /orders/saved')).toBeVisible();
     await expect(sidebarRow(page, 'DELETE /items/7')).toBeVisible();
@@ -319,5 +319,161 @@ test.describe('Batch Editor Page', () => {
     expect(usersMethod).not.toContain('relaxedHTTPSValidation');
     expect(statusMethod).toContain('given().relaxedHTTPSValidation()');
     expect(text).not.toContain('useRelaxedHTTPSValidation');
+  });
+  // ── Unsaved edits, undo, retry ────────────────────────────────────────────
+
+  test('leaving with an edit asks first; Keep editing stays, Discard leaves', async ({ mockPage: page }) => {
+    await parseAll(page, [CURL_USERS, CURL_ORDERS]);
+    await editEndpoint(page, '/users/v2');
+
+    await page.getByRole('button', { name: /Back to Playground/i }).click();
+    const dialog = page.getByRole('dialog', { name: 'Discard unsaved edits?' });
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole('button', { name: 'Keep editing' }).click();
+    await expect(page).toHaveURL(/\/batch-editor/);
+    await expect(sidebarRow(page, 'GET /users/v2')).toBeVisible();
+
+    await page.getByRole('button', { name: /Back to Playground/i }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Discard and leave' }).click();
+    await expect(page).toHaveURL(/\/playground/);
+  });
+
+  test('removing a request can be undone from the toast', async ({ mockPage: page }) => {
+    await parseAll(page, [CURL_USERS, CURL_ORDERS, CURL_ITEMS]);
+
+    await removeRequest(page, 'POST /orders');
+    await expect(sidebar(page).getByRole('listitem')).toHaveCount(2);
+    await page.locator('[data-sonner-toast]').getByRole('button', { name: 'Undo' }).click();
+
+    await expect(sidebar(page).getByRole('listitem')).toHaveCount(3);
+    await expect(sidebar(page).getByRole('listitem').nth(1)).toContainText('POST');
+    await expect(sidebarRow(page, 'POST /orders')).toHaveAttribute('aria-current', 'true');
+  });
+
+  test('a command that failed to parse can be fixed and retried in place', async ({ mockPage: page }) => {
+    await parseAll(page, [CURL_USERS, CURL_BAD]);
+    await expect(sidebar(page).getByRole('listitem')).toHaveCount(1);
+
+    await page.getByRole('textbox', { name: 'cURL for command 2' }).fill(CURL_ORDERS);
+    await page.getByRole('button', { name: 'Retry command 2' }).click();
+
+    await expect(sidebarRow(page, 'POST /orders')).toBeVisible();
+    await expect(sidebar(page).getByRole('listitem')).toHaveCount(2);
+    await expect(page.getByRole('alert')).toHaveCount(0);
+  });
+
+  // ── Small screens ─────────────────────────────────────────────────────────
+
+  test.describe('at 390px', () => {
+    test.use({ viewport: { width: 390, height: 844 } });
+
+    test('the request list collapses to a selector and the editor keeps the full width', async ({ mockPage: page }) => {
+      await parseAll(page, [CURL_USERS, CURL_ORDERS, CURL_ITEMS]);
+
+      await expect(sidebar(page)).toBeHidden();
+      const select = page.getByRole('combobox', { name: 'Request' });
+      await expect(select).toBeVisible();
+
+      // Nothing overflows sideways and the editor is not squeezed into a sliver.
+      const { overflow, editorWidth } = await page.evaluate(() => ({
+        overflow: document.documentElement.scrollWidth - window.innerWidth,
+        editorWidth: (document.querySelector('[data-testid="batch-editor-panel"]') as HTMLElement).getBoundingClientRect().width,
+      }));
+      expect(overflow).toBeLessThanOrEqual(0);
+      expect(editorWidth).toBeGreaterThan(330);
+
+      await select.selectOption({ label: 'POST /orders' });
+      await expect(shownCurl(page, 'curl -X POST "https://api.example.com/orders"')).toBeVisible();
+
+      await page.getByRole('button', { name: 'Remove selected request' }).click();
+      await expect(select.locator('option')).toHaveCount(2);
+    });
+  });
+
+  // ── Generate All validation, failures, status, redaction ─────────────────
+
+  test('Generate All refuses invalid or duplicate names and a status outside 100-599', async ({ mockPage: page }) => {
+    await parseAll(page, [CURL_USERS, CURL_ORDERS]);
+    await page.getByRole('button', { name: /Generate All/i }).click();
+    const dialog = page.getByRole('dialog');
+    const generate = dialog.getByRole('button', { name: 'Generate All' });
+
+    await dialog.getByLabel('Test Class Name').fill('My Test Class');
+    await expect(generate).toBeDisabled();
+    await dialog.getByLabel('Test Class Name').fill('MyTests');
+    await dialog.getByRole('textbox', { name: 'Method name for GET /users' }).fill('same name');
+    await expect(generate).toBeDisabled();
+    await dialog.getByRole('textbox', { name: 'Method name for GET /users' }).fill('dup');
+    await dialog.getByRole('textbox', { name: 'Method name for POST /orders' }).fill('dup');
+    await expect(dialog).toContainText('Already used by another request');
+    await expect(generate).toBeDisabled();
+    await dialog.getByRole('textbox', { name: 'Method name for POST /orders' }).fill('create');
+    await dialog.getByRole('spinbutton', { name: 'Expected status for GET /users' }).fill('999');
+    await expect(generate).toBeDisabled();
+    await dialog.getByRole('spinbutton', { name: 'Expected status for GET /users' }).fill('200');
+    await expect(generate).toBeEnabled();
+  });
+
+  test('Generate All sends 201 for POST by default and reports failed requests', async ({ mockPage: page }) => {
+    const sent: { method: string; status: string }[] = [];
+    await page.route(/\/api\/generate-from-parsed/, async (route) => {
+      const { parsed_data: parsed, config } = JSON.parse(route.request().postData() ?? '{}');
+      sent.push({ method: parsed.method, status: config.statusCode });
+      if (parsed.method === 'GET') return route.fulfill({ json: { success: false, error: 'boom' } });
+      return route.fulfill({
+        json: { success: true, generated_code: `@Test\npublic void ${config.methodName}() {}` },
+      });
+    });
+    await parseAll(page, [CURL_USERS, CURL_ORDERS]);
+    await page.getByRole('button', { name: /Generate All/i }).click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog.getByRole('spinbutton', { name: 'Expected status for POST /orders' })).toHaveValue('201');
+
+    await dialog.getByRole('button', { name: 'Generate All' }).click();
+
+    await expect(dialog.getByRole('alert')).toContainText('1 of 2 requests');
+    await expect(dialog.getByRole('alert')).toContainText('GET /users: boom');
+    expect(sent).toEqual([
+      { method: 'GET', status: '200' },
+      { method: 'POST', status: '201' },
+    ]);
+  });
+
+  test('Generate All shows an error, not a result, when every request fails', async ({ mockPage: page }) => {
+    await page.route(/\/api\/generate-from-parsed/, (route) => route.fulfill({ status: 500, json: { success: false } }));
+    await parseAll(page, [CURL_USERS, CURL_ORDERS]);
+    await page.getByRole('button', { name: /Generate All/i }).click();
+    const dialog = page.getByRole('dialog');
+
+    await dialog.getByRole('button', { name: 'Generate All' }).click();
+
+    await expect(dialog.getByRole('alert')).toContainText('Code generation failed for all 2 requests');
+    await expect(dialog.getByText('Generated Batch Code')).toHaveCount(0);
+  });
+
+  test('copying the batch code redacts secrets unless the user opts out', async ({ mockPage: page, context }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await page.route(/\/api\/generate-from-parsed/, async (route) => {
+      const { config } = JSON.parse(route.request().postData() ?? '{}');
+      return route.fulfill({
+        json: {
+          success: true,
+          generated_code: `@Test\npublic void ${config.methodName}() { given().header("Authorization", "Bearer abc123tokenvalue"); }`,
+        },
+      });
+    });
+    await parseAll(page, [`${CURL_USERS} -H "Authorization: Bearer abc123tokenvalue"`, CURL_ORDERS]);
+    await page.getByRole('button', { name: /Generate All/i }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByRole('button', { name: 'Generate All' }).click();
+    const redact = dialog.getByRole('checkbox', { name: 'Redact secrets when copying' });
+    await expect(redact).toBeChecked();
+
+    await dialog.getByRole('button', { name: /Copy/ }).click();
+    expect(await page.evaluate(() => navigator.clipboard.readText())).not.toContain('abc123tokenvalue');
+
+    await redact.click();
+    await dialog.getByRole('button', { name: /Copy/ }).click();
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toContain('abc123tokenvalue');
   });
 });
