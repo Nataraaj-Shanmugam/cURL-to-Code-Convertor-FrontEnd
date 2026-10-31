@@ -29,6 +29,7 @@ import { EditorContext } from "./editor/EditorContext";
 import SectionRenderer from "./editor/SectionRenderer";
 import BodyFieldNode from "./editor/BodyFieldNode";
 import { encodePath } from "@/lib/utils/fieldPath";
+import { isBlockedByModal, isTextEntryTarget } from "@/lib/utils/shortcuts";
 
 interface ParsedCurlEditorProps {
   initialData: ParsedCurl;
@@ -165,20 +166,24 @@ function ParsedCurlEditor({
   }, [isDirty]);
   useEffect(() => () => onDirtyChangeRef.current?.(false), []);
 
-  // Keyboard shortcuts: Ctrl+Z = undo, Ctrl+Y / Ctrl+Shift+Z = redo
+  // Keyboard shortcuts: Ctrl+Z = undo, Ctrl+Y / Ctrl+Shift+Z = redo, Ctrl+G = Generate Code.
+  // None of them act behind an open dialog. Undo/redo also leave text fields alone, so the
+  // browser's own text undo works while typing a value.
   useEffect(() => {
     if (!isActive) return;
     const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "z" && !e.shiftKey) {
-        e.preventDefault();
-        undo();
-      } else if (
-        (e.metaKey || e.ctrlKey) &&
-        (e.key === "y" || (e.key === "z" && e.shiftKey))
-      ) {
-        e.preventDefault();
-        redo();
-      }
+      if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
+      const key = e.key.toLowerCase();
+      const isUndo = key === "z" && !e.shiftKey;
+      const isRedo = key === "y" || (key === "z" && e.shiftKey);
+      const isGenerate = key === "g" && !e.shiftKey;
+      if (!isUndo && !isRedo && !isGenerate) return;
+      if (isBlockedByModal(e)) return;
+      if ((isUndo || isRedo) && isTextEntryTarget(e.target)) return;
+      e.preventDefault();
+      if (isUndo) undo();
+      else if (isRedo) redo();
+      else setShowCodeDialog(true);
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
@@ -394,7 +399,7 @@ function ParsedCurlEditor({
               Changes
             </Button>
             {/* Primary action — always visible */}
-            <Button onClick={() => setShowCodeDialog(true)} size="sm" className="gap-1.5">
+            <Button onClick={() => setShowCodeDialog(true)} size="sm" className="gap-1.5" title="Generate Code (Ctrl+G)">
               <Code className="w-3.5 h-3.5" />
               Generate Code
             </Button>

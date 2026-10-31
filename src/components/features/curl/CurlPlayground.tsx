@@ -8,6 +8,7 @@ import { Terminal, Play, RotateCcw, AlertCircle, ChevronRight, Loader2, Upload, 
 import ImportDialog from "@/components/features/import/ImportDialog";
 import { parseCurlBatch } from "@/lib/utils/parseCurlBatch";
 import type { BatchParseFailure } from "@/types/batch";
+import { isBlockedByModal } from "@/lib/utils/shortcuts";
 
 let nextId = 1;
 function createEntry(value = ""): { id: number; value: string } {
@@ -165,6 +166,8 @@ function CurlPlayground() {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+        // Not behind a dialog (e.g. Ctrl+Enter typed in the Import dialog).
+        if (isBlockedByModal(e)) return;
         e.preventDefault();
         handleParse();
       }
