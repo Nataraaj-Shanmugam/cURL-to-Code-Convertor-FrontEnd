@@ -100,20 +100,36 @@ describe('ParsedCurlEditor: secret masking', () => {
 
     it('warns, and marks each redacted field for re-entry', () => {
       render(<ParsedCurlEditor initialData={redacted} />);
-      expect(screen.getByRole('alert')).toHaveTextContent(/must be filled in again/i);
+      expect(screen.getByRole('alert')).toHaveTextContent(/Re-enter 3 redacted values to generate code/i);
       expect(screen.getAllByText(/Redacted: re-enter value/i).length).toBeGreaterThanOrEqual(3);
       // nothing left to reveal on a placeholder
       expect(screen.queryByRole('button', { name: 'Reveal value of Authorization' })).not.toBeInTheDocument();
     });
 
-    it('drops the warning once every placeholder has been replaced', async () => {
-      render(<ParsedCurlEditor initialData={{ ...redacted, cookies: {}, data: undefined, headers: { Authorization: `Bearer ${REDACTED_PLACEHOLDER}` } }} />);
+    it('blocks Generate Code until every placeholder is re-entered', () => {
+      render(<ParsedCurlEditor initialData={redacted} />);
+      const generate = screen.getByRole('button', { name: /Generate Code/ });
+      expect(generate).toBeDisabled();
+      expect(generate).toHaveAccessibleDescription(/Re-enter 3 redacted values to generate code/i);
+    });
+
+    it('drops the warning and unblocks Generate Code once every placeholder has been replaced, even though the original cURL still shows one', async () => {
+      const originalCurl = `curl https://api.example.com -H 'Authorization: Bearer ${REDACTED_PLACEHOLDER}'`;
+      render(
+        <ParsedCurlEditor
+          initialData={{ ...redacted, cookies: {}, data: undefined, headers: { Authorization: `Bearer ${REDACTED_PLACEHOLDER}` } }}
+          originalCurl={originalCurl}
+        />,
+      );
+      expect(screen.getByRole('alert')).toHaveTextContent(/Re-enter 1 redacted value to generate code/i);
+      expect(screen.getByText(/secrets redacted when saved/i)).toBeInTheDocument();
       await user.click(screen.getByRole('button', { name: 'Edit Authorization' }));
       const input = screen.getByLabelText('Value of Authorization');
       await user.clear(input);
       await user.type(input, 'Bearer new-token');
       await user.click(screen.getByRole('button', { name: 'Save Authorization' }));
       await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
+      expect(screen.getByRole('button', { name: /Generate Code/ })).toBeEnabled();
     });
 
     it('shows no warning for a fresh, unredacted request', () => {

@@ -80,6 +80,41 @@ test.describe('Secrets are not persisted', () => {
     expect(await page.evaluate((k) => sessionStorage.getItem(k), STORAGE_KEY)).toBeNull();
   });
 
+  test('"Clear saved request" also stops a reload or Forward from restoring the request', async ({ mockPage: page }) => {
+    await page.getByRole('button', { name: 'Clear saved request' }).click();
+    await expect(page.getByText(/Reloading this page will not restore this request/)).toBeVisible();
+    page.on('dialog', (dialog) => void dialog.accept());
+    await page.reload();
+    await expect(page.getByText('No cURL command parsed yet')).toBeVisible({ timeout: 10_000 });
+    expect(await page.evaluate(() => JSON.stringify(window.history.state))).not.toContain('api.example.com/users');
+  });
+
+  test('browser Back/Forward restores the live values; Generate Code sends no placeholder', async ({ mockPage: page }) => {
+    await expect.poll(() => page.evaluate(() => JSON.stringify(window.history.state))).toContain('[REDACTED]');
+    await page.goBack();
+    await expect(page).toHaveURL(/\/playground/);
+    await page.goForward();
+    await expect(page).toHaveURL(/\/editor/);
+    await expect(page.getByRole('alert').filter({ hasText: /redacted when it was saved/i })).toHaveCount(0);
+
+    const generate = page.waitForRequest(/\/api\/generate-from-parsed/);
+    await page.getByRole('button', { name: 'Generate Code' }).click();
+    await page.locator('#option-full').check();
+    await page.getByRole('dialog').getByRole('button', { name: 'Generate Code' }).click();
+    const body = (await generate).postData() ?? '';
+    expect(body).toContain(TOKEN);
+    expect(body).not.toContain('[REDACTED]');
+  });
+
+  test('after a reload only redacted values exist: Generate Code is blocked until they are re-entered', async ({ mockPage: page }) => {
+    await expect.poll(() => page.evaluate((k) => sessionStorage.getItem(k), STORAGE_KEY)).not.toBeNull();
+    page.on('dialog', (dialog) => void dialog.accept());
+    await page.reload();
+    const generate = page.getByRole('button', { name: 'Generate Code' });
+    await expect(generate).toBeDisabled({ timeout: 10_000 });
+    await expect(page.getByRole('alert')).toContainText(/Re-enter 2 redacted values to generate code/);
+  });
+
   test('an old localStorage entry is deleted on load', async ({ mockPage: page }) => {
     await page.evaluate(
       ([k, token]) => localStorage.setItem(k!, JSON.stringify({ parsed: { method: 'GET', base_url: 'https://x.test', endpoint: '/', headers: { Authorization: `Bearer ${token}` } } })),
