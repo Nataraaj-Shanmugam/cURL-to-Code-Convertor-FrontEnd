@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useMemo } from "react";
 import type { ParsedCurl } from "@/types/curl";
 import { deepEqual } from "@/lib/utils/deepEqual";
 import { type FieldPath, toPathId } from "@/lib/utils/fieldPath";
+import { normalizeParsedCurl, syncRequestUrl } from "@/lib/utils/requestUrl";
 
 interface EditingState {
   [key: string]: boolean;
@@ -17,9 +18,12 @@ interface CollapsedState {
 
 const MAX_HISTORY = 50;
 
-// If body data is a JSON string, parse it into an object for node-level editing.
+// Load-time normalisation: fill in url/base_url/endpoint/query_params the backend left out (see
+// normalizeParsedCurl), and if body data is a JSON string, parse it into an object for node-level
+// editing. An empty input stays empty (the editor shows its empty state).
 export const parseBodyData = (data: ParsedCurl | undefined): ParsedCurl => {
-  const clone = JSON.parse(JSON.stringify(data || {})) as ParsedCurl;
+  const raw = JSON.parse(JSON.stringify(data || {})) as ParsedCurl;
+  const clone = Object.keys(raw).length > 0 ? normalizeParsedCurl(raw) : raw;
   if (typeof clone.data === "string") {
     try {
       const parsed = JSON.parse(clone.data) as unknown;
@@ -60,8 +64,11 @@ export const useEditorState = (initialData: ParsedCurl | undefined) => {
     setCanRedo(historyIndexRef.current < historyRef.current.length - 1);
   };
 
-  // Call this instead of setParsedInternal when the change should be undoable
-  const setParsed = useCallback((newState: ParsedCurl) => {
+  // Call this instead of setParsedInternal when the change should be undoable. Every edit goes
+  // through here, so this is where url and base_url/endpoint/query_params are kept in sync.
+  const setParsed = useCallback((nextState: ParsedCurl) => {
+    const current = historyRef.current[historyIndexRef.current];
+    const newState = current ? syncRequestUrl(current, nextState) : nextState;
     historyRef.current = historyRef.current.slice(0, historyIndexRef.current + 1);
     historyRef.current.push(structuredClone(newState));
     if (historyRef.current.length > MAX_HISTORY) {
