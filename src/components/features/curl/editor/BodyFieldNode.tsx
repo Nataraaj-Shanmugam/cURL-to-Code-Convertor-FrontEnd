@@ -1,6 +1,7 @@
 import { memo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { Edit2, Trash2, Save, ChevronDown, ChevronRight } from "lucide-react";
 import { useEditorContext } from "./EditorContext";
 import { ROW_ACTIONS_VISIBILITY } from "./rowActions";
@@ -46,7 +47,7 @@ function BodyFieldNode({ fieldKey, value, path, level = 0 }: BodyFieldNodeProps)
           <Button
             variant="ghost"
             size="icon"
-            className="h-5 w-5 p-0"
+            className="h-6 w-6 p-0"
             onClick={() => toggleBodyCollapse(path)}
             aria-label={isCollapsed ? `Expand ${fieldKey}` : `Collapse ${fieldKey}`}
           >
@@ -55,9 +56,11 @@ function BodyFieldNode({ fieldKey, value, path, level = 0 }: BodyFieldNodeProps)
 
           <span className="font-mono text-sm font-semibold text-foreground">
             {fieldKey}
-            <span className="text-muted-foreground ml-1">
-              {isArray ? `[${(complexValue as unknown[]).length}]` : "{...}"}
-            </span>
+            <Badge variant="secondary" className="ml-2 font-mono text-[11px]">
+              {isArray
+                ? `Array[${(complexValue as unknown[]).length}]`
+                : `Object{${Object.keys(complexValue as Record<string, unknown>).length}}`}
+            </Badge>
           </span>
 
           <div className={`ml-auto flex gap-0.5 ${ROW_ACTIONS_VISIBILITY}`}>

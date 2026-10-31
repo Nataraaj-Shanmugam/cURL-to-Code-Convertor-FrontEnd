@@ -28,16 +28,20 @@ const CardHeader = React.forwardRef<HTMLDivElement, CardProps>(
 );
 CardHeader.displayName = "CardHeader";
 
-const CardTitle = React.forwardRef<
-  HTMLParagraphElement,
-  React.HTMLAttributes<HTMLHeadingElement>
->(({ className, ...props }, ref) => (
-  <h3
-    ref={ref}
-    className={cn("font-semibold leading-none tracking-tight", className)}
-    {...props}
-  />
-));
+export interface CardTitleProps extends React.HTMLAttributes<HTMLHeadingElement> {
+  /** Heading element to render; h3 by default. A page title uses "h1" and overrides the size. */
+  as?: "h1" | "h2" | "h3";
+}
+
+const CardTitle = React.forwardRef<HTMLHeadingElement, CardTitleProps>(
+  ({ className, as: Tag = "h3", ...props }, ref) => (
+    <Tag
+      ref={ref}
+      className={cn("font-semibold leading-none tracking-tight", className)}
+      {...props}
+    />
+  )
+);
 CardTitle.displayName = "CardTitle";
 
 const CardDescription = React.forwardRef<

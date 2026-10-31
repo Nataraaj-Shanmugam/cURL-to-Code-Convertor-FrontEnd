@@ -38,6 +38,16 @@ class MockIntersectionObserver {
 Object.defineProperty(window, 'IntersectionObserver', { writable: true, value: MockIntersectionObserver });
 Object.defineProperty(globalThis, 'IntersectionObserver', { writable: true, value: MockIntersectionObserver });
 
+// Mock ResizeObserver (Radix Checkbox measures itself when it sits inside a <form>)
+if (!('ResizeObserver' in globalThis)) {
+  class MockResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+  Object.defineProperty(globalThis, 'ResizeObserver', { writable: true, value: MockResizeObserver });
+}
+
 beforeAll(() => server.listen({ onUnhandledRequest: 'warn' }));
 afterEach(() => {
   cleanup();

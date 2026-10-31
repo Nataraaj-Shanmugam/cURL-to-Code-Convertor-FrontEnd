@@ -1,15 +1,20 @@
 import { useState, useEffect, useCallback, useRef, memo } from "react";
 import { Button } from "@/components/ui/button";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { isApiError } from "@/lib/api/apiClient";
-import { EXAMPLE_CURLS, METHOD_COLORS } from "@/constants/curl";
-import { Terminal, Play, RotateCcw, AlertCircle, ChevronRight, Loader2, Upload, Plus, X, Layers, ShieldCheck } from "lucide-react";
+import { EXAMPLE_CURLS } from "@/constants/curl";
+import { Alert } from "@/components/ui/alert";
+import { MethodBadge } from "@/components/ui/method-badge";
+import { Terminal, Play, RotateCcw, ChevronRight, Loader2, Upload, Plus, X, Layers, ShieldCheck, Copy } from "lucide-react";
 import ImportDialog from "@/components/features/import/ImportDialog";
 import { parseCurlBatch, parseCurlCommand } from "@/lib/utils/parseCurlBatch";
 import type { BatchParseFailure } from "@/types/batch";
 import { useBackendStatus } from "@/contexts/BackendStatusContext";
 import BackendWaitNotice from "@/components/features/backend/BackendWaitNotice";
 import { isBlockedByModal } from "@/lib/utils/shortcuts";
+import { redactCurlString } from "@/lib/utils/redaction";
+import { copyToClipboard } from "@/lib/utils/notify";
+import type { FeedbackLocationState } from "@/constants/feedback";
 
 let nextId = 1;
 function createEntry(value = ""): { id: number; value: string } {
@@ -17,6 +22,22 @@ function createEntry(value = ""): { id: number; value: string } {
 }
 
 type Entry = { id: number; value: string };
+
+const lineCount = (text: string) => text.split("\n").length;
+
+/**
+ * "Report this cURL" on a parse error: opens /feedback as a bug report with the command available
+ * to attach. Only the redacted text goes into the route state (history.state outlives a reload),
+ * and the form still asks before attaching it.
+ */
+function ReportCurlLink({ curl }: { curl: string }) {
+  const state: FeedbackLocationState = { category: "bug", curlCommand: redactCurlString(curl) };
+  return (
+    <Link to="/feedback" state={state} className="font-medium underline underline-offset-2 hover:no-underline">
+      Report this cURL
+    </Link>
+  );
+}
 
 function CurlPlayground() {
   const [entries, setEntries] = useState<Entry[]>(() => [createEntry()]);
@@ -28,6 +49,8 @@ function CurlPlayground() {
   const [waitingForBackend, setWaitingForBackend] = useState(false);
   const waitControllerRef = useRef<AbortController | null>(null);
   const backend = useBackendStatus();
+  // The command whose parse produced `error`, so the error can offer "Report this cURL".
+  const [errorCurl, setErrorCurl] = useState("");
   // Parse errors for individual commands in a batch, keyed by entry id.
   const [entryErrors, setEntryErrors] = useState<Record<number, string>>({});
   const [showImportDialog, setShowImportDialog] = useState(false);
@@ -69,6 +92,7 @@ function CurlPlayground() {
         // Includes a "success" response without data, which must not open a previously saved request.
         setError(outcome.message);
         setErrorRetryable(outcome.retryable ?? false);
+        setErrorCurl(curl);
         return;
       }
 
@@ -117,6 +141,7 @@ function CurlPlayground() {
         setEntryErrors(byEntry);
         setError(`None of the ${sources.length} cURL commands could be parsed.`);
         setErrorRetryable(failures.some((failure) => failure.retryable));
+        setErrorCurl("");
         return;
       }
 
@@ -213,20 +238,21 @@ function CurlPlayground() {
     return () => window.removeEventListener("keydown", handler);
   }, [handleParse]);
 
+  // Visible label and accessible name of each input: "cURL command" or, with several, "cURL command 2".
+  const commandLabel = (idx: number) => (isMulti ? `cURL command ${idx + 1}` : "cURL command");
+
   const allEmpty = entries.every((e) => !e.value.trim());
   const hasEmpty = entries.some((e) => !e.value.trim());
 
   return (
     <div className="max-w-5xl mx-auto p-4 space-y-6 bg-grid min-h-[calc(100vh-12rem)]">
-      {/* Screen-reader live region for async status */}
+      {/* Screen-reader live region for async status; errors are announced by their own alerts */}
       <div aria-live="polite" aria-atomic="true" className="sr-only">
         {waitingForBackend
           ? "The generator is waking up. Your cURL will be parsed as soon as it is ready."
           : loading
           ? "Parsing cURL command\u2026"
-          : error
-            ? `Error: ${[error, ...Object.values(entryErrors)].join(". ")}`
-            : ""}
+          : ""}
       </div>
 
       {/* Header */}
@@ -265,21 +291,40 @@ function CurlPlayground() {
                 <span className="w-2.5 h-2.5 rounded-full bg-yellow-400/70"></span>
                 <span className="w-2.5 h-2.5 rounded-full bg-green-400/70"></span>
               </div>
-              <span className="text-xs text-muted-foreground font-mono ml-2">
-                {isMulti ? `curl-input-${idx + 1}` : "curl-input"}
-              </span>
+              <label htmlFor={`curl-input-${entry.id}`} className="text-xs text-muted-foreground font-mono ml-2">
+                {commandLabel(idx)}
+              </label>
               <div className="flex-1" />
+              {entry.value.trim() && (
+                <>
+                  <span className="text-xs text-muted-foreground font-mono" data-testid="line-count">
+                    {lineCount(entry.value)} {lineCount(entry.value) === 1 ? "line" : "lines"}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => void copyToClipboard(entry.value, "cURL command")}
+                    className="-my-1 inline-flex h-7 items-center gap-1 rounded px-2 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    aria-label={`Copy ${commandLabel(idx)}`}
+                  >
+                    <Copy className="w-3 h-3" aria-hidden="true" />
+                    Copy
+                  </button>
+                </>
+              )}
               {entries.length > 1 && (
                 <button
+                  type="button"
                   onClick={() => removeEntry(entry.id)}
-                  className="opacity-0 group-hover/card:opacity-100 transition-opacity p-1 rounded hover:bg-destructive/10 hover:text-destructive text-muted-foreground"
+                  className="opacity-0 group-hover/card:opacity-100 focus-visible:opacity-100 transition-opacity -my-1 -mr-2 inline-flex h-7 w-7 items-center justify-center rounded hover:bg-destructive/10 hover:text-destructive text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:opacity-100"
                   title="Remove this cURL"
+                  aria-label={`Remove ${commandLabel(idx)}`}
                 >
-                  <X className="w-3.5 h-3.5" />
+                  <X className="w-3.5 h-3.5" aria-hidden="true" />
                 </button>
               )}
             </div>
             <textarea
+              id={`curl-input-${entry.id}`}
               value={entry.value}
               onChange={(e) => updateEntry(entry.id, e.target.value)}
               placeholder={
@@ -287,23 +332,22 @@ function CurlPlayground() {
                   ? `$ curl -X POST "https://api.example.com/data" \\\n  -H "Content-Type: application/json" \\\n  -H "Authorization: Bearer <token>" \\\n  -d '{"key": "value"}'`
                   : `$ curl -X GET "https://api.example.com/resource" \\\n  -H "Accept: application/json"`
               }
-              className={`w-full resize-y p-4 font-mono text-sm focus:outline-none bg-card text-foreground placeholder:text-muted-foreground/50 leading-relaxed ${
+              className={`w-full resize-y p-4 font-mono text-sm focus:outline-none bg-card text-foreground placeholder:text-muted-foreground leading-relaxed ${
                 isMulti ? "min-h-[100px] sm:min-h-[120px]" : "min-h-[160px] sm:min-h-[220px] lg:min-h-[280px]"
               }`}
               spellCheck={false}
               aria-invalid={entryErrors[entry.id] ? true : undefined}
             />
             {entryErrors[entry.id] && (
-              <div
-                role="alert"
-                className="flex items-start gap-2 px-4 py-2 bg-destructive/10 text-destructive text-sm border-t border-destructive/30"
-              >
-                <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                <span>
-                  {isMulti ? `curl-input-${idx + 1}: ` : ""}
-                  {entryErrors[entry.id]}
-                </span>
-              </div>
+              <Alert variant="destructive" className="rounded-none border-x-0 border-b-0 px-4 py-2">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <span>
+                    {isMulti ? `${commandLabel(idx)}: ` : ""}
+                    {entryErrors[entry.id]}
+                  </span>
+                  {entry.value.trim() && <ReportCurlLink curl={entry.value} />}
+                </div>
+              </Alert>
             )}
           </div>
         ))}
@@ -373,15 +417,17 @@ function CurlPlayground() {
 
       {/* Error */}
       {error && (
-        <div className="flex items-start gap-2 p-3 bg-destructive/10 text-destructive rounded-lg text-sm border border-destructive/30">
-          <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-          <span className="flex-1">{error}</span>
-          {errorRetryable && (
-            <Button variant="outline" size="sm" onClick={() => void handleParse()} disabled={loading}>
-              Retry
-            </Button>
-          )}
-        </div>
+        <Alert variant="destructive">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span>{error}</span>
+            {errorCurl && <ReportCurlLink curl={errorCurl} />}
+            {errorRetryable && (
+              <Button variant="outline" size="sm" onClick={() => void handleParse()} disabled={loading}>
+                Retry
+              </Button>
+            )}
+          </div>
+        </Alert>
       )}
 
       {/* Import Dialog */}
@@ -422,11 +468,7 @@ function CurlPlayground() {
                 className="group flex flex-col gap-2.5 p-4 rounded-lg border border-border bg-card hover:border-primary/40 hover:shadow-md transition-all text-left"
               >
                 <div className="flex items-center gap-2">
-                  <span
-                    className={`px-2 py-0.5 rounded text-[10px] font-bold font-mono ${METHOD_COLORS[example.method] || ""}`}
-                  >
-                    {example.method}
-                  </span>
+                  <MethodBadge method={example.method} />
                   <span className="text-sm font-semibold text-foreground">{example.label}</span>
                 </div>
                 <p className="text-[11px] text-muted-foreground font-mono truncate w-full">{example.curl}</p>

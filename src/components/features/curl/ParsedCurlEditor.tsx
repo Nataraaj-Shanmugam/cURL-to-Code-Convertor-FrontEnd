@@ -3,7 +3,11 @@ import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { copyToClipboard, notifySaved } from "@/lib/utils/notify";
+import { usePageHeadingLevel } from "@/components/layout/PageHeading";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   DropdownMenu,
@@ -15,7 +19,7 @@ import {
 import { useParsedCurlEditor, VALID_SECTIONS } from "@/lib/hooks/useParsedCurlEditor";
 import {
   Edit2, Trash2, Save, Download, Code, FolderPlus,
-  Maximize2, Minimize2, RotateCcw, FileText, Undo2, Redo2, MoreHorizontal, Eye, GitCompare, ShieldAlert,
+  Maximize2, Minimize2, RotateCcw, FileText, Copy, Undo2, Redo2, MoreHorizontal, Eye, GitCompare, ShieldAlert,
 } from "lucide-react";
 import { useState, useMemo, memo, useEffect, useCallback, useId, useRef } from "react";
 import CodeGenerationDialog from "./CodeGenerationDialog";
@@ -23,7 +27,7 @@ import RequestPreviewDialog from "./RequestPreviewDialog";
 import DiffViewDialog from "./DiffViewDialog";
 import ExportJsonDialog from "./ExportJsonDialog";
 import { MaskedText } from "./editor/SecretValue";
-import { MASK, countRedactions, redactBodyString, redactCurlString } from "@/lib/utils/redaction";
+import { MASK, REDACTED_PLACEHOLDER, countRedactions, redactBodyString, redactCurlString } from "@/lib/utils/redaction";
 import type { ParsedCurl } from "@/types/curl";
 import { EditorContext } from "./editor/EditorContext";
 import SectionRenderer from "./editor/SectionRenderer";
@@ -75,6 +79,7 @@ function ParsedCurlEditor({
   onDirtyChange,
   isActive = true,
 }: ParsedCurlEditorProps) {
+  const headingLevel = usePageHeadingLevel();
   const {
     parsed,
     originalParsed,
@@ -196,7 +201,10 @@ function ParsedCurlEditor({
   }, [undo, redo, isActive, redactedCount]);
 
   const handleSave = () => {
-    if (onSave) onSave(parsed);
+    if (onSave) {
+      onSave(parsed);
+      notifySaved();
+    }
   };
 
   const getSectionDisplayName = (key: string): string => {
@@ -293,6 +301,11 @@ function ParsedCurlEditor({
     [editing, editedValues, selected, bodyCollapsed, allExpanded],
   );
 
+  // What the Original cURL card shows while masked; Copy puts the redacted form on the clipboard
+  // (never the secrets, whether or not the card is currently revealed).
+  const maskedOriginal = originalCurl ? redactCurlString(originalCurl, { placeholder: MASK }) : "";
+  const originalHasSecret = Boolean(originalCurl) && maskedOriginal !== originalCurl;
+
   if (!parsed || Object.keys(parsed).length === 0) {
     return (
       <div className="p-8 text-center space-y-4">
@@ -306,24 +319,47 @@ function ParsedCurlEditor({
     );
   }
 
+  const bodyCount =
+    parsed.data && typeof parsed.data === "object"
+      ? Array.isArray(parsed.data)
+        ? parsed.data.length
+        : Object.keys(parsed.data).length
+      : 1;
+
   return (
     <EditorContext.Provider value={editorCtx}>
       <div className="p-4 space-y-4 max-w-6xl mx-auto bg-grid min-h-[calc(100vh-12rem)]">
         {originalCurl && (
           <Card className="bg-muted/30">
-            <CardHeader>
+            <CardHeader className="flex-row items-center justify-between space-y-0">
               <CardTitle className="text-sm text-muted-foreground">
                 Original cURL Command
                 {originalCurlRedacted && (
                   <span className="ml-2 font-normal text-xs">(secrets redacted when saved)</span>
                 )}
               </CardTitle>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="gap-1.5"
+                aria-label={originalHasSecret ? "Copy original cURL command (secrets redacted)" : "Copy original cURL command"}
+                onClick={() =>
+                  void copyToClipboard(
+                    originalHasSecret ? maskedOriginal.replace(new RegExp(MASK, "g"), REDACTED_PLACEHOLDER) : originalCurl,
+                    originalHasSecret ? "Redacted cURL command" : "cURL command",
+                  )
+                }
+              >
+                <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+                {originalHasSecret ? "Copy redacted" : "Copy"}
+              </Button>
             </CardHeader>
             <CardContent>
               <MaskedText
                 label="original cURL command"
                 text={originalCurl}
-                maskedText={redactCurlString(originalCurl, { placeholder: MASK })}
+                maskedText={maskedOriginal}
                 className="text-xs font-mono whitespace-pre-wrap break-all bg-background p-3 rounded border border-border max-h-32 overflow-auto"
               />
             </CardContent>
@@ -331,12 +367,13 @@ function ParsedCurlEditor({
         )}
 
         {redactedCount > 0 && (
-          <div
+          // role="alert" is kept on purpose: the user has to act (re-enter the values) before generating code.
+          <Alert
+            variant="warning"
             role="alert"
             id={redactedNoticeId}
-            className="flex items-start gap-2 p-3 rounded-lg border border-amber-500/40 bg-amber-500/10 text-sm text-amber-900 dark:text-amber-200"
+            icon={<ShieldAlert className="w-4 h-4 mt-0.5 shrink-0" aria-hidden="true" />}
           >
-            <ShieldAlert className="w-4 h-4 mt-0.5 shrink-0" aria-hidden="true" />
             <span>
               Secret values in this request were redacted when it was saved.{" "}
               <strong>
@@ -344,7 +381,7 @@ function ParsedCurlEditor({
               </strong>{" "}
               They are the fields marked <strong>Redacted: re-enter value</strong>.
             </span>
-          </div>
+          </Alert>
         )}
 
         {/* Toolbar */}
@@ -494,24 +531,28 @@ function ParsedCurlEditor({
               </DropdownMenu>
             </div>
 
-            {/* Selection actions — contextual */}
-            {selected.size > 0 && (
-              <>
-                <div className="w-px h-6 bg-border mx-1" />
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setSelected(new Set())}
-                  className="gap-1.5 text-muted-foreground"
-                >
-                  Clear ({selected.size})
-                </Button>
-                <Button variant="destructive" size="sm" onClick={deleteSelected} className="gap-1.5">
-                  <Trash2 className="w-3.5 h-3.5" />
-                  Delete ({selected.size})
-                </Button>
-              </>
-            )}
+            {/* Selection actions: always present (disabled until something is selected) so ticking the
+                first checkbox does not shift the buttons beside them. */}
+            <div className="w-px h-6 bg-border mx-1" />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setSelected(new Set())}
+              disabled={selected.size === 0}
+              className="min-w-[6rem] gap-1.5 text-muted-foreground"
+            >
+              Clear ({selected.size})
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={deleteSelected}
+              disabled={selected.size === 0}
+              className="min-w-[7rem] gap-1.5"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              Delete ({selected.size})
+            </Button>
           </div>
         </div>
 
@@ -552,25 +593,25 @@ function ParsedCurlEditor({
               <DialogTitle>
                 {pendingConfirm?.type === "reset" ? "Reset all changes?" : "Delete section?"}
               </DialogTitle>
+              <DialogDescription>
+                {pendingConfirm?.type === "reset"
+                  ? "This will restore all fields to their original parsed values. Any edits you made will be lost."
+                  : `The "${
+                      pendingConfirm?.type === "deleteSection"
+                        ? VALID_SECTIONS[pendingConfirm.key as keyof typeof VALID_SECTIONS] ||
+                          pendingConfirm.key
+                        : ""
+                    }" section and all its entries will be permanently removed.`}
+              </DialogDescription>
             </DialogHeader>
-            <p className="text-sm text-muted-foreground">
-              {pendingConfirm?.type === "reset"
-                ? "This will restore all fields to their original parsed values. Any edits you made will be lost."
-                : `The "${
-                    pendingConfirm?.type === "deleteSection"
-                      ? VALID_SECTIONS[pendingConfirm.key as keyof typeof VALID_SECTIONS] ||
-                        pendingConfirm.key
-                      : ""
-                  }" section and all its entries will be permanently removed.`}
-            </p>
-            <div className="flex justify-end gap-2 pt-2">
+            <DialogFooter>
               <Button variant="outline" onClick={() => setPendingConfirm(null)}>
                 Cancel
               </Button>
               <Button variant="destructive" onClick={executeConfirm}>
                 {pendingConfirm?.type === "reset" ? "Reset" : "Delete"}
               </Button>
-            </div>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
 
@@ -583,15 +624,19 @@ function ParsedCurlEditor({
                   ? "Add Flag"
                   : "Add New Entry"}
               </DialogTitle>
+              <DialogDescription className="sr-only">
+                Enter the details of the entry to add to this section.
+              </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <div>
-                <label className="text-sm font-medium mb-2 block">
+                <label htmlFor="add-entry-key" className="text-sm font-medium mb-2 block">
                   {addDialogSection === "flags" || addDialogSection === "ssl_config"
                     ? "Flag Name"
                     : "Key"}
                 </label>
                 <Input
+                  id="add-entry-key"
                   value={newKey}
                   onChange={e => setNewKey(e.target.value)}
                   placeholder={
@@ -603,8 +648,9 @@ function ParsedCurlEditor({
               </div>
               {addDialogSection !== "flags" && addDialogSection !== "ssl_config" && (
                 <div>
-                  <label className="text-sm font-medium mb-2 block">Value</label>
+                  <label htmlFor="add-entry-value" className="text-sm font-medium mb-2 block">Value</label>
                   <Input
+                    id="add-entry-value"
                     value={newValue}
                     onChange={e => setNewValue(e.target.value)}
                     placeholder="Enter value"
@@ -626,7 +672,7 @@ function ParsedCurlEditor({
                     : `"${duplicateKey}" already exists (header names ignore case). Replace it with "${newKey.trim()}"?`}
                 </p>
               )}
-              <div className="flex justify-end gap-2">
+              <DialogFooter>
                 <Button variant="outline" onClick={() => setShowAddDialog(false)}>
                   Cancel
                 </Button>
@@ -641,7 +687,7 @@ function ParsedCurlEditor({
                       : "Add Entry"}
                   </Button>
                 )}
-              </div>
+              </DialogFooter>
             </div>
           </DialogContent>
         </Dialog>
@@ -651,12 +697,13 @@ function ParsedCurlEditor({
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Add Missing Section</DialogTitle>
+              <DialogDescription className="sr-only">Choose a section to add to this request.</DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <div>
-                <label className="text-sm font-medium mb-2 block">Select Section</label>
+                <label htmlFor="add-section-select" className="text-sm font-medium mb-2 block">Select Section</label>
                 <Select value={newSectionName} onValueChange={setNewSectionName}>
-                  <SelectTrigger>
+                  <SelectTrigger id="add-section-select">
                     <SelectValue placeholder="Choose a section" />
                   </SelectTrigger>
                   <SelectContent>
@@ -668,21 +715,22 @@ function ParsedCurlEditor({
                   </SelectContent>
                 </Select>
               </div>
-              <div className="flex justify-end gap-2">
+              <DialogFooter>
                 <Button variant="outline" onClick={() => setShowNewSectionDialog(false)}>
                   Cancel
                 </Button>
                 <Button onClick={saveNewSection} disabled={!newSectionName}>
                   Add Section
                 </Button>
-              </div>
+              </DialogFooter>
             </div>
           </DialogContent>
         </Dialog>
 
         <Card className="shadow-md">
           <CardHeader>
-            <CardTitle className="text-primary">Edit Parsed Request</CardTitle>
+            {/* The page title: an <h1> (the batch route renders its own, so there it is an <h2>). */}
+            <CardTitle as={headingLevel} className="text-xl sm:text-2xl text-primary">Edit Parsed Request</CardTitle>
             <p className="text-sm text-muted-foreground">
               Edit values, manage sections, and generate code
             </p>
@@ -738,14 +786,19 @@ function ParsedCurlEditor({
                       <span className="flex items-center gap-2">
                         <FileText className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
                         Request Body
+                        {/* Decorative count: kept out of the trigger's accessible name (QU-3). */}
+          <Badge variant="secondary" aria-hidden="true" aria-label={`${bodyCount} ${bodyCount === 1 ? "entry" : "entries"}`}>
+                          {bodyCount}
+                        </Badge>
                       </span>
                     </AccordionTrigger>
                     <AccordionContent>
                       {bodyApiError && (
-                        <div className="flex items-start gap-2 mb-2 p-2 bg-destructive/10 text-destructive rounded-md text-xs border border-destructive/30">
-                          <span className="font-medium">Body API error:</span>
-                          <span>{bodyApiError}</span>
-                        </div>
+                        <Alert variant="destructive" className="mb-2 p-2 text-xs">
+                          <span>
+                            <span className="font-medium">Body API error:</span> {bodyApiError}
+                          </span>
+                        </Alert>
                       )}
                       <div className="bg-muted/30 rounded-md p-3 font-mono text-sm overflow-x-auto">
                         {typeof parsed.data === "object" && parsed.data !== null ? (

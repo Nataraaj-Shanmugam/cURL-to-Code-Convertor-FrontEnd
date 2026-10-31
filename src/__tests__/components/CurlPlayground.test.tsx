@@ -42,6 +42,70 @@ describe('CurlPlayground', () => {
     });
   });
 
+  describe('examples and Copy (QR-7)', () => {
+    it.each([
+      ['PUT with XML Body', /-X PUT .*application\/xml.* -d '<user><name>Jane Doe<\/name>/],
+      ['Nested JSON Body', /-d '\{"person": \{"name": "Jane", "age": 28, "city": \{"city": "Chennai"/],
+      ['Form Data Upload', /-F "file=@document\.pdf" -F "category=documents"/],
+      ['Query Parameters', /search\?q=test&page=1&limit=10/],
+    ])('offers the %s example and fills the input with it', async (label, expected) => {
+      renderWithProviders(<CurlPlayground />);
+      await user.click(screen.getByText(label));
+      expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toMatch(expected);
+    });
+
+    it('shows a line count and a Copy button once there is a command, and copies it', async () => {
+      renderWithProviders(<CurlPlayground />);
+      expect(screen.queryByRole('button', { name: /^Copy cURL command/ })).not.toBeInTheDocument();
+      expect(screen.queryByTestId('line-count')).not.toBeInTheDocument();
+
+      await user.click(screen.getByRole('textbox'));
+      await user.paste('curl https://a.test\n  -H "Accept: application/json"\n  -d x');
+      expect(screen.getByTestId('line-count')).toHaveTextContent('3 lines');
+
+      await user.click(screen.getByRole('button', { name: 'Copy cURL command' }));
+      expect(await navigator.clipboard.readText()).toBe('curl https://a.test\n  -H "Accept: application/json"\n  -d x');
+    });
+  });
+
+  describe('Report this cURL (QR-6)', () => {
+    it('offers a link to /feedback next to a parse error', async () => {
+      server.use(
+        http.post('*/api/parse', () =>
+          HttpResponse.json({ success: false, error: { code: 'PARSE_ERROR', message: 'Bad cURL here' } }),
+        ),
+      );
+      renderWithProviders(<CurlPlayground />);
+      await user.click(screen.getByRole('textbox'));
+      await user.paste("curl https://x.test -H 'Authorization: Bearer tok-12345678'");
+      await user.click(screen.getByText('Parse cURL').closest('button')!);
+
+      expect(await screen.findByText('Bad cURL here')).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'Report this cURL' })).toHaveAttribute('href', '/feedback');
+    });
+
+    it('does not offer it when there is no error', () => {
+      renderWithProviders(<CurlPlayground />);
+      expect(screen.queryByRole('link', { name: 'Report this cURL' })).not.toBeInTheDocument();
+    });
+  });
+
+  describe('labels (QU-10)', () => {
+    it('names the textarea with a visible <label>, and numbers the inputs in batch mode', async () => {
+      renderWithProviders(<CurlPlayground />);
+      const textarea = screen.getByRole('textbox', { name: 'cURL command' });
+      const label = document.querySelector(`label[for="${textarea.id}"]`);
+      expect(label).toHaveTextContent('cURL command');
+      // The placeholder is an example, not the name, and no longer the faint /50 tint.
+      expect(textarea.className).not.toMatch(/placeholder:text-muted-foreground\/\d+/);
+
+      await user.click(screen.getByText('Add another cURL'));
+      expect(screen.getByRole('textbox', { name: 'cURL command 1' })).toBeInTheDocument();
+      expect(screen.getByRole('textbox', { name: 'cURL command 2' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Remove cURL command 2' })).toBeInTheDocument();
+    });
+  });
+
   describe('rendering', () => {
     it('should render the playground header', () => {
       renderWithProviders(<CurlPlayground />);
@@ -80,7 +144,7 @@ describe('CurlPlayground', () => {
     it('should render terminal-style header with colored dots', () => {
       renderWithProviders(<CurlPlayground />);
 
-      expect(screen.getByText('curl-input')).toBeInTheDocument();
+      expect(screen.getByText('cURL command')).toBeInTheDocument();
     });
   });
 
@@ -496,14 +560,14 @@ describe('CurlPlayground', () => {
       await user.click(screen.getByText('Parse All (2)').closest('button')!);
 
       expect(await screen.findByText('None of the 2 cURL commands could be parsed.')).toBeInTheDocument();
-      expect(screen.getByText(/curl-input-1: Cannot parse bad/)).toBeInTheDocument();
-      expect(screen.getByText(/curl-input-2: Cannot parse bad/)).toBeInTheDocument();
+      expect(screen.getByText(/cURL command 1: Cannot parse bad/)).toBeInTheDocument();
+      expect(screen.getByText(/cURL command 2: Cannot parse bad/)).toBeInTheDocument();
       expect(mockNavigate).not.toHaveBeenCalled();
 
       // Editing a command clears only that command's error.
       await user.type(screen.getAllByRole('textbox')[0], ' ');
-      expect(screen.queryByText(/curl-input-1: Cannot parse bad/)).not.toBeInTheDocument();
-      expect(screen.getByText(/curl-input-2: Cannot parse bad/)).toBeInTheDocument();
+      expect(screen.queryByText(/cURL command 1: Cannot parse bad/)).not.toBeInTheDocument();
+      expect(screen.getByText(/cURL command 2: Cannot parse bad/)).toBeInTheDocument();
     });
 
     it('shows a parsing state while the batch is in flight', async () => {

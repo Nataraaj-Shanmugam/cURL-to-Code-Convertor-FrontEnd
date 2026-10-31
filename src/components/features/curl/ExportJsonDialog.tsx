@@ -1,8 +1,10 @@
-import { memo, useId, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Download, ShieldCheck, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { CodeBlock } from "@/components/ui/code-block";
+import { notifyDownloaded } from "@/lib/utils/notify";
 import type { ParsedCurl } from "@/types/curl";
 import { listSecretFields, maskParsedCurl, redactParsedCurl } from "@/lib/utils/redaction";
 import { MaskedString, RevealToggle } from "./editor/SecretValue";
@@ -13,8 +15,12 @@ interface ExportJsonDialogProps {
   parsedData: ParsedCurl;
 }
 
-export const EXPORT_FILE_NAME = "parsed-curl-edited.json";
-export const EXPORT_REDACTED_FILE_NAME = "parsed-curl-edited.redacted.json";
+/**
+ * One file per export instead of every download colliding on the same name:
+ * parsed-curl-2026-01-31T10-15-00.json, or parsed-curl-2026-01-31T10-15-00.redacted.json.
+ */
+export const exportFileName = (now: Date = new Date(), redacted = false) =>
+  `parsed-curl-${now.toISOString().slice(0, 19).replace(/:/g, "-")}${redacted ? ".redacted" : ""}.json`;
 
 function ExportJsonDialog({ open, onOpenChange, parsedData }: ExportJsonDialogProps) {
   const [revealed, setRevealed] = useState<Set<string>>(new Set());
@@ -22,7 +28,12 @@ function ExportJsonDialog({ open, onOpenChange, parsedData }: ExportJsonDialogPr
   const [redactDownload, setRedactDownload] = useState(true);
   const redactToggleRef = useRef<HTMLButtonElement>(null);
   const redactId = useId();
-  const fileName = redactDownload ? EXPORT_REDACTED_FILE_NAME : EXPORT_FILE_NAME;
+  // Fixed while the dialog is open, so the name shown is the name of the file that is downloaded.
+  const [stamp, setStamp] = useState(() => new Date());
+  useEffect(() => {
+    if (open) setStamp(new Date());
+  }, [open]);
+  const fileName = exportFileName(stamp, redactDownload);
 
   const secretFields = useMemo(() => listSecretFields(parsedData), [parsedData]);
   const shown = useMemo(() => maskParsedCurl(parsedData, revealed), [parsedData, revealed]);
@@ -52,6 +63,7 @@ function ExportJsonDialog({ open, onOpenChange, parsedData }: ExportJsonDialogPr
     link.download = fileName;
     link.click();
     URL.revokeObjectURL(url);
+    notifyDownloaded(fileName);
   };
 
   return (
@@ -66,7 +78,9 @@ function ExportJsonDialog({ open, onOpenChange, parsedData }: ExportJsonDialogPr
       >
         <DialogHeader>
           <DialogTitle>Export JSON</DialogTitle>
-          <DialogDescription>Download the parsed request, as edited, as a JSON file.</DialogDescription>
+          <DialogDescription>
+            Review the parsed request, as edited, as JSON, then download it or copy it.
+          </DialogDescription>
         </DialogHeader>
 
         <div
@@ -122,11 +136,13 @@ function ExportJsonDialog({ open, onOpenChange, parsedData }: ExportJsonDialogPr
             </section>
           )}
 
-          <pre
-            className="text-xs font-mono bg-slate-950 text-slate-50 p-4 rounded-md overflow-auto max-h-80 whitespace-pre-wrap break-all"
-          >
-            <MaskedString text={JSON.stringify(shown, null, 2)} />
-          </pre>
+          {/* Copy takes what is on screen: masked values stay masked until revealed. */}
+          <CodeBlock
+            code={JSON.stringify(shown, null, 2)}
+            display={<MaskedString text={JSON.stringify(shown, null, 2)} />}
+            label="Request JSON"
+            wrap
+          />
         </div>
 
         <div className="flex items-center justify-end gap-3 flex-wrap pt-3 border-t">

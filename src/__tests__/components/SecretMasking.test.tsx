@@ -3,7 +3,7 @@ import { screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import ParsedCurlEditor from '@/components/features/curl/ParsedCurlEditor';
 import RequestPreviewDialog from '@/components/features/curl/RequestPreviewDialog';
-import ExportJsonDialog, { EXPORT_REDACTED_FILE_NAME } from '@/components/features/curl/ExportJsonDialog';
+import ExportJsonDialog from '@/components/features/curl/ExportJsonDialog';
 import DiffViewDialog from '@/components/features/curl/DiffViewDialog';
 import CodeGenerationDialog from '@/components/features/curl/CodeGenerationDialog';
 import { render } from '../test-utils';
@@ -28,6 +28,7 @@ const parsed: ParsedCurl = {
 const originalCurl = `curl -X POST 'https://api.example.com/users?api_key=${API_KEY}' -H 'Authorization: Bearer ${TOKEN}' -b 'session_id=${COOKIE}'`;
 
 const everySecret = [TOKEN, COOKIE, PASSWORD, API_KEY];
+const REDACTED_FILE_NAME = /^parsed-curl-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.redacted\.json$/;
 const pageText = () => document.body.textContent ?? '';
 const expectNoSecrets = () => {
   for (const secret of everySecret) expect(pageText()).not.toContain(secret);
@@ -235,14 +236,14 @@ describe('ExportJsonDialog', () => {
     renderExport();
     const toggle = screen.getByRole('checkbox', { name: 'Redact secrets in the downloaded file' });
     expect(toggle).toBeChecked();
-    expect(screen.getByText(EXPORT_REDACTED_FILE_NAME)).toBeInTheDocument();
+    expect(screen.getByText(REDACTED_FILE_NAME)).toBeInTheDocument();
     const clicked = vi.mocked(HTMLAnchorElement.prototype.click);
     await user.click(screen.getByRole('button', { name: /Download JSON/ }));
     const text = await createdBlob!.text();
     for (const secret of everySecret) expect(text).not.toContain(secret);
     expect(text).toContain(REDACTED_PLACEHOLDER);
     expect(JSON.parse(text).headers['Content-Type']).toBe('application/json');
-    expect((clicked.mock.contexts[0] as HTMLAnchorElement).download).toBe(EXPORT_REDACTED_FILE_NAME);
+    expect((clicked.mock.contexts[0] as HTMLAnchorElement).download).toMatch(REDACTED_FILE_NAME);
   });
 
   it('downloads the real values only when redaction is turned off (masking is display only)', async () => {

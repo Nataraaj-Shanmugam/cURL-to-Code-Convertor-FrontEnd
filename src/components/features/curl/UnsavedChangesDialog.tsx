@@ -26,7 +26,7 @@ export default function UnsavedChangesDialog({ open, onStay, onLeave }: UnsavedC
             will be lost.
           </DialogDescription>
         </DialogHeader>
-        <DialogFooter className="gap-2 sm:gap-2">
+        <DialogFooter>
           <Button variant="outline" onClick={onStay}>
             Keep editing
           </Button>

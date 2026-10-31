@@ -42,6 +42,8 @@
 
     --warning: 38 92% 50%;
     --warning-foreground: 210 20% 12%;
+    /* Text/icon colour for warnings on a light or tinted surface (>= 4.5:1 on background and on warning/10) */
+    --warning-text: 32 90% 24%;
 
     --radius: 0.625rem;
 
@@ -83,6 +85,7 @@
 
     --warning: 38 92% 50%;
     --warning-foreground: 220 18% 5%;
+    --warning-text: 38 92% 66%;
   }
 }
 
@@ -98,6 +101,11 @@
     @apply bg-background text-foreground min-h-screen antialiased;
     font-family: var(--font-sans);
     transition: background-color 0.3s ease, color 0.3s ease;
+  }
+
+  /* Route changes move focus to the page <h1> (see RouteEffects); it is not a control, so no ring. */
+  h1[tabindex="-1"]:focus {
+    outline: none;
   }
 
   ::selection {
@@ -225,5 +233,23 @@
     opacity: 0.03;
     pointer-events: none;
     z-index: 0;
+  }
+}
+
+/* ===========================
+   Reduced motion
+   Users who ask for less motion get none of the page, hero, fade-up, accordion or spinner motion;
+   state changes still happen, just instantly (animation fill modes keep end states visible).
+=========================== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
   }
 }

@@ -83,6 +83,16 @@ describe('Home Page', () => {
     });
   });
 
+  describe('documentation link (QR-9)', () => {
+    it('links to the GitHub repository in a new tab', () => {
+      renderWithProviders(<Home />);
+      const link = screen.getByRole('link', { name: /Documentation/ });
+      expect(link).toHaveAttribute('href', expect.stringMatching(/^https:\/\/github\.com\/Nataraaj-Shanmugam\//));
+      expect(link).toHaveAttribute('target', '_blank');
+      expect(link.getAttribute('rel')).toContain('noopener');
+    });
+  });
+
   describe('navigation', () => {
     it('should navigate to playground on Get Started click', async () => {
       renderWithProviders(<Home />);

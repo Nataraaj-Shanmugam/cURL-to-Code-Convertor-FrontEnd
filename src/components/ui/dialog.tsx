@@ -26,14 +26,36 @@ const DialogOverlay = React.forwardRef<
 ));
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
-const DialogContent = React.forwardRef<
+/**
+ * Most dialogs here are controlled (`<Dialog open>`) and opened from a plain button, so Radix has
+ * no <DialogTrigger> to hand focus back to and focus would fall to <body> on close. Remember what
+ * had focus when the content mounted (the opener, because the content mounts in the same commit as
+ * the click that opened it) and restore it on close.
+ *
+ * The capture has to live below the portal: DialogContent itself is rendered while the dialog is
+ * still closed, but the portal's children only mount on open.
+ */
+const DialogContentInner = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, ...props }, ref) => (
-  <DialogPortal>
-    <DialogOverlay />
+>(({ className, children, onCloseAutoFocus, ...props }, ref) => {
+  const [opener] = React.useState<HTMLElement | null>(() =>
+    document.activeElement instanceof HTMLElement && document.activeElement !== document.body
+      ? document.activeElement
+      : null,
+  );
+  return (
     <DialogPrimitive.Content
       ref={ref}
+      onCloseAutoFocus={(event) => {
+        onCloseAutoFocus?.(event);
+        if (event.defaultPrevented) return;
+        // Fall through to Radix (the <DialogTrigger>, if any) when the opener is gone, e.g. a menu item.
+        if (opener?.isConnected) {
+          event.preventDefault();
+          opener.focus();
+        }
+      }}
       className={cn(
         "fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] " +
           "gap-4 border border-border bg-background p-6 shadow-lg duration-200 " +
@@ -44,11 +66,22 @@ const DialogContent = React.forwardRef<
       {...props}
     >
       {children}
-      <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
-        <X className="h-4 w-4" />
+      <DialogPrimitive.Close className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
+        <X className="h-4 w-4" aria-hidden="true" />
         <span className="sr-only">Close</span>
       </DialogPrimitive.Close>
     </DialogPrimitive.Content>
+  );
+});
+DialogContentInner.displayName = "DialogContentInner";
+
+const DialogContent = React.forwardRef<
+  React.ElementRef<typeof DialogPrimitive.Content>,
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
+>((props, ref) => (
+  <DialogPortal>
+    <DialogOverlay />
+    <DialogContentInner ref={ref} {...props} />
   </DialogPortal>
 ));
 DialogContent.displayName = DialogPrimitive.Content.displayName;
@@ -73,7 +106,8 @@ const DialogFooter = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      "flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2",
+      // DOM order is visual order on mobile too, so put the safe action first in the markup.
+      "flex flex-col gap-2 sm:flex-row sm:justify-end",
       className
     )}
     {...props}

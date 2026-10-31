@@ -1,4 +1,3 @@
-import { useEffect, useRef, useState } from "react";
 import {
   Code2,
   Edit3,
@@ -12,45 +11,16 @@ import {
   Settings,
   Copy,
   GitBranch,
+  Github,
   Package,
 } from "lucide-react";
 import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
-function FadeInSection({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => { if (entry?.isIntersecting) setVisible(true); },
-      { rootMargin: '-60px' },
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
-
-  return (
-    <div
-      ref={ref}
-      className={className}
-      style={{
-        opacity: visible ? 1 : 0,
-        transform: visible ? 'none' : 'translateY(24px)',
-        transition: `opacity 0.5s ${delay}s ease-out, transform 0.5s ${delay}s ease-out`,
-      }}
-    >
-      {children}
-    </div>
-  );
-}
+import { FadeInSection } from "@/components/ui/fade-in-section";
+import { GITHUB_URL } from "@/constants/links";
 
 export default function Home() {
   const navigate = useNavigate();
-  useEffect(() => {
-    document.title = "cURLCraft Assured — cURL to REST Assured Test Generator";
-  }, []);
 
   const features = [
     {
@@ -138,6 +108,13 @@ export default function Home() {
                   Get Started
                   <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                 </Button>
+                <Button asChild variant="outline" size="lg" className="gap-2 text-base">
+                  <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer">
+                    <Github className="w-4 h-4" aria-hidden="true" />
+                    Documentation
+                    <span className="sr-only"> (opens GitHub in a new tab)</span>
+                  </a>
+                </Button>
               </div>
             </div>
 
@@ -158,7 +135,7 @@ export default function Home() {
                   <p className="pl-4">-H <span className="text-accent-foreground">"Content-Type: application/json"</span> \</p>
                   <p className="pl-4">-H <span className="text-accent-foreground">"Authorization: Bearer token"</span> \</p>
                   <p className="pl-4">-d <span className="text-accent-foreground">'{`{"name": "John"}`}'</span></p>
-                  <p className="mt-3 text-xs text-muted-foreground/60">→ Generates REST Assured test code instantly</p>
+                  <p className="mt-3 text-xs text-muted-foreground">→ Generates REST Assured test code instantly</p>
                 </div>
               </div>
             </div>
