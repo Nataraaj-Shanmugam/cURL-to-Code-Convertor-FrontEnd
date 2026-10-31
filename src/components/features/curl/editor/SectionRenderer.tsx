@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Plus, Trash2, FileText, Globe, List, Shield, Flag, Settings, Link2, Cookie } from "lucide-react";
 import { useEditorContext } from "./EditorContext";
 import EditableField from "./EditableField";
+import { encodePath } from "@/lib/utils/fieldPath";
 
 // Section styling config — static, never changes
 const sectionStyles: Record<string, { icon: typeof Globe; borderColor: string }> = {
@@ -56,17 +57,20 @@ function SectionRenderer({ title, sectionKey, data, isTopLevel = false, isFlagsS
             {title}
           </span>
           <div className="flex gap-2" onClick={e => e.stopPropagation()}>
-            <button
-              type="button"
-              className="h-7 px-3 inline-flex items-center justify-center rounded-md text-xs font-medium hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              onClick={e => {
-                e.stopPropagation();
-                handleAddEntry(sectionKey);
-              }}
-            >
-              <Plus className="h-3 w-3 mr-1" />
-              {isFlagType ? "Add Flag" : "Add Entry"}
-            </button>
+            {/* Top-level groups (Request Details, Client Context) are not keys of the request. */}
+            {!isTopLevel && (
+              <button
+                type="button"
+                className="h-7 px-3 inline-flex items-center justify-center rounded-md text-xs font-medium hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                onClick={e => {
+                  e.stopPropagation();
+                  handleAddEntry(sectionKey);
+                }}
+              >
+                <Plus className="h-3 w-3 mr-1" />
+                {isFlagType ? "Add Flag" : "Add Entry"}
+              </button>
+            )}
             {!isTopLevel && (
               <button
                 type="button"
@@ -105,7 +109,7 @@ function SectionRenderer({ title, sectionKey, data, isTopLevel = false, isFlagsS
                     variant="ghost"
                     size="icon"
                     className="h-4 w-4 ml-1"
-                    onClick={() => deleteSingle(`${sectionKey}.${flag}`)}
+                    onClick={() => deleteSingle([sectionKey, flag])}
                     aria-label={`Delete flag ${flag}`}
                   >
                     <Trash2 className="h-3 w-3 text-destructive" />
@@ -121,16 +125,16 @@ function SectionRenderer({ title, sectionKey, data, isTopLevel = false, isFlagsS
             {Array.isArray(data)
               ? (data as unknown[]).map((item, idx) => (
                   <EditableField
-                    key={`${sectionKey}.${idx}`}
+                    key={idx}
                     label={`Item ${idx}`}
                     value={item}
-                    path={`${sectionKey}.${idx}`}
+                    path={encodePath([sectionKey, String(idx)])}
                   />
                 ))
               : Object.entries(data as Record<string, unknown>)
                   .filter(([, value]) => value !== null && value !== undefined)
                   .map(([key, value]) => {
-                    const fieldPath = isTopLevel ? key : `${sectionKey}.${key}`;
+                    const fieldPath = encodePath(isTopLevel ? [key] : [sectionKey, key]);
                     return (
                       <EditableField
                         key={fieldPath}

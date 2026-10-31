@@ -3,6 +3,21 @@ import type { ParsedCurl } from "@/types/curl";
 import { useEditorState } from "./useEditorState";
 import { useBodyApi } from "./useBodyApi";
 import { useSectionManager, VALID_SECTIONS, getParsedField } from "./useSectionManager";
+import { deepEqual } from "@/lib/utils/deepEqual";
+import {
+  type FieldPath,
+  compareForDeletion,
+  decodePath,
+  deleteAtPath,
+  encodePath,
+  getAtPath,
+  hasPath,
+  isSafePath,
+  setAtPath,
+  toBracketPath,
+  toPathId,
+  toSegments,
+} from "@/lib/utils/fieldPath";
 
 export { VALID_SECTIONS, getParsedField };
 
@@ -41,6 +56,10 @@ const getActiveFlags = (flagsObj: unknown): string[] => {
     .filter(([, val]) => val === true)
     .map(([key]) => key);
 };
+
+// The body API addresses nodes as `data.items[0].sku`.
+const bodyApiPath = (parsed: ParsedCurl, segments: string[]): string =>
+  `data.${toBracketPath(parsed.data, segments.slice(1))}`;
 
 // ── hook ─────────────────────────────────────────────────────────────────────
 
@@ -85,6 +104,8 @@ export const useParsedCurlEditor = (initialData: ParsedCurl | undefined) => {
     setNewKey,
     newValue,
     setNewValue,
+    duplicateKey,
+    addEntryError,
     showNewSectionDialog,
     setShowNewSectionDialog,
     newSectionName,
@@ -118,42 +139,54 @@ export const useParsedCurlEditor = (initialData: ParsedCurl | undefined) => {
   }, [originalParsed, resetParsed, computeOpenSections]);
 
   const toggleEdit = useCallback(
-    async (path: string, currentValue: unknown) => {
-      if (editing[path]) {
-        let finalValue: unknown = editedValues[path] ?? currentValue;
-        if (typeof finalValue === "string") {
-          try {
-            finalValue = JSON.parse(finalValue) as unknown;
-          } catch {
-            // Keep as string
-          }
-        }
-
-        const keys = path.split(".");
-        const newParsed = structuredClone(parsed);
-        let obj: unknown = newParsed;
-        for (let i = 0; i < keys.length - 1; i++) {
-          const key = keys[i];
-          if (key && obj && typeof obj === "object")
-            obj = (obj as Record<string, unknown>)[key];
-          else return;
-        }
-        const lastKey = keys[keys.length - 1];
-        if (lastKey && obj && typeof obj === "object")
-          (obj as Record<string, unknown>)[lastKey] = finalValue;
-
-        // The edit is local and final. The backend call (flag-gated) is advisory, so it starts
-        // after the state update and its failure only surfaces as a notice.
-        if (path.startsWith("data.")) void editBodyNode(path, finalValue);
-
-        setParsed(newParsed);
-        const newEditing = { ...editing };
-        delete newEditing[path];
-        setEditing(newEditing);
-      } else {
-        setEditing({ ...editing, [path]: true });
-        setEditedValues({ ...editedValues, [path]: currentValue });
+    async (path: FieldPath, currentValue: unknown) => {
+      const segments = toSegments(path);
+      const id = encodePath(segments);
+      if (!editing[id]) {
+        setEditing({ ...editing, [id]: true });
+        setEditedValues({ ...editedValues, [id]: currentValue });
+        return;
       }
+
+      const closeEditor = () => {
+        const newEditing = { ...editing };
+        delete newEditing[id];
+        setEditing(newEditing);
+      };
+
+      if (!hasPath(parsed, segments)) {
+        closeEditor();
+        return;
+      }
+      const stored = getAtPath(parsed, segments);
+      let finalValue: unknown = id in editedValues ? editedValues[id] : currentValue;
+      // The input always yields text. Only a field that held a JSON value (number, boolean, null,
+      // object, array) is parsed back; a string stays a string, so "123", "true" or a 20-digit id
+      // keep their type and precision.
+      if (typeof finalValue === "string" && typeof stored !== "string") {
+        try {
+          finalValue = JSON.parse(finalValue) as unknown;
+        } catch {
+          // Keep as string
+        }
+      }
+
+      if (deepEqual(finalValue, stored)) {
+        closeEditor();
+        return;
+      }
+      const newParsed = structuredClone(parsed);
+      if (!setAtPath(newParsed, segments, finalValue)) {
+        closeEditor();
+        return;
+      }
+
+      // The edit is local and final. The backend call (flag-gated) is advisory, so it starts
+      // after the state update and its failure only surfaces as a notice.
+      if (segments[0] === "data" && segments.length > 1) void editBodyNode(bodyApiPath(parsed, segments), finalValue);
+
+      setParsed(newParsed);
+      closeEditor();
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [editing, editedValues, parsed, editBodyNode, setParsed],
@@ -162,45 +195,43 @@ export const useParsedCurlEditor = (initialData: ParsedCurl | undefined) => {
   const deleteSelected = useCallback(() => {
     if (selected.size === 0) return;
     const newParsed = structuredClone(parsed);
-    selected.forEach(path => {
-      const keys = path.split(".");
-      let obj: unknown = newParsed;
-      for (let i = 0; i < keys.length - 1; i++) {
-        const key = keys[i];
-        if (key && obj && typeof obj === "object")
-          obj = (obj as Record<string, unknown>)[key];
-        else return;
-      }
-      const lastKey = keys[keys.length - 1];
-      if (lastKey && obj && typeof obj === "object")
-        delete (obj as Record<string, unknown>)[lastKey];
-    });
-    setParsed(newParsed);
+    let changed = false;
+    [...selected]
+      .map(decodePath)
+      .sort(compareForDeletion)
+      .forEach(segments => {
+        if (deleteAtPath(newParsed, segments)) changed = true;
+      });
+    if (changed) setParsed(newParsed);
     setSelected(new Set());
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected, parsed, setParsed]);
 
   const deleteSingle = useCallback(
-    (path: string) => {
-      const keys = path.split(".");
+    (path: FieldPath) => {
+      const segments = toSegments(path);
+      const id = encodePath(segments);
       const newParsed = structuredClone(parsed);
-      let obj: unknown = newParsed;
-      for (let i = 0; i < keys.length - 1; i++) {
-        const key = keys[i];
-        if (key && obj && typeof obj === "object")
-          obj = (obj as Record<string, unknown>)[key];
-        else return;
+      if (deleteAtPath(newParsed, segments)) {
+        // Local delete is final; the backend call (flag-gated) is advisory and sent with the
+        // pre-delete body, as before.
+        if (segments[0] === "data" && segments.length > 1) void deleteBodyNode(bodyApiPath(parsed, segments));
+        setParsed(newParsed);
       }
-      const lastKey = keys[keys.length - 1];
-      if (lastKey && obj && typeof obj === "object")
-        delete (obj as Record<string, unknown>)[lastKey];
-      // Local delete is final; the backend call (flag-gated) is advisory and sent with the
-      // pre-delete body, as before.
-      if (path.startsWith("data.")) void deleteBodyNode(path);
-      setParsed(newParsed);
-      setSelected(prev => {
-        const next = new Set(prev);
-        next.delete(path);
+      // Splicing an array item shifts its siblings' ids, so open editors and selections under that
+      // array are dropped too; otherwise only those at or under the deleted path.
+      const parentSegments = segments.slice(0, -1);
+      const scope =
+        parentSegments.length > 0 && Array.isArray(getAtPath(parsed, parentSegments))
+          ? encodePath(parentSegments)
+          : id;
+      const inScope = (key: string) => key === scope || key.startsWith(`${scope}.`);
+      setSelected(prev => new Set([...prev].filter(key => !inScope(toPathId(key)))));
+      setEditing(prev => {
+        const next = { ...prev };
+        Object.keys(next).forEach(key => {
+          if (inScope(key)) delete next[key];
+        });
         return next;
       });
     },
@@ -221,21 +252,13 @@ export const useParsedCurlEditor = (initialData: ParsedCurl | undefined) => {
   const handleBodyExpandCollapseAll = useCallback(() => {
     if (allExpanded) {
       const allPaths: string[] = [];
-      const collectPaths = (obj: unknown, currentPath = "data") => {
+      const collectPaths = (obj: unknown, currentPath: string[] = ["data"]) => {
         if (typeof obj === "object" && obj !== null) {
-          if (Array.isArray(obj)) {
-            (obj as unknown[]).forEach((item, idx) => {
-              const p = `${currentPath}[${idx}]`;
-              allPaths.push(p);
-              collectPaths(item, p);
-            });
-          } else {
-            Object.keys(obj as Record<string, unknown>).forEach(key => {
-              const p = `${currentPath}.${key}`;
-              allPaths.push(p);
-              collectPaths((obj as Record<string, unknown>)[key], p);
-            });
-          }
+          Object.keys(obj as Record<string, unknown>).forEach(key => {
+            const p = [...currentPath, key];
+            allPaths.push(encodePath(p));
+            collectPaths((obj as Record<string, unknown>)[key], p);
+          });
         }
       };
       collectPaths(parsed.data);
@@ -248,30 +271,16 @@ export const useParsedCurlEditor = (initialData: ParsedCurl | undefined) => {
     setAllExpanded(prev => !prev);
   }, [allExpanded, parsed.data, setBodyCollapsed, setAllExpanded]);
 
-  // Revert a single field to its original value using dot-notation path
-  const revertField = useCallback((path: string) => {
-    const keys = path.split(".");
-    let origValue: unknown = originalParsed;
-    for (const key of keys) {
-      if (origValue == null || typeof origValue !== "object") { origValue = undefined; break; }
-      origValue = (origValue as Record<string, unknown>)[key];
-    }
-    if (keys.length === 1) {
-      const topKey = keys[0] as keyof ParsedCurl;
-      const update = { ...parsed, [topKey]: origValue } as ParsedCurl;
-      setParsed(update);
-    } else {
-      // Deep path — clone and set
-      const clone = structuredClone(parsed) as unknown as Record<string, unknown>;
-      let obj = clone;
-      for (let i = 0; i < keys.length - 1; i++) {
-        const k = keys[i]!;
-        if (typeof obj[k] !== "object" || obj[k] == null) obj[k] = {};
-        obj = obj[k] as Record<string, unknown>;
-      }
-      obj[keys[keys.length - 1]!] = origValue;
-      setParsed(clone as unknown as ParsedCurl);
-    }
+  // Revert a single field to its original value. `path` is an escaped path (as produced by the
+  // diff engine) or its segments.
+  const revertField = useCallback((path: FieldPath) => {
+    const segments = toSegments(path);
+    if (!isSafePath(segments)) return;
+    const clone = structuredClone(parsed);
+    const ok = hasPath(originalParsed, segments)
+      ? setAtPath(clone, segments, structuredClone(getAtPath(originalParsed, segments)), originalParsed)
+      : deleteAtPath(clone, segments);
+    if (ok && !deepEqual(clone, parsed)) setParsed(clone);
   }, [originalParsed, parsed, setParsed]);
 
   return {
@@ -286,6 +295,8 @@ export const useParsedCurlEditor = (initialData: ParsedCurl | undefined) => {
     addDialogSection,
     newKey,
     newValue,
+    duplicateKey,
+    addEntryError,
     showNewSectionDialog,
     newSectionName,
     openSections,

@@ -28,6 +28,7 @@ import type { ParsedCurl } from "@/types/curl";
 import { EditorContext } from "./editor/EditorContext";
 import SectionRenderer from "./editor/SectionRenderer";
 import BodyFieldNode from "./editor/BodyFieldNode";
+import { encodePath } from "@/lib/utils/fieldPath";
 
 interface ParsedCurlEditorProps {
   initialData: ParsedCurl;
@@ -83,6 +84,8 @@ function ParsedCurlEditor({
     addDialogSection,
     newKey,
     newValue,
+    duplicateKey,
+    addEntryError,
     showNewSectionDialog,
     newSectionName,
     openSections,
@@ -577,15 +580,36 @@ function ParsedCurlEditor({
                   />
                 </div>
               )}
+              {addEntryError && (
+                <p role="alert" className="text-sm text-destructive">
+                  {addEntryError}
+                </p>
+              )}
+              {duplicateKey !== null && (
+                <p
+                  role="alert"
+                  className="text-sm p-2 rounded-md border border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-200"
+                >
+                  {duplicateKey === newKey.trim()
+                    ? `"${duplicateKey}" already exists. Replace its value?`
+                    : `"${duplicateKey}" already exists (header names ignore case). Replace it with "${newKey.trim()}"?`}
+                </p>
+              )}
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setShowAddDialog(false)}>
                   Cancel
                 </Button>
-                <Button onClick={saveNewEntry} disabled={!newKey.trim()}>
-                  {addDialogSection === "flags" || addDialogSection === "ssl_config"
-                    ? "Add Flag"
-                    : "Add Entry"}
-                </Button>
+                {duplicateKey !== null ? (
+                  <Button variant="destructive" onClick={() => saveNewEntry({ overwrite: true })}>
+                    Replace
+                  </Button>
+                ) : (
+                  <Button onClick={() => saveNewEntry()} disabled={!newKey.trim()}>
+                    {addDialogSection === "flags" || addDialogSection === "ssl_config"
+                      ? "Add Flag"
+                      : "Add Entry"}
+                  </Button>
+                )}
               </div>
             </div>
           </DialogContent>
@@ -702,10 +726,10 @@ function ParsedCurlEditor({
                         {typeof parsed.data === "object" && parsed.data !== null ? (
                           Object.entries(parsed.data).map(([key, value]) => (
                             <BodyFieldNode
-                              key={`data.${key}`}
+                              key={key}
                               fieldKey={key}
                               value={value}
-                              path={`data.${key}`}
+                              path={encodePath(["data", key])}
                               level={0}
                             />
                           ))
@@ -777,6 +801,7 @@ function ParsedCurlEditor({
                 <SectionRenderer
                   title="Client Context"
                   sectionKey="context"
+                  isTopLevel
                   data={{
                     ...(parsed.user_agent &&
                       parsed.user_agent.trim() !== "" && { user_agent: parsed.user_agent }),

@@ -7,10 +7,12 @@ import { Edit2, Trash2, Save } from "lucide-react";
 import { useEditorContext } from "./EditorContext";
 import { RevealToggle } from "./SecretValue";
 import { MASK, countRedactions, isSecretField, redactFieldValue } from "@/lib/utils/redaction";
+import { decodePath, toDisplayPath } from "@/lib/utils/fieldPath";
 
 interface EditableFieldProps {
   label: string;
   value: unknown;
+  /** Escaped path id (see fieldPath.ts), e.g. `query_params.filter\.name`. */
   path: string;
   /** basePath used to build `fieldPath` when isTopLevel */
   basePath?: string;
@@ -29,10 +31,12 @@ function EditableField({ label, value, path }: EditableFieldProps) {
   // Secrets are masked until the user reveals them. A value restored from a saved session arrives
   // already redacted: it is flagged so the user re-enters it instead of generating code with a placeholder.
   const [revealed, setRevealed] = useState(false);
-  const isSecret = isSecretField(path, value);
+  // Redaction rules match on the plain `section.key` form.
+  const keyPath = toDisplayPath(decodePath(path));
+  const isSecret = isSecretField(keyPath, value);
   const needsReentry = countRedactions(value) > 0;
   const hidden = isSecret && !revealed;
-  const displayValue = hidden ? redactFieldValue(path, value, { placeholder: MASK }) : value;
+  const displayValue = hidden ? redactFieldValue(keyPath, value, { placeholder: MASK }) : value;
 
   return (
     <div className="flex items-start gap-3 p-2 hover:bg-accent/30 rounded-md group transition-colors">

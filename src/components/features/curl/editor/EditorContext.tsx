@@ -1,4 +1,5 @@
 import { createContext, useContext } from "react";
+import type { FieldPath } from "@/lib/utils/fieldPath";
 
 // Shared callbacks injected by ParsedCurlEditor and consumed by sub-components.
 // Using context avoids threading 10+ props through multiple levels.
@@ -9,11 +10,12 @@ export interface EditorCallbacks {
   selected: Set<string>;
   bodyCollapsed: Record<string, boolean>;
   allExpanded: boolean;
-  toggleSelect: (path: string) => void;
-  toggleEdit: (path: string, value: unknown) => void;
-  handleEditChange: (path: string, value: unknown) => void;
-  deleteSingle: (path: string) => void;
-  toggleBodyCollapse: (path: string) => void;
+  // Paths are escaped path ids or segment arrays (see fieldPath.ts); state records are keyed by id.
+  toggleSelect: (path: FieldPath) => void;
+  toggleEdit: (path: FieldPath, value: unknown) => void;
+  handleEditChange: (path: FieldPath, value: unknown) => void;
+  deleteSingle: (path: FieldPath) => void;
+  toggleBodyCollapse: (path: FieldPath) => void;
   handleAddEntry: (section: string) => void;
   handleBodyExpandCollapseAll: () => void;
   hasActiveFlags: (v: unknown) => boolean;

@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import type { ParsedCurl } from "@/types/curl";
+import { isForbiddenSegment } from "@/lib/utils/fieldPath";
 
 export const VALID_SECTIONS = {
   query_params: "Query Parameters",
@@ -24,6 +25,17 @@ export const VALID_SECTIONS = {
 export const getParsedField = (parsed: ParsedCurl, key: string): unknown =>
   (parsed as unknown as Record<string, unknown>)[key];
 
+/** Groups built by the editor from top-level fields; they are not keys of the request. */
+export const SYNTHETIC_SECTIONS = ["request", "context"];
+
+/** Header names are case-insensitive (RFC 9110); every other section's keys are exact. */
+export const findExistingKey = (section: string, record: unknown, key: string): string | undefined => {
+  if (!record || typeof record !== "object" || Array.isArray(record)) return undefined;
+  const keys = Object.keys(record);
+  if (section === "headers") return keys.find(k => k.toLowerCase() === key.toLowerCase());
+  return keys.includes(key) ? key : undefined;
+};
+
 export const useSectionManager = (
   parsed: ParsedCurl,
   setParsed: (next: ParsedCurl) => void,
@@ -33,8 +45,17 @@ export const useSectionManager = (
   const [openSections, setOpenSections] = useState<string[]>([]);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [addDialogSection, setAddDialogSection] = useState("");
-  const [newKey, setNewKey] = useState("");
+  const [newKey, setNewKeyState] = useState("");
   const [newValue, setNewValue] = useState("");
+  // Set when the key typed in Add Entry already exists: the dialog asks before replacing it.
+  const [duplicateKey, setDuplicateKey] = useState<string | null>(null);
+  const [addEntryError, setAddEntryError] = useState<string | null>(null);
+
+  const setNewKey = useCallback((value: string) => {
+    setNewKeyState(value);
+    setDuplicateKey(null);
+    setAddEntryError(null);
+  }, []);
   const [showNewSectionDialog, setShowNewSectionDialog] = useState(false);
   const [newSectionName, setNewSectionName] = useState("");
 
@@ -129,21 +150,48 @@ export const useSectionManager = (
   );
 
   const handleAddEntry = useCallback((section: string) => {
+    // Request Details and Client Context group top-level fields; they have no entries of their own.
+    if (SYNTHETIC_SECTIONS.includes(section)) return;
     setAddDialogSection(section);
     setNewKey("");
     setNewValue("");
     setShowAddDialog(true);
-  }, []);
+  }, [setNewKey]);
 
-  const saveNewEntry = useCallback(() => {
-    if (!newKey.trim()) return;
+  /** Adds the entry; with `overwrite`, an existing (for headers: same-name, any case) key is replaced. */
+  const saveNewEntry = useCallback((options?: { overwrite?: boolean }) => {
+    const key = newKey.trim();
+    if (!key || SYNTHETIC_SECTIONS.includes(addDialogSection) || isForbiddenSegment(addDialogSection)) return;
+    if (isForbiddenSegment(key)) {
+      setAddEntryError(`"${key}" can't be used as a key.`);
+      return;
+    }
+    const isFlag = addDialogSection === "flags" || addDialogSection === "ssl_config";
     const newParsed = structuredClone(parsed);
-    const record = newParsed as unknown as Record<string, Record<string, unknown>>;
-    if (!record[addDialogSection]) record[addDialogSection] = {};
-    if (addDialogSection === "flags" || addDialogSection === "ssl_config")
-      record[addDialogSection][newKey] = true;
-    else
-      record[addDialogSection][newKey] = newValue;
+    const record = newParsed as unknown as Record<string, unknown>;
+    const current = record[addDialogSection];
+
+    if (Array.isArray(current)) {
+      // path_parameters is a list of { name, value }.
+      current.push({ name: key, value: newValue });
+    } else if (current && typeof current !== "object") {
+      setAddEntryError("This section holds a single value; edit it instead.");
+      return;
+    } else {
+      const section = (current || {}) as Record<string, unknown>;
+      record[addDialogSection] = section;
+      if (isFlag) {
+        section[key] = true;
+      } else {
+        const existing = findExistingKey(addDialogSection, section, key);
+        if (existing !== undefined && !options?.overwrite) {
+          setDuplicateKey(existing);
+          return;
+        }
+        if (existing !== undefined && existing !== key) delete section[existing];
+        section[key] = newValue;
+      }
+    }
 
     setParsed(newParsed);
     setOpenSections(prev =>
@@ -152,7 +200,7 @@ export const useSectionManager = (
     setShowAddDialog(false);
     setNewKey("");
     setNewValue("");
-  }, [parsed, setParsed, addDialogSection, newKey, newValue]);
+  }, [parsed, setParsed, addDialogSection, newKey, newValue, setNewKey]);
 
   const handleAddSection = useCallback(() => {
     setShowNewSectionDialog(true);
@@ -190,6 +238,8 @@ export const useSectionManager = (
     setNewKey,
     newValue,
     setNewValue,
+    duplicateKey,
+    addEntryError,
     showNewSectionDialog,
     setShowNewSectionDialog,
     newSectionName,

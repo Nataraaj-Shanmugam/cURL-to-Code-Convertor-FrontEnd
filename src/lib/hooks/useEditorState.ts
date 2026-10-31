@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useMemo } from "react";
 import type { ParsedCurl } from "@/types/curl";
 import { deepEqual } from "@/lib/utils/deepEqual";
+import { type FieldPath, toPathId } from "@/lib/utils/fieldPath";
 
 interface EditingState {
   [key: string]: boolean;
@@ -97,21 +98,25 @@ export const useEditorState = (initialData: ParsedCurl | undefined) => {
     syncHistoryFlags();
   }, []);
 
-  const toggleSelect = useCallback((path: string) => {
+  // Per-field state is keyed by the escaped path id (see fieldPath.ts); callers may pass either form.
+  const toggleSelect = useCallback((path: FieldPath) => {
+    const id = toPathId(path);
     setSelected(prev => {
       const next = new Set(prev);
-      if (next.has(path)) next.delete(path);
-      else next.add(path);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   }, []);
 
-  const handleEditChange = useCallback((path: string, value: unknown) => {
-    setEditedValues(prev => ({ ...prev, [path]: value }));
+  const handleEditChange = useCallback((path: FieldPath, value: unknown) => {
+    const id = toPathId(path);
+    setEditedValues(prev => ({ ...prev, [id]: value }));
   }, []);
 
-  const toggleBodyCollapse = useCallback((path: string) => {
-    setBodyCollapsed(prev => ({ ...prev, [path]: !prev[path] }));
+  const toggleBodyCollapse = useCallback((path: FieldPath) => {
+    const id = toPathId(path);
+    setBodyCollapsed(prev => ({ ...prev, [id]: !prev[id] }));
   }, []);
 
   return {

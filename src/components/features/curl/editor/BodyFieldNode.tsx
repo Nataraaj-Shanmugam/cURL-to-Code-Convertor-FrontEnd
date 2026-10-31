@@ -5,10 +5,12 @@ import { Edit2, Trash2, Save, ChevronDown, ChevronRight } from "lucide-react";
 import { useEditorContext } from "./EditorContext";
 import { RevealToggle } from "./SecretValue";
 import { MASK, countRedactions, isSecretField, redactFieldValue } from "@/lib/utils/redaction";
+import { decodePath, encodePath, toDisplayPath } from "@/lib/utils/fieldPath";
 
 interface BodyFieldNodeProps {
   fieldKey: string;
   value: unknown;
+  /** Escaped path id (see fieldPath.ts), e.g. `data.items.0.sku`. */
   path: string;
   level?: number;
 }
@@ -25,7 +27,8 @@ function BodyFieldNode({ fieldKey, value, path, level = 0 }: BodyFieldNodeProps)
 
   // Leaf values under a secret-named key (password, token, ...) are masked until revealed.
   const [revealed, setRevealed] = useState(false);
-  const isSecret = !isComplex && isSecretField(path, value);
+  const keyPath = toDisplayPath(decodePath(path));
+  const isSecret = !isComplex && isSecretField(keyPath, value);
   const needsReentry = !isComplex && countRedactions(value) > 0;
   const hidden = isSecret && !revealed;
 
@@ -83,19 +86,19 @@ function BodyFieldNode({ fieldKey, value, path, level = 0 }: BodyFieldNodeProps)
             {isArray
               ? (complexValue as unknown[]).map((item, idx) => (
                   <BodyFieldNode
-                    key={`${path}[${idx}]`}
+                    key={idx}
                     fieldKey={`[${idx}]`}
                     value={item}
-                    path={`${path}[${idx}]`}
+                    path={`${path}.${idx}`}
                     level={level + 1}
                   />
                 ))
               : Object.entries(complexValue as Record<string, unknown>).map(([childKey, childValue]) => (
                   <BodyFieldNode
-                    key={`${path}.${childKey}`}
+                    key={childKey}
                     fieldKey={childKey}
                     value={childValue}
-                    path={`${path}.${childKey}`}
+                    path={`${path}.${encodePath([childKey])}`}
                     level={level + 1}
                   />
                 ))}
@@ -127,7 +130,7 @@ function BodyFieldNode({ fieldKey, value, path, level = 0 }: BodyFieldNodeProps)
         ) : (
           <span className="font-mono text-sm text-foreground">
             {hidden
-              ? `"${String(redactFieldValue(path, value, { placeholder: MASK }))}"`
+              ? `"${String(redactFieldValue(keyPath, value, { placeholder: MASK }))}"`
               : typeof value === "string"
                 ? `"${value}"`
                 : String(value ?? "null")}
