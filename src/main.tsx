@@ -13,6 +13,10 @@ import "@fontsource/jetbrains-mono/600.css";
 import "@fontsource/jetbrains-mono/700.css";
 import "./index.css";
 import { migrateLegacyEditorState } from "@/lib/utils/editorStorage";
+import { installChunkLoadRecovery } from "@/lib/utils/chunkLoadRecovery";
+
+// A lazy chunk missing after a deploy reloads the page once (see chunkLoadRecovery.ts).
+installChunkLoadRecovery();
 
 // Earlier versions kept the editor state, secrets included, in localStorage with no expiry.
 migrateLegacyEditorState();

@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import { isChunkLoadError } from "@/lib/utils/chunkLoadRecovery";
 
 interface Props {
   children: ReactNode;
@@ -31,12 +32,20 @@ export class ErrorBoundary extends Component<Props, State> {
     if (this.state.hasError) {
       if (this.props.fallback) return this.props.fallback;
 
+      // A missing chunk means the app was redeployed under this tab. The raw message names a
+      // hashed asset URL, so show a plain explanation instead.
+      const chunkError = isChunkLoadError(this.state.error);
+
       return (
         <div className="flex min-h-screen items-center justify-center p-8">
           <div className="max-w-md w-full rounded-xl border border-destructive/30 bg-destructive/5 p-8 text-center space-y-4">
-            <h2 className="text-xl font-semibold text-destructive">Something went wrong</h2>
+            <h2 className="text-xl font-semibold text-destructive">
+              {chunkError ? "This page could not be loaded" : "Something went wrong"}
+            </h2>
             <p className="text-sm text-muted-foreground">
-              {this.state.error?.message ?? "An unexpected error occurred."}
+              {chunkError
+                ? "The app was updated while this tab was open. Reload to get the latest version."
+                : this.state.error?.message ?? "An unexpected error occurred."}
             </p>
             <button
               type="button"
