@@ -1,22 +1,26 @@
 import { useEffect, useRef } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigationType } from "react-router-dom";
 
 // Lazy routes render their <h1> only once their chunk has loaded, which can take a while on a slow link.
 const FOCUS_GIVE_UP_MS = 10_000;
 
 /**
  * Per-navigation housekeeping for a single-page app, none of which the browser does for us:
+ *  - a new page starts at the top (Back keeps the browser's own scroll restoration),
  *  - focus moves to the page's <h1> (WCAG 2.4.3), instead of staying on a control that is gone.
  * The first render is left alone: on a fresh load the browser's focus and scroll are correct.
  */
 export default function RouteEffects() {
   const { pathname } = useLocation();
+  const navigationType = useNavigationType();
   // Compared by value, not a "first run" flag, so StrictMode's second effect run on load is a no-op too.
   const lastPath = useRef(pathname);
 
   useEffect(() => {
     if (lastPath.current === pathname) return;
     lastPath.current = pathname;
+    if (navigationType !== "POP") window.scrollTo(0, 0);
+
     let done = false;
     const focusHeading = () => {
       const heading = document.querySelector<HTMLElement>("#main-content h1");

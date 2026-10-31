@@ -183,3 +183,19 @@ test.describe('Motion (T32)', () => {
     await expect(lastSection).toHaveCSS('opacity', '1');
   });
 });
+
+test.describe('Scroll on navigation (T40)', () => {
+  test('navigating to a page starts it at the top, not at the old scroll offset', async ({ mockPage: page }) => {
+    // A tall page that is scrolled down, navigating to another page tall enough to keep a scroll offset.
+    await page.goto('/playground');
+    for (let i = 0; i < 8; i++) await page.getByRole('button', { name: /Add another cURL/i }).click();
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    const before = await page.evaluate(() => window.scrollY);
+    expect(before).toBeGreaterThan(1000);
+
+    await page.getByRole('banner').getByRole('link', { name: 'Feedback' }).click();
+    await expect(page).toHaveURL(/\/feedback$/);
+    expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeGreaterThan(900); // the offset would survive
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+  });
+});

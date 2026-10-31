@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Link, useLocation } from 'react-router-dom';
@@ -35,5 +35,15 @@ describe('RouteEffects', () => {
     await user.click(screen.getByRole('link', { name: 'Batch link' }));
     await waitFor(() => expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('/batch-editor'));
     await waitFor(() => expect(screen.getByRole('heading', { level: 1 })).toHaveFocus());
+  });
+
+  it('scrolls to the top when navigating forward', async () => {
+    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
+    const user = userEvent.setup();
+    render(<Shell />);
+    expect(scrollTo).not.toHaveBeenCalled(); // not on first load
+    await user.click(screen.getByRole('link', { name: 'Playground link' }));
+    await waitFor(() => expect(scrollTo).toHaveBeenCalledWith(0, 0));
+    scrollTo.mockRestore();
   });
 });
