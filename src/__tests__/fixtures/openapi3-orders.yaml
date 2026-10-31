@@ -1,0 +1,180 @@
+openapi: 3.0.3
+info:
+  title: Acme Pets
+  version: 1.2.0
+servers:
+  - url: https://{tenant}.pets.acme.test:{port}/{basePath}
+    variables:
+      tenant:
+        default: eu
+      port:
+        enum: ["8443", "443"]
+        default: "8443"
+      basePath:
+        default: api/v3
+security:
+  - bearerAuth: []
+paths:
+  /pets/{petId}:
+    parameters:
+      - $ref: "#/components/parameters/PetId"
+      - name: X-Request-Id
+        in: header
+        schema:
+          type: string
+          example: req-1
+    get:
+      summary: Get a pet
+      parameters:
+        - name: expand
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [owner, vaccinations]
+        - $ref: "#/components/parameters/Verbose"
+    put:
+      operationId: replacePet
+      parameters:
+        - name: X-Request-Id
+          in: header
+          example: overridden
+          schema:
+            type: string
+      requestBody:
+        $ref: "#/components/requestBodies/PetBody"
+  /pets:
+    post:
+      summary: Add a pet
+      security:
+        - apiKeyAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json; charset=utf-8:
+            schema:
+              $ref: "#/components/schemas/NewPet"
+    get:
+      summary: Search pets
+      security: []
+      parameters:
+        - name: tags
+          in: query
+          style: form
+          explode: false
+          schema:
+            type: array
+            items: { type: string }
+            example: [dog, small]
+        - name: since
+          in: query
+          schema: { type: string, format: date-time }
+  /pets/{petId}/photos:
+    post:
+      summary: Upload a photo
+      parameters:
+        - $ref: "#/components/parameters/PetId"
+      security:
+        - basicAuth: []
+        - oauth: [write]
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                caption: { type: string, example: Cute }
+                tags:
+                  type: array
+                  items: { type: string }
+                  example: [a, b]
+                file: { type: string, format: binary }
+  /pets/{petId}/owner:
+    patch:
+      summary: Hand over
+      requestBody:
+        content:
+          application/vnd.api+json:
+            examples:
+              swap:
+                $ref: "#/components/examples/OwnerSwap"
+  /login:
+    post:
+      summary: Log in
+      security:
+        - cookieAuth: []
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                username: { type: string, example: "ann lee" }
+                password: { type: string, example: "p&ss" }
+                remember: { type: boolean }
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer }
+    basicAuth: { type: http, scheme: basic }
+    apiKeyAuth: { type: apiKey, in: header, name: X-API-Key }
+    cookieAuth: { type: apiKey, in: cookie, name: sid }
+    oauth:
+      type: oauth2
+      flows:
+        implicit:
+          authorizationUrl: https://auth.acme.test/authorize
+          scopes: { write: Write access }
+  parameters:
+    PetId:
+      name: petId
+      in: path
+      required: true
+      schema: { type: integer }
+    Verbose:
+      name: verbose
+      in: query
+      schema: { type: boolean, default: false }
+  requestBodies:
+    PetBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Pet"
+  examples:
+    OwnerSwap:
+      value:
+        data: { type: owner, id: "42" }
+  schemas:
+    Category:
+      type: object
+      properties:
+        id: { type: integer, example: 7 }
+        name: { type: string, example: Dogs }
+    Tag:
+      type: object
+      properties:
+        label: { type: string }
+    NewPet:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, example: Rex }
+        category:
+          $ref: "#/components/schemas/Category"
+        tags:
+          type: array
+          items:
+            $ref: "#/components/schemas/Tag"
+        parent:
+          $ref: "#/components/schemas/NewPet"
+    Pet:
+      allOf:
+        - $ref: "#/components/schemas/NewPet"
+        - type: object
+          properties:
+            id: { type: integer, readOnly: true }
+            status: { type: string, enum: [available, sold] }
+            born: { type: string, format: date }
