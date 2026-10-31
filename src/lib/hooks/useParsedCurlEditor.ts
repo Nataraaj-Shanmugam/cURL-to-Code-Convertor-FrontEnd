@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useMemo } from "react";
 import type { ParsedCurl } from "@/types/curl";
 import { useEditorState } from "./useEditorState";
 import { useBodyApi } from "./useBodyApi";
@@ -68,7 +68,7 @@ export const useParsedCurlEditor = (initialData: ParsedCurl | undefined) => {
   const {
     originalParsed,
     parsed,
-    isDirty,
+    isDirty: hasCommittedChanges,
     setParsed,
     resetParsed,
     undo,
@@ -89,6 +89,17 @@ export const useParsedCurlEditor = (initialData: ParsedCurl | undefined) => {
     handleEditChange,
     toggleBodyCollapse,
   } = editorState;
+
+  // A value typed into an open field editor but not saved yet also counts as an unsaved change,
+  // so the leave/unload guard does not drop it silently (QF-22).
+  const hasPendingEdits = useMemo(
+    () =>
+      Object.keys(editing).some(
+        id => editing[id] && id in editedValues && !deepEqual(editedValues[id], getAtPath(parsed, decodePath(id))),
+      ),
+    [editing, editedValues, parsed],
+  );
+  const isDirty = hasCommittedChanges || hasPendingEdits;
 
   const bodyApi = useBodyApi(() => parsed.data);
   const { bodyApiLoading, bodyApiError, editBodyNode, deleteBodyNode } = bodyApi;
