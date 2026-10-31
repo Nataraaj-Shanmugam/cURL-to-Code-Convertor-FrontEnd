@@ -23,13 +23,15 @@ migrateLegacyEditorState();
 
 // A data router is required by useBlocker (unsaved-edits guard). One catch-all route renders
 // <App/>, which keeps its own <Routes>, so the route table and lazy loading are unchanged.
-const router = createBrowserRouter([{ path: "*", element: <App /> }]);
+const router = createBrowserRouter([{ path: "*", element: <App /> }], {
+  future: { v7_relativeSplatPath: true },
+});
 
 const rootElement = document.getElementById("root");
 if (!rootElement) throw new Error("Root element #root not found in document");
 
 ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
-    <RouterProvider router={router} />
+    <RouterProvider router={router} future={{ v7_startTransition: true }} />
   </React.StrictMode>
 );

@@ -20,12 +20,13 @@ function AllProviders({ children, routerProps }: { children: ReactNode; routerPr
     createMemoryRouter([{ path: '*', element: <RouteContent /> }], {
       initialEntries: routerProps?.initialEntries,
       initialIndex: routerProps?.initialIndex,
+      future: { v7_relativeSplatPath: true },
     }),
   );
   return (
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
       <ChildrenContext.Provider value={children}>
-        <RouterProvider router={router} />
+        <RouterProvider router={router} future={{ v7_startTransition: true }} />
       </ChildrenContext.Provider>
     </ThemeProvider>
   );

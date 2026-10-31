@@ -26,11 +26,12 @@ function renderEditor() {
       initialEntries: [
         { pathname: '/editor', state: { parsed: mockParsedCurlStringBody, originalCurl: 'curl x' } },
       ],
+      future: { v7_relativeSplatPath: true },
     },
   );
   const utils = render(
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
-      <RouterProvider router={router} />
+      <RouterProvider router={router} future={{ v7_startTransition: true }} />
     </ThemeProvider>,
   );
   return { router, ...utils };
