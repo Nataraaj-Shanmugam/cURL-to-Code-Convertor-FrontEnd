@@ -132,6 +132,8 @@ function BatchCodeGenerationDialog({
         ...item.config,
         option: "method",
         className: className.trim(),
+        // Production's backend contract names the test class serviceName (see T08).
+        serviceName: className.trim(),
         methodName: (methodNames[item.id] ?? "").trim(),
         statusCode: statusFor(item).trim(),
       };
@@ -147,7 +149,8 @@ function BatchCodeGenerationDialog({
             code: result.generated_code as string,
             insecure: isInsecureCurl(item.parsed),
           });
-          if (result.pom_dependencies) lastPom = result.pom_dependencies as string;
+          if (result.pomXml || result.pom_dependencies)
+            lastPom = (result.pomXml ?? result.pom_dependencies) as string;
         } else {
           const errMsg = typeof result.error === "object" && result.error !== null ? (result.error as { message: string }).message : result.error ?? "Unknown error";
           failed.push({ name: item.name, message: String(errMsg) });
