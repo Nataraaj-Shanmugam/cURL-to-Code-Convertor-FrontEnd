@@ -116,6 +116,19 @@ describe('BatchCodeGenerationDialog suggested names (QF-21)', () => {
 });
 
 describe('BatchCodeGenerationDialog expected status (T29, QF-20)', () => {
+  it('defaults to 201 for POST, 204 for DELETE and 200 otherwise, and sends them', async () => {
+    const user = userEvent.setup();
+    const bodies = mockGenerate();
+    open([makeItem('1', 'GET', '/a'), makeItem('2', 'POST', '/b'), makeItem('3', 'DELETE', '/c'), makeItem('4', 'PUT', '/d')]);
+
+    expect(['GET /a', 'POST /b', 'DELETE /c', 'PUT /d'].map((n) => (statusInput(n) as HTMLInputElement).value)).toEqual([
+      '200', '201', '204', '200',
+    ]);
+    await user.click(generateBtn());
+    await screen.findByText(/public class BatchApiTest/);
+    expect(bodies.map((b) => b.config.statusCode)).toEqual(['200', '201', '204', '200']);
+  });
+
   it('lets one row override its status without touching the others', async () => {
     const user = userEvent.setup();
     const bodies = mockGenerate();

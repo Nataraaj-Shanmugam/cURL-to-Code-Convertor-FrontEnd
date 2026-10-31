@@ -9,6 +9,7 @@ import { apiClient, GENERATE_TIMEOUT_MS } from "@/lib/api/apiClient";
 import { ENV } from "@/lib/env";
 import { isInsecureCurl, withRelaxedHttps } from "@/lib/utils/insecureFlag";
 import {
+  defaultStatusForMethod,
   javaIdentifierError,
   statusCodeError,
 } from "@/lib/utils/codegenValidation";
@@ -72,7 +73,7 @@ function BatchCodeGenerationDialog({
   const [methodNames, setMethodNames] = useState<Record<string, string>>(() =>
     suggestMethodNames(items)
   );
-  // Only statuses the user typed are stored; the rest come from the item's config.
+  // Only statuses the user typed are stored; the rest follow each request's (possibly edited) method.
   const [statusOverrides, setStatusOverrides] = useState<Record<string, string>>({});
   const [failures, setFailures] = useState<GenerationFailure[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -84,7 +85,7 @@ function BatchCodeGenerationDialog({
   const [copied, setCopied] = useState(false);
 
   const statusFor = (item: BatchItem) =>
-    statusOverrides[item.id] ?? item.config.statusCode;
+    statusOverrides[item.id] ?? defaultStatusForMethod(item.parsed.method);
 
   // Every name must compile: a Java identifier, and no two methods in the class may share one.
   const classNameError = javaIdentifierError(className);
@@ -96,7 +97,7 @@ function BatchCodeGenerationDialog({
         let method = javaIdentifierError(name);
         if (!method && seen.has(name)) method = "Already used by another request";
         if (!method) seen.add(name);
-        const status = statusCodeError(statusOverrides[item.id] ?? item.config.statusCode);
+        const status = statusCodeError(statusOverrides[item.id] ?? defaultStatusForMethod(item.parsed.method));
         return [item.id, { method, status }] as const;
       })
     );

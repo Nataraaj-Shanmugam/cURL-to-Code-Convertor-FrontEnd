@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { javaIdentifierError, statusCodeError } from '@/lib/utils/codegenValidation';
+import { defaultStatusForMethod, javaIdentifierError, statusCodeError } from '@/lib/utils/codegenValidation';
 
 describe('javaIdentifierError', () => {
   it('accepts identifiers', () => {
@@ -24,6 +24,17 @@ describe('statusCodeError', () => {
     expect(statusCodeError('')).toBe('Required');
     for (const bad of ['99', '600', '999', '20.5', '2e2', '-200', 'abc']) {
       expect(statusCodeError(bad)).toMatch(/100 to 599/);
+    }
+  });
+});
+
+describe('defaultStatusForMethod', () => {
+  it('uses 201 for POST, 204 for DELETE and 200 otherwise', () => {
+    expect(defaultStatusForMethod('POST')).toBe('201');
+    expect(defaultStatusForMethod('post')).toBe('201');
+    expect(defaultStatusForMethod('DELETE')).toBe('204');
+    for (const m of ['GET', 'PUT', 'PATCH', 'HEAD', 'OPTIONS', undefined, '']) {
+      expect(defaultStatusForMethod(m)).toBe('200');
     }
   });
 });

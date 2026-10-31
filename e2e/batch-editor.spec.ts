@@ -427,12 +427,16 @@ test.describe('Batch Editor Page', () => {
     await parseAll(page, [CURL_USERS, CURL_ORDERS]);
     await page.getByRole('button', { name: /Generate All/i }).click();
     const dialog = page.getByRole('dialog');
+    await expect(dialog.getByRole('spinbutton', { name: 'Expected status for POST /orders' })).toHaveValue('201');
 
     await dialog.getByRole('button', { name: 'Generate All' }).click();
 
     await expect(dialog.getByRole('alert')).toContainText('1 of 2 requests');
     await expect(dialog.getByRole('alert')).toContainText('GET /users: boom');
-    expect(sent.map((s) => s.method)).toEqual(['GET', 'POST']);
+    expect(sent).toEqual([
+      { method: 'GET', status: '200' },
+      { method: 'POST', status: '201' },
+    ]);
   });
 
   test('Generate All shows an error, not a result, when every request fails', async ({ mockPage: page }) => {

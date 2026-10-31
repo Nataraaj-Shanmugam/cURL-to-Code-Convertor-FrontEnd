@@ -24,3 +24,15 @@ export function statusCodeError(value: string): string | null {
   }
   return null;
 }
+
+/** The status a successful call usually returns: 201 for POST, 204 for DELETE, 200 otherwise. */
+export function defaultStatusForMethod(method: string | undefined): string {
+  switch ((method || "GET").toUpperCase()) {
+    case "POST":
+      return "201";
+    case "DELETE":
+      return "204";
+    default:
+      return "200";
+  }
+}
