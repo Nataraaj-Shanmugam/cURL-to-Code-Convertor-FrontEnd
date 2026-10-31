@@ -26,17 +26,19 @@ npm test             # Run tests (Vitest)
 **Tech stack:** React 18 + TypeScript (strict) + Vite + Tailwind CSS + shadcn/ui + Framer Motion
 
 **Routing** (React Router v6; `src/main.tsx` mounts a data router via `createBrowserRouter` + `RouterProvider` with one catch-all route rendering `<App/>`, which owns the `<Routes>` in `src/App.tsx`; the data router is required by `useBlocker`, used for the editor's unsaved-edits guard. Tests render through a memory data router, see `src/__tests__/test-utils.tsx`):
-- `/` → `Home` — Landing page with backend health check
+- `/` → `Home` — Landing page
 - `/playground` → `Playground` — cURL input via `CurlPlayground`
 - `/editor` → `EditorPage` — Parsed cURL editor with code generation
+
+**Backend status** (`src/contexts/BackendStatusContext.tsx`, provider in `App.tsx`): the hosted backend sleeps when idle. On every app load the provider polls the health endpoint: `checking` → `waking` → `ready`, or `unavailable` after 90 s (Retry restarts). `BackendStatusChip` shows it in the NavBar and Playground; `CurlPlayground` holds a parse until `waitUntilReady()` resolves. Without a provider (isolated unit tests) the status is assumed `ready`.
 
 Data flows between routes via React Router location state: `navigate('/editor', { state: { parsed, originalCurl } })`.
 
 **State management:** No global store. Uses `useState` for UI state, `useReducer` in `useCodeGenerator` hook for code generation flow, and custom hooks (`useCurlParser`, `useParsedCurlEditor`) for business logic.
 
 **API layer** (`src/lib/api/`):
-- `apiClient.ts` — Axios instance with interceptors; exports `DEFAULT_TIMEOUT_MS` (10s) and `GENERATE_TIMEOUT_MS` (30s)
-- Endpoints configured via env vars: `VITE_CURL_CRAFT_API_URL`, `VITE_CURL_CRAFT_API_PARSE_ENDPOINT`, `VITE_CURL_CRAFT_API_GENERATE_ENDPOINT`, `VITE_CURL_CRAFT_API_FEEDBACK_ENDPOINT`
+- `apiClient.ts` — `fetch` wrapper. Checks status and content type before parsing, throws `ApiError` (`kind`, `status`, `code`, `retryable`) with plain-language messages, retries network errors/timeouts/502/503/504 with jittered backoff when the call passes `retries` (GET defaults to 2, POST to 0; parse and generate use `SAFE_RETRIES`, feedback 1). Timeouts: `DEFAULT_TIMEOUT_MS` (10s), `GENERATE_TIMEOUT_MS` (30s), raised to `COLD_START_TIMEOUT_MS` (20s) until a response shows the backend is awake
+- Endpoints configured via env vars: `VITE_CURL_CRAFT_API_URL`, `VITE_CURL_CRAFT_API_PARSE_ENDPOINT`, `VITE_CURL_CRAFT_API_GENERATE_ENDPOINT`, `VITE_CURL_CRAFT_API_FEEDBACK_ENDPOINT`, `VITE_CURL_CRAFT_API_HEALTH_ENDPOINT`
 - POST `/api/parse` — Parse a cURL string
 - POST `/api/generate-from-parsed` — Generate code from parsed data + config
 - POST `/api/body/edit` — Edit a node in parsed body

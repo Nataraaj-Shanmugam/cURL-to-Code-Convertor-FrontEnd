@@ -67,6 +67,8 @@ function FeedbackDialog({
             const { data: result } = await apiClient.post(
                 feedbackEndpoint,
                 payload,
+                // Submitting feedback is not idempotent: one retry at most, for a dropped connection or a waking backend.
+                { retries: 1 },
             );
 
             if (result.success) {

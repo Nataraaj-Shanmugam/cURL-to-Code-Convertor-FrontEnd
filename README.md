@@ -249,6 +249,7 @@ to the environment being built), not at runtime.
 | `VITE_CURL_CRAFT_API_URL` | `http://127.0.0.1:8000` (dev only) | same name | Backend base URL. **Required for `production` and `preprod` builds**: `vite build` fails if it is missing, empty, not an absolute http(s) URL, or a loopback host (`localhost`, `127.0.0.0/8`, `::1`, `0.0.0.0`). The default applies to `npm run dev` only. |
 | `VITE_CURL_CRAFT_API_PARSE_ENDPOINT` | `/api/parse` | same name | Parse a cURL command. |
 | `VITE_CURL_CRAFT_API_GENERATE_ENDPOINT` | `/api/generate-from-parsed` | `VITE_CURL_CRAFT_API_GENERATE_FROM_PARSED_ENDPOINT` | Generate code from parsed data (also used per item by batch generation). Master's name is still honoured as a fallback when this one is unset, so a Vercel project that only sets the old name keeps working; if both are set, this one wins. |
+| `VITE_CURL_CRAFT_API_HEALTH_ENDPOINT` | `/health` | same name, same default | Health check (`GET`), polled on every app load (any route) to wake the sleeping hosted backend and drive the generator status chip. Production sets it in the Vercel project; `.env.development` uses `/api/health` for the local backend. A `2xx` or `4xx` answer counts as awake, so a wrong path never blocks the app; network errors, timeouts and `5xx` keep it waking. |
 | `VITE_CURL_CRAFT_API_FEEDBACK_ENDPOINT` | `/api/feedback` | same name | Submit feedback. |
 | `VITE_CURL_CRAFT_API_BODY_EDIT_ENDPOINT` | `/api/body/edit` | none (new in V3) | Edit a node of the parsed body. |
 | `VITE_CURL_CRAFT_API_BODY_DELETE_ENDPOINT` | `/api/body/delete` | none (new in V3) | Delete a node of the parsed body. |
@@ -261,10 +262,9 @@ project before deploying V3 to it). `VITE_CURL_CRAFT_API_GENERATE_FROM_PARSED_EN
 
 | Variable | What happened to it |
 |----------|---------------------|
-| `VITE_CURL_CRAFT_API_HEALTH_ENDPOINT` | Ignored. V3 calls `GET /api/health` (hard-coded in `src/pages/Home.tsx`); master defaulted to `/health`. |
 | `VITE_CURL_CRAFT_API_PARSE_AND_GENERATE_ENDPOINT` | Ignored. V3 has no one-shot parse-and-generate call. |
-| `VITE_BE_WARMUP_WAIT_MINS` | Ignored. V3 has no backend warm-up flow. |
-| `VITE_BE_WARMUP_MAX_RETRIES` | Ignored. V3 has no backend warm-up flow. |
+| `VITE_BE_WARMUP_WAIT_MINS` | Ignored. V3's warm-up (`src/contexts/BackendStatusContext.tsx`) polls the health endpoint for up to 90 seconds on every app load, then reports the generator unavailable with a Retry button. |
+| `VITE_BE_WARMUP_MAX_RETRIES` | Ignored. Same warm-up as above; requests themselves also retry network errors and 502/503/504 (`src/lib/api/apiClient.ts`). |
 
 **Per environment**
 

@@ -1,4 +1,4 @@
-import { apiClient, GENERATE_TIMEOUT_MS } from "@/lib/api/apiClient";
+import { apiClient, GENERATE_TIMEOUT_MS, SAFE_RETRIES } from "@/lib/api/apiClient";
 import { ENV } from "@/lib/env";
 import type { CodeGenerationConfig, CodeGenerationResponse, ParsedCurl } from "@/types/curl";
 
@@ -21,7 +21,7 @@ export const curlApi = {
    */
   generateFromParsed: async (parsedData: ParsedCurl, config: CodeGenerationConfig): Promise<CodeGenerationResponse> => {
     const body: GenerateFromParsedRequest = { parsed_data: parsedData, config };
-    const { data } = await apiClient.post(ENV.GENERATE_ENDPOINT, body, { timeout: GENERATE_TIMEOUT_MS });
+    const { data } = await apiClient.post(ENV.GENERATE_ENDPOINT, body, { timeout: GENERATE_TIMEOUT_MS, retries: SAFE_RETRIES });
     return data as CodeGenerationResponse;
   },
 };

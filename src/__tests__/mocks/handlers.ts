@@ -87,7 +87,7 @@ public class ApiTest {
 
 export const handlers = [
   // Health check endpoint
-  http.get('*/api/health', () => {
+  http.get('*/health', () => {
     return HttpResponse.json({ status: 'ok', version: '2.0.0' });
   }),
 

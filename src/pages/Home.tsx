@@ -15,7 +15,6 @@ import {
   Package,
 } from "lucide-react";
 import { useNavigate } from 'react-router-dom';
-import { apiClient } from "@/lib/api/apiClient";
 import { Button } from "@/components/ui/button";
 function FadeInSection({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -51,7 +50,6 @@ export default function Home() {
   const navigate = useNavigate();
   useEffect(() => {
     document.title = "cURLCraft Assured — cURL to REST Assured Test Generator";
-    apiClient.get("/api/health").catch(() => {});
   }, []);
 
   const features = [

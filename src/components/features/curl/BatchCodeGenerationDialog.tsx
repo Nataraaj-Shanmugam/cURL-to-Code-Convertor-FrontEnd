@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Loader2, Copy, CheckCircle2, AlertCircle } from "lucide-react";
-import { apiClient, GENERATE_TIMEOUT_MS } from "@/lib/api/apiClient";
+import { apiClient, GENERATE_TIMEOUT_MS, SAFE_RETRIES } from "@/lib/api/apiClient";
 import { ENV } from "@/lib/env";
 import { isInsecureCurl, withRelaxedHttps } from "@/lib/utils/insecureFlag";
 import { collectSecretValues, redactText } from "@/lib/utils/redaction";
@@ -142,7 +142,7 @@ function BatchCodeGenerationDialog({
         const { data: result } = await apiClient.post(
           ENV.GENERATE_ENDPOINT,
           { parsed_data: item.parsed, config },
-          { timeout: GENERATE_TIMEOUT_MS }
+          { timeout: GENERATE_TIMEOUT_MS, retries: SAFE_RETRIES }
         );
         if (result.success && result.generated_code) {
           results.push({

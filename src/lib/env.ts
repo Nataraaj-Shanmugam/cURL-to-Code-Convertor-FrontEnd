@@ -25,6 +25,8 @@ export const ENV = {
   // V3 name first; falls back to production's VITE_CURL_CRAFT_API_GENERATE_FROM_PARSED_ENDPOINT (what Vercel sets).
   GENERATE_ENDPOINT:  env('VITE_CURL_CRAFT_API_GENERATE_ENDPOINT',    '/api/generate-from-parsed',
                           ['VITE_CURL_CRAFT_API_GENERATE_FROM_PARSED_ENDPOINT']),
+  /** GET; wakes the sleep-prone hosted backend. Production sets it in Vercel; the default is master's. */
+  HEALTH_ENDPOINT:    env('VITE_CURL_CRAFT_API_HEALTH_ENDPOINT',      '/health'),
   FEEDBACK_ENDPOINT:  env('VITE_CURL_CRAFT_API_FEEDBACK_ENDPOINT',    '/api/feedback'),
   BODY_EDIT_ENDPOINT: env('VITE_CURL_CRAFT_API_BODY_EDIT_ENDPOINT',   '/api/body/edit'),
   BODY_DELETE_ENDPOINT: env('VITE_CURL_CRAFT_API_BODY_DELETE_ENDPOINT', '/api/body/delete'),

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { http, HttpResponse } from 'msw';
+import { http, HttpResponse, delay } from 'msw';
 import { server } from '../mocks/server';
 import { renderWithProviders } from '../test-utils';
 import CurlPlayground from '@/components/features/curl/CurlPlayground';
@@ -675,6 +675,47 @@ describe('CurlPlayground', () => {
           }),
         });
       });
+    });
+    // QF-18: a "success" without data used to open the editor with the previously saved request.
+    it.each([
+      ['no data', { success: true }],
+      ['null data', { success: true, data: null }],
+      ['an empty array', { success: true, data: [] }],
+    ])('shows an error instead of opening the editor when the parser returns %s', async (_label, payload) => {
+      server.use(http.post('*/api/parse', () => HttpResponse.json(payload)));
+
+      renderWithProviders(<CurlPlayground />);
+      await user.type(screen.getByRole('textbox'), 'curl https://b.example');
+      await user.click(screen.getByRole('button', { name: /Parse cURL/ }));
+
+      expect(await screen.findByText('The parser returned no data for this command')).toBeInTheDocument();
+      expect(mockNavigate).not.toHaveBeenCalled();
+      expect(screen.getByRole('button', { name: /Parse cURL/ })).toBeEnabled();
+    });
+
+    // QF-15: the single-command path had no unmount guard (the batch path did).
+    it('does not navigate when the parse finishes after the user left the playground', async () => {
+      let respond!: () => void;
+      const released = new Promise<void>((resolve) => (respond = resolve));
+      let answered = false;
+      server.use(
+        http.post('*/api/parse', async () => {
+          await released;
+          answered = true;
+          return HttpResponse.json({ success: true, data: { method: 'GET', base_url: 'https://c.example' } });
+        }),
+      );
+
+      const { unmount } = renderWithProviders(<CurlPlayground />);
+      await user.type(screen.getByRole('textbox'), 'curl https://c.example');
+      await user.click(screen.getByRole('button', { name: /Parse cURL/ }));
+      expect(await screen.findByText('Parsing...')).toBeInTheDocument();
+
+      unmount();
+      respond();
+      await waitFor(() => expect(answered).toBe(true));
+      await delay(20);
+      expect(mockNavigate).not.toHaveBeenCalled();
     });
   });
 });
