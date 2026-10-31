@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect } from "react";
 import {
   Code2,
   Edit3,
@@ -17,35 +17,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from "@/lib/api/apiClient";
 import { Button } from "@/components/ui/button";
-function FadeInSection({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => { if (entry?.isIntersecting) setVisible(true); },
-      { rootMargin: '-60px' },
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
-
-  return (
-    <div
-      ref={ref}
-      className={className}
-      style={{
-        opacity: visible ? 1 : 0,
-        transform: visible ? 'none' : 'translateY(24px)',
-        transition: `opacity 0.5s ${delay}s ease-out, transform 0.5s ${delay}s ease-out`,
-      }}
-    >
-      {children}
-    </div>
-  );
-}
+import { FadeInSection } from "@/components/ui/fade-in-section";
 
 export default function Home() {
   const navigate = useNavigate();

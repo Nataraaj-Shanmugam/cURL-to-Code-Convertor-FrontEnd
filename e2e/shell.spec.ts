@@ -158,3 +158,28 @@ test.describe('Playground examples and Copy (QR-7)', () => {
     expect(await page.evaluate(() => navigator.clipboard.readText())).toContain('search?q=test');
   });
 });
+
+test.describe('Motion (T32)', () => {
+  test('with prefers-reduced-motion nothing animates and below-the-fold sections are visible straight away', async ({ mockPage: page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('/');
+    const lastSection = page.getByRole('heading', { name: /Ready to Transform/i }).locator('xpath=ancestor::div[@data-reveal][1]');
+    await expect(lastSection).toHaveCSS('opacity', '1');
+    await expect(lastSection).toHaveAttribute('data-reveal', 'done');
+    const durations = await page.evaluate(() => [
+      getComputedStyle(document.querySelector('.animate-page-enter')!).animationDuration,
+      getComputedStyle(document.querySelector('.animate-hero-left')!).animationDuration,
+    ]);
+    for (const d of durations) expect(parseFloat(d)).toBeLessThan(0.001);
+  });
+
+  test('without it, below-the-fold sections fade in when scrolled to', async ({ mockPage: page }) => {
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    await page.goto('/');
+    const lastSection = page.getByRole('heading', { name: /Ready to Transform/i }).locator('xpath=ancestor::div[@data-reveal][1]');
+    await expect(lastSection).toHaveAttribute('data-reveal', 'pending');
+    await lastSection.scrollIntoViewIfNeeded();
+    await expect(lastSection).toHaveAttribute('data-reveal', 'done');
+    await expect(lastSection).toHaveCSS('opacity', '1');
+  });
+});
