@@ -5,6 +5,8 @@ import AppLayout from "@/components/layout/AppLayout";
 import Home from "@/pages/Home";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { Toaster } from "sonner";
+import RouteEffects from "@/components/layout/RouteEffects";
+import { PageHeadingLevelProvider } from "@/components/layout/PageHeading";
 
 const Playground = lazy(() => import("@/pages/Playground"));
 const EditorPage = lazy(() => import("@/pages/EditorPage"));
@@ -18,6 +20,19 @@ function PageLoader() {
   );
 }
 
+/**
+ * The batch editor page is not edited here, so the shell supplies its <h1>. It is visually hidden
+ * because the page already shows its own heading; the page's main title is demoted to <h2>.
+ */
+function BatchEditorRoute() {
+  return (
+    <PageHeadingLevelProvider value="h2">
+      <h1 className="sr-only">Batch editor</h1>
+      <BatchEditorPage />
+    </PageHeadingLevelProvider>
+  );
+}
+
 export default function App() {
   const location = useLocation();
 
@@ -25,13 +40,14 @@ export default function App() {
     <ErrorBoundary>
     <ThemeProvider attribute="class" defaultTheme="system" storageKey="ui-theme">
       <AppLayout>
+        <RouteEffects />
         <div key={location.pathname} className="animate-page-enter">
           <Suspense fallback={<PageLoader />}>
             <Routes location={location}>
               <Route path="/" element={<Home />} />
               <Route path="/playground" element={<Playground />} />
               <Route path="/editor" element={<EditorPage />} />
-              <Route path="/batch-editor" element={<BatchEditorPage />} />
+              <Route path="/batch-editor" element={<BatchEditorRoute />} />
             </Routes>
           </Suspense>
         </div>

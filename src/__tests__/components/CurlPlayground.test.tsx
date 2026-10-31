@@ -42,6 +42,22 @@ describe('CurlPlayground', () => {
     });
   });
 
+  describe('labels (QU-10)', () => {
+    it('names the textarea with a visible <label>, and numbers the inputs in batch mode', async () => {
+      renderWithProviders(<CurlPlayground />);
+      const textarea = screen.getByRole('textbox', { name: 'cURL command' });
+      const label = document.querySelector(`label[for="${textarea.id}"]`);
+      expect(label).toHaveTextContent('cURL command');
+      // The placeholder is an example, not the name, and no longer the faint /50 tint.
+      expect(textarea.className).not.toMatch(/placeholder:text-muted-foreground\/\d+/);
+
+      await user.click(screen.getByText('Add another cURL'));
+      expect(screen.getByRole('textbox', { name: 'cURL command 1' })).toBeInTheDocument();
+      expect(screen.getByRole('textbox', { name: 'cURL command 2' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Remove cURL command 2' })).toBeInTheDocument();
+    });
+  });
+
   describe('rendering', () => {
     it('should render the playground header', () => {
       renderWithProviders(<CurlPlayground />);
@@ -80,7 +96,7 @@ describe('CurlPlayground', () => {
     it('should render terminal-style header with colored dots', () => {
       renderWithProviders(<CurlPlayground />);
 
-      expect(screen.getByText('curl-input')).toBeInTheDocument();
+      expect(screen.getByText('cURL command')).toBeInTheDocument();
     });
   });
 
@@ -496,14 +512,14 @@ describe('CurlPlayground', () => {
       await user.click(screen.getByText('Parse All (2)').closest('button')!);
 
       expect(await screen.findByText('None of the 2 cURL commands could be parsed.')).toBeInTheDocument();
-      expect(screen.getByText(/curl-input-1: Cannot parse bad/)).toBeInTheDocument();
-      expect(screen.getByText(/curl-input-2: Cannot parse bad/)).toBeInTheDocument();
+      expect(screen.getByText(/cURL command 1: Cannot parse bad/)).toBeInTheDocument();
+      expect(screen.getByText(/cURL command 2: Cannot parse bad/)).toBeInTheDocument();
       expect(mockNavigate).not.toHaveBeenCalled();
 
       // Editing a command clears only that command's error.
       await user.type(screen.getAllByRole('textbox')[0], ' ');
-      expect(screen.queryByText(/curl-input-1: Cannot parse bad/)).not.toBeInTheDocument();
-      expect(screen.getByText(/curl-input-2: Cannot parse bad/)).toBeInTheDocument();
+      expect(screen.queryByText(/cURL command 1: Cannot parse bad/)).not.toBeInTheDocument();
+      expect(screen.getByText(/cURL command 2: Cannot parse bad/)).toBeInTheDocument();
     });
 
     it('shows a parsing state while the batch is in flight', async () => {

@@ -88,7 +88,7 @@ export default function EditorPage() {
           <Terminal className="w-10 h-10 text-muted-foreground" />
         </div>
         <div className="space-y-2 max-w-sm">
-          <h2 className="text-lg font-semibold">No cURL command parsed yet</h2>
+          <h1 className="text-lg font-semibold">No cURL command parsed yet</h1>
           <p className="text-sm text-muted-foreground">
             Paste a cURL command in the Playground and hit <strong>Parse</strong> to open it here for editing.
           </p>

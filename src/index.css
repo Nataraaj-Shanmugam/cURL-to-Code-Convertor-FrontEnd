@@ -103,6 +103,11 @@
     transition: background-color 0.3s ease, color 0.3s ease;
   }
 
+  /* Route changes move focus to the page <h1> (see RouteEffects); it is not a control, so no ring. */
+  h1[tabindex="-1"]:focus {
+    outline: none;
+  }
+
   ::selection {
     @apply bg-primary/20 text-foreground;
   }

@@ -168,8 +168,8 @@ test.describe('Batch Editor Page', () => {
 
     await expect(page).toHaveURL(/\/playground/);
     await expect(page.getByText('None of the 2 cURL commands could be parsed.', { exact: true })).toBeVisible();
-    await expect(page.getByText(/curl-input-1: Invalid cURL command format/)).toBeVisible();
-    await expect(page.getByText(/curl-input-2: Invalid cURL command format/)).toBeVisible();
+    await expect(page.getByText(/cURL command 1: Invalid cURL command format/)).toBeVisible();
+    await expect(page.getByText(/cURL command 2: Invalid cURL command format/)).toBeVisible();
   });
 
   test('one filled command plus a blank one opens the single editor', async ({ mockPage: page }) => {

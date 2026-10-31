@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Alert } from "@/components/ui/alert";
 import { notifySaved } from "@/lib/utils/notify";
+import { usePageHeadingLevel } from "@/components/layout/PageHeading";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   DropdownMenu,
@@ -74,6 +75,7 @@ function ParsedCurlEditor({
   onDirtyChange,
   isActive = true,
 }: ParsedCurlEditorProps) {
+  const headingLevel = usePageHeadingLevel();
   const {
     parsed,
     originalParsed,
@@ -639,7 +641,8 @@ function ParsedCurlEditor({
 
         <Card className="shadow-md">
           <CardHeader>
-            <CardTitle className="text-primary">Edit Parsed Request</CardTitle>
+            {/* The page title: an <h1> (the batch route renders its own, so there it is an <h2>). */}
+            <CardTitle as={headingLevel} className="text-xl sm:text-2xl text-primary">Edit Parsed Request</CardTitle>
             <p className="text-sm text-muted-foreground">
               Edit values, manage sections, and generate code
             </p>

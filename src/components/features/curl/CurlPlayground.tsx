@@ -175,6 +175,9 @@ function CurlPlayground() {
     return () => window.removeEventListener("keydown", handler);
   }, [handleParse]);
 
+  // Visible label and accessible name of each input: "cURL command" or, with several, "cURL command 2".
+  const commandLabel = (idx: number) => (isMulti ? `cURL command ${idx + 1}` : "cURL command");
+
   const allEmpty = entries.every((e) => !e.value.trim());
   const hasEmpty = entries.some((e) => !e.value.trim());
 
@@ -221,22 +224,24 @@ function CurlPlayground() {
                 <span className="w-2.5 h-2.5 rounded-full bg-yellow-400/70"></span>
                 <span className="w-2.5 h-2.5 rounded-full bg-green-400/70"></span>
               </div>
-              <span className="text-xs text-muted-foreground font-mono ml-2">
-                {isMulti ? `curl-input-${idx + 1}` : "curl-input"}
-              </span>
+              <label htmlFor={`curl-input-${entry.id}`} className="text-xs text-muted-foreground font-mono ml-2">
+                {commandLabel(idx)}
+              </label>
               <div className="flex-1" />
               {entries.length > 1 && (
                 <button
+                  type="button"
                   onClick={() => removeEntry(entry.id)}
                   className="opacity-0 group-hover/card:opacity-100 focus-visible:opacity-100 transition-opacity -my-1 -mr-2 inline-flex h-7 w-7 items-center justify-center rounded hover:bg-destructive/10 hover:text-destructive text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:opacity-100"
                   title="Remove this cURL"
-                  type="button"
+                  aria-label={`Remove ${commandLabel(idx)}`}
                 >
                   <X className="w-3.5 h-3.5" aria-hidden="true" />
                 </button>
               )}
             </div>
             <textarea
+              id={`curl-input-${entry.id}`}
               value={entry.value}
               onChange={(e) => updateEntry(entry.id, e.target.value)}
               placeholder={
@@ -244,7 +249,7 @@ function CurlPlayground() {
                   ? `$ curl -X POST "https://api.example.com/data" \\\n  -H "Content-Type: application/json" \\\n  -H "Authorization: Bearer <token>" \\\n  -d '{"key": "value"}'`
                   : `$ curl -X GET "https://api.example.com/resource" \\\n  -H "Accept: application/json"`
               }
-              className={`w-full resize-y p-4 font-mono text-sm focus:outline-none bg-card text-foreground placeholder:text-muted-foreground/50 leading-relaxed ${
+              className={`w-full resize-y p-4 font-mono text-sm focus:outline-none bg-card text-foreground placeholder:text-muted-foreground leading-relaxed ${
                 isMulti ? "min-h-[100px] sm:min-h-[120px]" : "min-h-[160px] sm:min-h-[220px] lg:min-h-[280px]"
               }`}
               spellCheck={false}
@@ -253,7 +258,7 @@ function CurlPlayground() {
             {entryErrors[entry.id] && (
               <Alert variant="destructive" className="rounded-none border-x-0 border-b-0 px-4 py-2">
                 <span>
-                  {isMulti ? `curl-input-${idx + 1}: ` : ""}
+                  {isMulti ? `${commandLabel(idx)}: ` : ""}
                   {entryErrors[entry.id]}
                 </span>
               </Alert>
