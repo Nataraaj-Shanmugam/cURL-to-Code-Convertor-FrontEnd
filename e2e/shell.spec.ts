@@ -66,3 +66,14 @@ test.describe('Shell: labels, headings and focus', () => {
     });
   }
 });
+
+test.describe('Unknown routes', () => {
+  test('an unknown path shows a 404 page that links back to the Playground', async ({ mockPage: page }) => {
+    await page.goto('/this-page-does-not-exist');
+    await expect(page.getByRole('heading', { level: 1, name: 'Page not found' })).toBeVisible();
+    await expect(page.locator('main')).not.toBeEmpty();
+    await page.getByRole('link', { name: /Go to the Playground/i }).click();
+    await expect(page).toHaveURL(/\/playground$/);
+    await expect(page.getByRole('heading', { level: 1, name: 'cURL Playground' })).toBeVisible();
+  });
+});
