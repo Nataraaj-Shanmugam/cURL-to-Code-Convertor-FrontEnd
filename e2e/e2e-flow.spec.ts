@@ -43,7 +43,7 @@ test.describe('E2E: Complete User Journeys', () => {
 
     // Step 9: Copy
     await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
-    await page.getByRole('button', { name: /Copy/i }).click();
+    await page.getByRole('button', { name: 'Copy redacted' }).click();
     await expect(page.getByText('Copied')).toBeVisible();
 
     // Step 10: Close dialog — click the visible "Close" button (not the X icon)
@@ -102,7 +102,7 @@ test.describe('E2E: Complete User Journeys', () => {
     // Step 9: Download test code
     await page.getByRole('tab', { name: /Test Code/i }).click();
     const downloadPromise = page.waitForEvent('download');
-    await page.getByRole('button', { name: /Download/i }).click();
+    await page.getByRole('button', { name: 'Download', exact: true }).click();
     const download = await downloadPromise;
     expect(download.suggestedFilename()).toBe('ApiTest.java');
   });

@@ -247,24 +247,55 @@ describe('CodeGenerationDialog: redacted request and output redaction', () => {
     expect(within(document.body).queryByRole('alert')).not.toBeInTheDocument();
   });
 
-  it('copies generated code unchanged by default and redacted on request', async () => {
-    const writeText = vi.fn().mockResolvedValue(undefined);
-    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
-    render(<CodeGenerationDialog open onOpenChange={vi.fn()} parsedData={{ ...parsed, headers: { Authorization: 'Bearer eyJhbGciOiJIUzI1NiJ9.token' } }} />);
-    await user.click(screen.getByLabelText(/Full Test Class/i));
-    await user.click(screen.getByRole('button', { name: /^Generate Code$/i }));
-    await screen.findByText('Generated Code', { exact: true }, { timeout: 5000 });
+  describe('generated code view', () => {
+    const TOKEN = 'eyJhbGciOiJIUzI1NiJ9.token';
+    const writeText = vi.fn();
+    afterEach(() => vi.restoreAllMocks());
+    const openResult = async () => {
+      writeText.mockReset().mockResolvedValue(undefined);
+      Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+      render(<CodeGenerationDialog open onOpenChange={vi.fn()} parsedData={{ ...parsed, headers: { Authorization: `Bearer ${TOKEN}` } }} />);
+      await user.click(screen.getByLabelText(/Full Test Class/i));
+      await user.click(screen.getByRole('button', { name: /^Generate Code$/i }));
+      await screen.findByText('Generated Code', { exact: true }, { timeout: 5000 });
+    };
 
-    const checkbox = screen.getByRole('checkbox', { name: /Redact secrets when copying or downloading/i });
-    expect(checkbox).not.toBeChecked();
+    it('masks secrets on screen until revealed', async () => {
+      await openResult();
+      expect(document.body.textContent).not.toContain(TOKEN);
+      expect(document.body.textContent).toContain(MASK);
+      const toggle = screen.getByRole('button', { name: 'Reveal value of generated code' });
+      expect(toggle).toHaveAttribute('aria-pressed', 'false');
+      await user.click(toggle);
+      expect(toggle).toHaveAttribute('aria-pressed', 'true');
+      expect(document.body.textContent).toContain(TOKEN);
+    });
 
-    await user.click(screen.getByRole('button', { name: /Copy/ }));
-    expect(writeText.mock.calls[0]![0]).toContain('eyJhbGciOiJIUzI1NiJ9.token');
+    it('copies redacted code by default and the real code only through Copy with secrets', async () => {
+      await openResult();
+      await user.click(screen.getByRole('button', { name: 'Copy redacted' }));
+      const redacted = writeText.mock.calls[0]![0] as string;
+      expect(redacted).not.toContain(TOKEN);
+      expect(redacted).toContain(REDACTED_PLACEHOLDER);
 
-    await user.click(checkbox);
-    await user.click(screen.getByRole('button', { name: /Cop(y|ied)/ })); // label reads "Copied" for a few seconds
-    const redacted = writeText.mock.calls[1]![0] as string;
-    expect(redacted).not.toContain('eyJhbGciOiJIUzI1NiJ9.token');
-    expect(redacted).toContain(REDACTED_PLACEHOLDER);
+      await user.click(screen.getByRole('button', { name: 'Copy with secrets' }));
+      expect(writeText.mock.calls[1]![0]).toContain(TOKEN);
+    });
+
+    it('downloads real values unless redaction is chosen', async () => {
+      let createdBlob: Blob | undefined;
+      URL.createObjectURL = vi.fn((b: Blob) => { createdBlob = b; return 'blob:x'; });
+      URL.revokeObjectURL = vi.fn();
+      vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+      await openResult();
+      await user.click(screen.getByRole('button', { name: 'Download' }));
+      expect(await createdBlob!.text()).toContain(TOKEN);
+
+      await user.click(screen.getByRole('checkbox', { name: 'Redact secrets in downloaded files' }));
+      await user.click(screen.getByRole('button', { name: 'Download' }));
+      const text = await createdBlob!.text();
+      expect(text).not.toContain(TOKEN);
+      expect(text).toContain(REDACTED_PLACEHOLDER);
+    });
   });
 });

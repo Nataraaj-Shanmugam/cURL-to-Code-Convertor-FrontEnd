@@ -132,19 +132,29 @@ test.describe('Code Generation Dialog', () => {
 
   // ── Result step actions ───────────────────────────────────────────────────
 
-  test('pom.xml tab shows Maven dependencies', async ({ mockPage: page }) => {
+  test('pom.xml tab shows the backend POM when requested (collapsed Maven & advanced section)', async ({ mockPage: page }) => {
     await openCodeGenDialog(page);
     await selectFullClass(page);
+    // Collapsed by default
+    await expect(page.getByLabel('Java version')).toHaveCount(0);
+    await page.getByRole('button', { name: /Maven & advanced/ }).click();
+    await page.getByRole('checkbox', { name: 'Generate pom.xml' }).click();
     await generateAndWait(page);
 
-    const pomTab = page.getByRole('tab', { name: /Dependencies/i });
-    await pomTab.click();
-
+    await page.getByRole('tab', { name: 'pom.xml' }).click();
     await expect(page.getByText(/rest-assured/i).first()).toBeVisible();
     await expect(page.getByText(/testng/i).first()).toBeVisible();
+
+    // A full POM comes with the testng.xml it points at, and Download All saves every file.
+    await page.getByRole('tab', { name: 'testng.xml' }).click();
+    await expect(page.getByText(/<class name="ApiTest"\/>/)).toBeVisible();
+    const names: string[] = [];
+    page.on('download', (d) => names.push(d.suggestedFilename()));
+    await page.getByRole('button', { name: 'Download All' }).click();
+    await expect.poll(() => names.sort()).toEqual(['ApiTest.java', 'pom.xml', 'testng.xml']);
   });
 
-  test('Copy button copies code to clipboard', async ({ mockPage: page }) => {
+  test('Copy copies redacted code by default; Copy with secrets copies the real values', async ({ mockPage: page }) => {
     await openCodeGenDialog(page);
     await selectFullClass(page);
     await generateAndWait(page);
@@ -152,8 +162,16 @@ test.describe('Code Generation Dialog', () => {
     // Grant clipboard permissions
     await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
 
-    await page.getByRole('button', { name: /Copy/i }).click();
+    // The generated code contains the bearer token: masked on screen, redacted when copied.
+    await expect(page.getByText('eyJhbGciOiJIUzI1NiJ9.token')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Copy redacted' }).click();
     await expect(page.getByText('Copied')).toBeVisible();
+    const redacted = await page.evaluate(() => navigator.clipboard.readText());
+    expect(redacted).not.toContain('eyJhbGciOiJIUzI1NiJ9.token');
+    expect(redacted).toContain('[REDACTED]');
+
+    await page.getByRole('button', { name: 'Copy with secrets' }).click();
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toContain('eyJhbGciOiJIUzI1NiJ9.token');
   });
 
   test('Download button triggers file download', async ({ mockPage: page }) => {
@@ -162,7 +180,7 @@ test.describe('Code Generation Dialog', () => {
     await generateAndWait(page);
 
     const downloadPromise = page.waitForEvent('download');
-    await page.getByRole('button', { name: /Download/i }).click();
+    await page.getByRole('button', { name: 'Download', exact: true }).click();
     const download = await downloadPromise;
     expect(download.suggestedFilename()).toBe('ApiTest.java');
   });
@@ -193,6 +211,51 @@ test.describe('Code Generation Dialog', () => {
 
     await page.getByRole('button', { name: /Cancel/i }).click();
     await expect(page.getByText('Code Generation Configuration')).not.toBeVisible();
+  });
+
+  // ── Layout (QU-7) ─────────────────────────────────────────────────────────
+
+  test('Generate stays on screen at 1366x768 even with every section open', async ({ mockPage: page }) => {
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await openCodeGenDialog(page);
+    await selectFullClass(page);
+    await page.getByText('Generate POJO Classes').click();
+    await page.getByRole('button', { name: /Maven & advanced/ }).click();
+    await page.getByRole('checkbox', { name: 'Generate pom.xml' }).click();
+
+    const generate = page.getByRole('button', { name: /^Generate Code$/i });
+    const box = await generate.boundingBox();
+    expect(box!.y + box!.height).toBeLessThanOrEqual(768);
+    await expect(generate).toBeInViewport({ ratio: 1 });
+    // The form itself is taller than the dialog body, so it is the body that scrolls.
+    const overflow = await page.locator('[role="dialog"] .overflow-y-auto').evaluate((el) => el.scrollHeight > el.clientHeight);
+    expect(overflow).toBe(true);
+  });
+
+  test('a failed generate is shown at the footer, next to the Generate button', async ({ mockPage: page }) => {
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await page.route(/\/api\/generate-from-parsed/, (route) =>
+      route.fulfill({ status: 500, json: { success: false, error: { code: 'ERR', message: 'Backend exploded' } } }),
+    );
+    await openCodeGenDialog(page);
+    await selectFullClass(page);
+    await page.getByRole('button', { name: /^Generate Code$/i }).click();
+
+    const alert = page.getByRole('alert').filter({ hasText: 'Backend exploded' });
+    await expect(alert).toBeInViewport({ ratio: 1 });
+    const a = await alert.boundingBox();
+    const g = await page.getByRole('button', { name: /^Generate Code$/i }).boundingBox();
+    expect(g!.y - (a!.y + a!.height)).toBeLessThan(40);
+  });
+
+  test('Esc on a generated result keeps it for when the dialog is reopened', async ({ mockPage: page }) => {
+    await openCodeGenDialog(page);
+    await selectFullClass(page);
+    await generateAndWait(page);
+    await page.keyboard.press('Escape');
+    await expect(page.locator('[role="dialog"]')).not.toBeVisible();
+    await page.getByRole('button', { name: /Generate Code/i }).click();
+    await expect(page.getByText('Generated Code', { exact: true })).toBeVisible();
   });
 
   // ── Feedback dialog ───────────────────────────────────────────────────────
