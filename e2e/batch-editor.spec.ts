@@ -450,4 +450,30 @@ test.describe('Batch Editor Page', () => {
     await expect(dialog.getByRole('alert')).toContainText('Code generation failed for all 2 requests');
     await expect(dialog.getByText('Generated Batch Code')).toHaveCount(0);
   });
+
+  test('copying the batch code redacts secrets unless the user opts out', async ({ mockPage: page, context }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await page.route(/\/api\/generate-from-parsed/, async (route) => {
+      const { config } = JSON.parse(route.request().postData() ?? '{}');
+      return route.fulfill({
+        json: {
+          success: true,
+          generated_code: `@Test\npublic void ${config.methodName}() { given().header("Authorization", "Bearer abc123tokenvalue"); }`,
+        },
+      });
+    });
+    await parseAll(page, [`${CURL_USERS} -H "Authorization: Bearer abc123tokenvalue"`, CURL_ORDERS]);
+    await page.getByRole('button', { name: /Generate All/i }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByRole('button', { name: 'Generate All' }).click();
+    const redact = dialog.getByRole('checkbox', { name: 'Redact secrets when copying' });
+    await expect(redact).toBeChecked();
+
+    await dialog.getByRole('button', { name: /Copy/ }).click();
+    expect(await page.evaluate(() => navigator.clipboard.readText())).not.toContain('abc123tokenvalue');
+
+    await redact.click();
+    await dialog.getByRole('button', { name: /Copy/ }).click();
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toContain('abc123tokenvalue');
+  });
 });

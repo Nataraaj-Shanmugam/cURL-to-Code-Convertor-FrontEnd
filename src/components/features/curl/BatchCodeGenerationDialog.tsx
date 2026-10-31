@@ -3,11 +3,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Loader2, Copy, CheckCircle2, AlertCircle } from "lucide-react";
 import { apiClient, GENERATE_TIMEOUT_MS } from "@/lib/api/apiClient";
 import { ENV } from "@/lib/env";
 import { isInsecureCurl, withRelaxedHttps } from "@/lib/utils/insecureFlag";
+import { collectSecretValues, redactText } from "@/lib/utils/redaction";
 import {
   defaultStatusForMethod,
   javaIdentifierError,
@@ -76,6 +78,7 @@ function BatchCodeGenerationDialog({
   // Only statuses the user typed are stored; the rest follow each request's (possibly edited) method.
   const [statusOverrides, setStatusOverrides] = useState<Record<string, string>>({});
   const [failures, setFailures] = useState<GenerationFailure[]>([]);
+  const [redactOutput, setRedactOutput] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
   const [combinedCode, setCombinedCode] = useState("");
@@ -104,6 +107,12 @@ function BatchCodeGenerationDialog({
   }, [items, methodNames, statusOverrides]);
   const hasErrors =
     !!classNameError || items.some((item) => rowErrors[item.id]?.method || rowErrors[item.id]?.status);
+
+  // Secrets of every request in the batch, so values that no pattern recognises are still masked.
+  const secretValues = useMemo(
+    () => Array.from(new Set(items.flatMap((item) => collectSecretValues(item.parsed)))),
+    [items]
+  );
 
   const handleGenerateAll = async () => {
     if (hasErrors) return;
@@ -204,7 +213,8 @@ ${methods.map((m) => "    " + m.replace(/\n/g, "\n    ")).join("\n\n")}
   };
 
   const handleCopy = async () => {
-    const code = activeTab === "test" ? combinedCode : combinedPom;
+    const shown = activeTab === "test" ? combinedCode : combinedPom;
+    const code = redactOutput ? redactText(shown, { knownSecrets: secretValues }) : shown;
     try {
       await navigator.clipboard.writeText(code);
       setCopied(true);
@@ -369,6 +379,17 @@ ${methods.map((m) => "    " + m.replace(/\n/g, "\n    ")).join("\n\n")}
                 </div>
               </div>
             )}
+            <label className="flex items-center gap-2 text-sm mb-3 cursor-pointer">
+              <Checkbox
+                checked={redactOutput}
+                onCheckedChange={(checked) => setRedactOutput(checked === true)}
+                aria-label="Redact secrets when copying"
+              />
+              Redact secrets when copying
+              <span className="text-xs text-muted-foreground">
+                (the code shown below is not masked)
+              </span>
+            </label>
             <Tabs
               value={activeTab}
               onValueChange={(v: string) => setActiveTab(v as "test" | "pom")}
@@ -390,7 +411,7 @@ ${methods.map((m) => "    " + m.replace(/\n/g, "\n    ")).join("\n\n")}
                   {copied ? (
                     <>
                       <CheckCircle2 className="w-4 h-4 text-green-500" />
-                      Copied!
+                      Copied
                     </>
                   ) : (
                     <>

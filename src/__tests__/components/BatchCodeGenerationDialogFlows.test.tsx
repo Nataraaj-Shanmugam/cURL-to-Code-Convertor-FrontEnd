@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
-import { screen } from '@testing-library/react';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { server } from '../mocks/server';
@@ -7,6 +7,9 @@ import { renderWithProviders } from '../test-utils';
 import BatchCodeGenerationDialog from '@/components/features/curl/BatchCodeGenerationDialog';
 import type { BatchItem } from '@/types/batch';
 import type { ParsedCurl } from '@/types/curl';
+
+// These tests mount the dialog and type into several inputs; allow for a busy machine.
+vi.setConfig({ testTimeout: 30_000 });
 
 const makeItem = (id: string, method: string, endpoint: string, extra: Partial<ParsedCurl> = {}): BatchItem => ({
   id,
@@ -230,5 +233,44 @@ describe('BatchCodeGenerationDialog request body shape (QF-17)', () => {
 
     expect(bodies[0]!.parsed_data.data).toEqual(obj);
     expect(bodies[1]!.parsed_data.data).toEqual(obj);
+  });
+});
+
+describe('BatchCodeGenerationDialog redact on copy (QU-6)', () => {
+  const writeText = vi.fn().mockResolvedValue(undefined);
+  afterEach(() => writeText.mockClear());
+
+  const setup = async () => {
+    const user = userEvent.setup(); // installs its own clipboard stub, so override it afterwards
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    mockGenerate();
+    open([makeItem('1', 'GET', '/a', { headers: { Authorization: 'Bearer abc123tokenvalue' } })]);
+    await user.click(generateBtn());
+    await screen.findByText('Generated Batch Code');
+    return user;
+  };
+
+  it('is on by default and masks secrets in the copied text only', async () => {
+    const user = await setup();
+    const box = screen.getByRole('checkbox', { name: 'Redact secrets when copying' });
+    expect(box).toBeChecked();
+
+    await user.click(screen.getByRole('button', { name: /Copy/ }));
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+    const copied = writeText.mock.calls[0]![0] as string;
+    expect(copied).not.toContain('abc123tokenvalue');
+    expect(copied).toContain('[REDACTED]');
+    expect(await screen.findByText('Copied')).toBeInTheDocument();
+  });
+
+  it('copies the code as generated once the user turns it off', async () => {
+    const user = await setup();
+    await user.click(screen.getByRole('checkbox', { name: 'Redact secrets when copying' }));
+
+    await user.click(screen.getByRole('button', { name: /Copy/ }));
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+    expect(writeText.mock.calls[0]![0]).toContain('abc123tokenvalue');
   });
 });
