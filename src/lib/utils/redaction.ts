@@ -8,7 +8,10 @@
  *  - values of headers, query parameters, form fields and JSON body keys whose NAME matches
  *    SECRET_NAME_PATTERN (token, key, secret, password, session, auth, ...);
  *  - basic-auth credentials (`-u user:pass`, `auth_config`), proxy credentials, URL userinfo;
- *  - every value in the cookies section.
+ *  - every value in the cookies section;
+ *  - every value nested under a secret-named key (`{"auth": {"p": "..."}}`);
+ *  - JWT-shaped values (`eyJ...`) under any name, anywhere;
+ *  - secret-named parameters in a URL query string or #fragment (`#access_token=...`).
  *
  * The name test is a substring match, so it over-redacts on purpose (`author`, `monkey`, ...).
  * A masked harmless value costs the user one click; a leaked credential costs much more.
@@ -22,7 +25,20 @@ export const REDACTED_PLACEHOLDER = "[REDACTED]";
 export const MASK = "••••••••";
 
 /** Header, query, form and body-key names that hold secrets. Case-insensitive substring test. */
-export const SECRET_NAME_PATTERN = /token|key|secret|passw(?:or)?d|pwd|session|auth|credential|bearer|jwt/i;
+export const SECRET_NAME_PATTERN =
+  /token|key|secret|passw(?:or)?d|passphrase|passcode|pwd|session|auth|credential|bearer|jwt|signature|hmac|csrf|xsrf|verifier/i;
+
+/**
+ * Short secret words that would over-match as substrings (`shipping`, `design`, `compass`, `footprint`):
+ * matched as whole words of the name instead (`X-Pass`, `user_pin`, `otpCode`, `?sig=`).
+ */
+const SECRET_NAME_WORDS = new Set(["pass", "pin", "otp", "totp", "hotp", "mfa", "sig"]);
+
+/** Names that are secret only on their own: the OAuth authorization `code` (`?code=...`). */
+const SECRET_EXACT_NAMES = new Set(["code"]);
+
+/** A JSON Web Token: base64url `{"...` header, payload and (possibly empty) signature. */
+const JWT_PATTERN = /\beyJ[A-Za-z0-9_-]{2,}\.[A-Za-z0-9_-]{2,}\.[A-Za-z0-9_-]*/g;
 
 const ALWAYS_SECRET_HEADERS = new Set(["authorization", "proxy-authorization", "cookie", "set-cookie"]);
 
@@ -86,8 +102,19 @@ function makeSub(opts: RedactOptions): Sub {
 
 // ── name tests ───────────────────────────────────────────────────────────────
 
+/** `X-Hub-Signature-256` -> [x, hub, signature, 256]; `setPinCode` -> [set, pin, code]. */
+function nameWords(name: string): string[] {
+  return name
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
+}
+
 export function isSecretName(name: string): boolean {
-  return SECRET_NAME_PATTERN.test(name);
+  if (SECRET_NAME_PATTERN.test(name)) return true;
+  if (SECRET_EXACT_NAMES.has(name.trim().toLowerCase())) return true;
+  return nameWords(name).some((word) => SECRET_NAME_WORDS.has(word));
 }
 
 export function isSecretHeaderName(name: string): boolean {
@@ -133,6 +160,23 @@ function clone(value: unknown): unknown {
   return value;
 }
 
+/** Replaces every JWT-shaped substring, whatever the name it sits under. */
+function scrubJwts(text: string, sub: Sub): string {
+  return text.replace(JWT_PATTERN, (jwt) => sub(jwt));
+}
+
+/** scrubJwts on every string leaf. */
+function scrubJwtsDeep(value: unknown, sub: Sub): unknown {
+  if (typeof value === "string") return scrubJwts(value, sub);
+  if (Array.isArray(value)) return value.map((item) => scrubJwtsDeep(item, sub));
+  if (isPlainObject(value)) {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value)) out[k] = scrubJwtsDeep(v, sub);
+    return out;
+  }
+  return value;
+}
+
 export function redactAuthorizationValue(value: string, opts: RedactOptions = {}): string {
   const sub = makeSub(opts);
   const match = /^\s*([A-Za-z][\w.-]*)\s+([\s\S]+)$/.exec(value);
@@ -157,15 +201,19 @@ export function redactCookieString(value: string, opts: RedactOptions = {}): str
     .join(";");
 }
 
-/** Redacts userinfo (`https://user:pass@host`) and secret-named query parameters inside a URL or any text. */
+/**
+ * Redacts userinfo (`https://user:pass@host`), secret-named query and #fragment parameters (OAuth
+ * implicit flow puts `access_token` in the fragment) and JWTs inside a URL or any text.
+ */
 export function redactUrlString(text: string, opts: RedactOptions = {}): string {
   const sub = makeSub(opts);
-  return text
+  const out = text
     .replace(/(:\/\/)([^/\s@?#'"]+)@/g, (_m, scheme: string, userinfo: string) => `${scheme}${sub(userinfo)}@`)
-    .replace(/([?&])([^=&#\s'"]+)=([^&#\s'"]*)/g, (m, sep: string, name: string, val: string) => {
+    .replace(/([?&#])([^=&#\s'"]+)=([^&#\s'"]*)/g, (m, sep: string, name: string, val: string) => {
       if (!val || !isSecretName(safeDecode(name))) return m;
       return `${sep}${name}=${sub(val)}`;
     });
+  return scrubJwts(out, sub);
 }
 
 /** Redacts one header value according to the header's name. Non-secret headers only get their URLs scrubbed. */
@@ -188,18 +236,40 @@ function redactFormEncoded(body: string, opts: RedactOptions): string {
       if (eq < 0) return pair;
       const name = pair.slice(0, eq);
       const val = pair.slice(eq + 1);
-      if (!val || val.startsWith("@") || !isSecretName(safeDecode(name))) return pair;
+      if (!name.trim() || !val || val.startsWith("@") || !isSecretName(safeDecode(name.trim()))) return pair;
       return `${name}=${sub(val)}`;
     })
     .join("&");
 }
 
-function redactJsonValue(value: unknown, sub: Sub): unknown {
-  if (Array.isArray(value)) return value.map((item) => redactJsonValue(item, sub));
+/** How deep stringified JSON inside JSON is unwrapped before giving up. */
+const MAX_NESTED_JSON_DEPTH = 4;
+
+/** `{ name: "Authorization", value: "Bearer x" }` (HAR / Postman header lists): the name of the value. */
+function pairName(value: Record<string, unknown>): string | undefined {
+  if (!("value" in value)) return undefined;
+  const name = value.name ?? value.key;
+  return typeof name === "string" ? name : undefined;
+}
+
+function redactJsonValue(value: unknown, sub: Sub, opts: RedactOptions, depth = 0): unknown {
+  if (typeof value === "string") {
+    // A string leaf can itself be JSON (`{"payload": "{\"token\": ...}"}`) or carry `password: "..."` text.
+    const trimmed = value.trim();
+    if (depth < MAX_NESTED_JSON_DEPTH && (trimmed.startsWith("{") || trimmed.startsWith("["))) {
+      return redactBodyStringAt(value, opts, depth + 1);
+    }
+    // Every free-text pattern needs one of these characters (JWTs are caught by redactSection).
+    return /[:=("'@]/.test(value) ? redactText(value, opts) : value;
+  }
+  if (Array.isArray(value)) return value.map((item) => redactJsonValue(item, sub, opts, depth));
   if (isPlainObject(value)) {
+    const name = pairName(value);
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(value)) {
-      out[k] = isSecretName(k) ? mapLeaves(v, sub) : redactJsonValue(v, sub);
+      if (isSecretName(k)) out[k] = mapLeaves(v, sub);
+      else if (k === "value" && name !== undefined && isSecretHeaderName(name)) out[k] = redactHeaderValue(name, v, opts);
+      else out[k] = redactJsonValue(v, sub, opts, depth);
     }
     return out;
   }
@@ -208,19 +278,23 @@ function redactJsonValue(value: unknown, sub: Sub): unknown {
 
 /** A request body held as a string: JSON, url-encoded form, or anything else. */
 export function redactBodyString(body: string, opts: RedactOptions = {}): string {
+  return redactBodyStringAt(body, opts, 0);
+}
+
+function redactBodyStringAt(body: string, opts: RedactOptions, depth: number): string {
   const sub = makeSub(opts);
   const trimmed = body.trim();
   if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
     try {
       const parsed = JSON.parse(trimmed) as unknown;
-      const redacted = redactJsonValue(parsed, sub);
+      const redacted = redactJsonValue(parsed, sub, opts, depth);
       if (JSON.stringify(redacted) === JSON.stringify(parsed)) return body;
       return JSON.stringify(redacted, null, body.includes("\n") ? 2 : 0);
     } catch {
       return redactText(body, opts);
     }
   }
-  if (/^[^=\s&]+=/.test(trimmed)) return redactFormEncoded(body, opts);
+  if (/^&*[^=\s&]+=/.test(trimmed)) return scrubJwts(redactFormEncoded(body, opts), sub);
   return redactText(body, opts);
 }
 
@@ -241,24 +315,77 @@ function matchingKnownSecrets(text: string, secrets: readonly string[], placehol
   return out;
 }
 
-/** Finds adjacent string literals separated by `:` or `,` (name/value pairs) and redacts values of secret names. */
+/**
+ * Finds adjacent string literals separated by `:`, `,` or `=` (name/value pairs) and redacts values of
+ * secret names. A value split into literals joined with `+` (`"Bearer " + "abc"`) is judged, and
+ * replaced, as one literal.
+ */
 function redactLiteralPairs(text: string, literal: RegExp, quoteLength: number, opts: RedactOptions): string {
   const tokens = [...text.matchAll(literal)].map((m) => ({ start: m.index!, end: m.index! + m[0].length }));
   if (tokens.length < 2) return text;
+  const inner = (t: { start: number; end: number }) => text.slice(t.start + quoteLength, t.end - quoteLength);
   let out = "";
   let cursor = 0;
   for (let i = 0; i + 1 < tokens.length; i++) {
     const a = tokens[i]!;
     const b = tokens[i + 1]!;
-    if (!/^\s*[:,]\s*$/.test(text.slice(a.end, b.start))) continue;
-    const name = text.slice(a.start + quoteLength, a.end - quoteLength);
+    if (a.start < cursor || !/^\s*[:,=]\s*$/.test(text.slice(a.end, b.start))) continue;
+    const name = inner(a);
     if (!isSecretHeaderName(name)) continue;
-    const inner = text.slice(b.start + quoteLength, b.end - quoteLength);
-    if (!inner) continue;
-    const replaced = redactHeaderValue(name, inner, opts);
-    if (typeof replaced !== "string" || replaced === inner) continue;
+    let last = i + 1;
+    while (last + 1 < tokens.length && /^\s*\+\s*$/.test(text.slice(tokens[last]!.end, tokens[last + 1]!.start))) last++;
+    const value = tokens.slice(i + 1, last + 1).map(inner).join("");
+    if (!value) continue;
+    const replaced = redactHeaderValue(name, value, opts);
+    if (typeof replaced !== "string" || replaced === value) continue;
     out += text.slice(cursor, b.start + quoteLength) + replaced;
-    cursor = b.end - quoteLength;
+    cursor = tokens[last]!.end - quoteLength;
+    i = last - 1;
+  }
+  return out + text.slice(cursor);
+}
+
+/**
+ * `"auth": { "user": "a", "p": "b" }`: every string literal VALUE inside an object or array that sits
+ * under a secret-named key is redacted, whatever its own key is.
+ */
+function redactSecretContainers(text: string, literal: RegExp, quoteLength: number, sub: Sub): string {
+  const tokens = [...text.matchAll(literal)].map((m) => ({ start: m.index!, end: m.index! + m[0].length }));
+  const values: { start: number; end: number }[] = [];
+  let i = 0;
+  while (i < tokens.length) {
+    const t = tokens[i]!;
+    const open = /^\s*:\s*[{[]/.exec(text.slice(t.end, t.end + 64));
+    if (!open || !isSecretName(text.slice(t.start + quoteLength, t.end - quoteLength))) {
+      i++;
+      continue;
+    }
+    let pos = t.end + open[0].length;
+    let depth = 1;
+    let j = i + 1;
+    while (pos < text.length && depth > 0) {
+      while (j < tokens.length && tokens[j]!.start < pos) j++;
+      const next = tokens[j];
+      if (next && next.start === pos) {
+        if (!/^\s*:/.test(text.slice(next.end, next.end + 16))) values.push(next);
+        pos = next.end;
+        j++;
+        continue;
+      }
+      const ch = text[pos];
+      if (ch === "{" || ch === "[") depth++;
+      else if (ch === "}" || ch === "]") depth--;
+      pos++;
+    }
+    i = j;
+  }
+  if (values.length === 0) return text;
+  let out = "";
+  let cursor = 0;
+  for (const v of values) {
+    const value = text.slice(v.start + quoteLength, v.end - quoteLength);
+    out += text.slice(cursor, v.start + quoteLength) + sub(value);
+    cursor = v.end - quoteLength;
   }
   return out + text.slice(cursor);
 }
@@ -306,9 +433,9 @@ export function redactText(text: string, opts: RedactOptions = {}): string {
     .replace(/((?:proxy-)?authorization[ \t]*:[ \t]*)([^\r\n'"]+)/gi, (_m, head: string, value: string) => `${head}${redactAuthorizationValue(value, opts)}`)
     .replace(/((?:set-)?cookie[ \t]*:[ \t]*)([^\r\n'"]+)/gi, (_m, head: string, value: string) => `${head}${redactCookieString(value, opts)}`);
 
-  // curl -b / --cookie
+  // curl -b / --cookie (short form may be attached: -bsid=x)
   out = out.replace(
-    new RegExp(`(${ARG_START}(?:-b|--cookie)(?:\\s+|=))${QUOTED_OR_BARE}`, "g"),
+    new RegExp(`(${ARG_START}(?:-b(?:\\s+|=)?|--cookie(?:\\s+|=)))${QUOTED_OR_BARE}`, "g"),
     (m: string, prefix: string, single?: string, double?: string, bare?: string) => {
       const inner = single ?? double ?? bare ?? "";
       if (!inner.includes("=")) return m; // a cookie jar file name
@@ -316,9 +443,9 @@ export function redactText(text: string, opts: RedactOptions = {}): string {
     },
   );
 
-  // curl -u / --user / --proxy-user
+  // curl -u / --user / --proxy-user (short forms may be attached: -ubob:pw)
   out = out.replace(
-    new RegExp(`(${ARG_START}(?:-u|-U|--user|--proxy-user)(?:\\s+|=))${QUOTED_OR_BARE}`, "g"),
+    new RegExp(`(${ARG_START}(?:-[uU](?:\\s+|=)?|--user(?:\\s+|=)|--proxy-user(?:\\s+|=)))${QUOTED_OR_BARE}`, "g"),
     (_m: string, prefix: string, single?: string, double?: string, bare?: string) => {
       const inner = single ?? double ?? bare ?? "";
       const colon = inner.indexOf(":");
@@ -336,7 +463,7 @@ export function redactText(text: string, opts: RedactOptions = {}): string {
 
   // curl -d / --data* / -F with url-encoded or name=value content (JSON bodies are handled by the literal pairs below)
   out = out.replace(
-    new RegExp(`(${ARG_START}(?:-d|--data|--data-raw|--data-binary|--data-ascii|--data-urlencode|-F|--form|--form-string)(?:\\s+|=))${QUOTED}`, "g"),
+    new RegExp(`(${ARG_START}(?:-d|--data|--data-raw|--data-binary|--data-ascii|--data-urlencode|--json|-F|--form|--form-string)(?:\\s+|=))${QUOTED}`, "g"),
     (m: string, prefix: string, single?: string, double?: string) => {
       const inner = single ?? double ?? "";
       const lead = inner.trimStart();
@@ -361,7 +488,26 @@ export function redactText(text: string, opts: RedactOptions = {}): string {
     return `${open}${next}${close}`;
   });
 
-  // "Name": "value" / "Name", "value" pairs: JSON bodies, .header(..), .queryParam(..), Map.of(..)
+  // Setter / builder calls with one literal argument: setPassword("v"), .apiKey("v"), .sessionId("v")
+  out = out.replace(
+    /(\b([A-Za-z_$][\w$]*)\s*\(\s*")((?:[^"\\\r\n]|\\.)*)("\s*\))/g,
+    (m: string, open: string, method: string, value: string, close: string) =>
+      value && isSecretName(method) ? `${open}${sub(value)}${close}` : m,
+  );
+
+  // Unquoted names: GraphQL / JS `password: "v"`, Java `String token = "v"`
+  out = out.replace(
+    /(^|[^\w"'\\$-])([A-Za-z_][\w-]*)(\s*[:=]\s*")((?:[^"\\\r\n]|\\.)*)"/g,
+    (m: string, pre: string, name: string, sep: string, value: string) =>
+      value && isSecretName(name) ? `${pre}${name}${sep}${sub(value)}"` : m,
+  );
+
+  // Everything inside an object/array under a secret-named key: {"auth": {"u": "a", "p": "b"}}
+  out = redactSecretContainers(out, /\\"(?:[^"\\\r\n]|\\(?!"))*\\"/g, 2, sub);
+  out = redactSecretContainers(out, /"(?:[^"\\\r\n]|\\.)*"/g, 1, sub);
+
+  // "Name": "value" / "Name", "value" / "Name"="value" pairs: JSON bodies, .header(..), .queryParam(..),
+  // Map.of(..), PowerShell @{"Name"="value"}
   out = redactLiteralPairs(out, /\\"(?:[^"\\\r\n]|\\(?!"))*\\"/g, 2, opts);
   out = redactLiteralPairs(out, /"(?:[^"\\\r\n]|\\.)*"/g, 1, opts);
   out = redactLiteralPairs(out, /'(?:[^'\\\r\n]|\\.)*'/g, 1, opts);
@@ -406,12 +552,71 @@ function redactConfigSection(value: unknown, opts: RedactOptions, sub: Sub): unk
   return out;
 }
 
+/**
+ * One argument of a raw argument list (`all_options: ["-u", "bob:pw"]`), judged by the flag before it.
+ * Undefined when `flag` is not a flag whose argument can hold a secret.
+ */
+function redactFlagArgument(flag: string, arg: string, opts: RedactOptions, sub: Sub): string | undefined {
+  switch (flag) {
+    case "-u":
+    case "-U":
+    case "--user":
+    case "--proxy-user": {
+      const colon = arg.indexOf(":");
+      return colon < 0 ? sub(arg) : `${sub(arg.slice(0, colon))}:${sub(arg.slice(colon + 1))}`;
+    }
+    case "--oauth2-bearer":
+    case "--pass":
+    case "--proxy-pass":
+      return sub(arg);
+    case "-H":
+    case "--header":
+    case "--proxy-header": {
+      const colon = arg.indexOf(":");
+      if (colon < 0) return undefined;
+      const value = arg.slice(colon + 1);
+      const lead = /^\s*/.exec(value)![0];
+      return `${arg.slice(0, colon)}:${lead}${String(redactHeaderValue(arg.slice(0, colon), value.trim(), opts))}`;
+    }
+    case "-b":
+    case "--cookie":
+      return arg.includes("=") ? redactCookieString(arg, opts) : arg;
+    case "-d":
+    case "--data":
+    case "--data-raw":
+    case "--data-binary":
+    case "--data-ascii":
+    case "--data-urlencode":
+    case "--json":
+    case "-F":
+    case "--form":
+    case "--form-string":
+      return redactBodyString(arg, opts);
+    default:
+      return undefined;
+  }
+}
+
 function redactGeneric(value: unknown, opts: RedactOptions, sub: Sub): unknown {
   if (typeof value === "string") return redactText(value, opts);
-  if (Array.isArray(value)) return value.map((item) => redactGeneric(item, opts, sub));
+  if (Array.isArray(value)) {
+    return value.map((item, i) => {
+      const flag = value[i - 1];
+      if (typeof item === "string" && typeof flag === "string") {
+        const redacted = redactFlagArgument(flag, item, opts, sub);
+        if (redacted !== undefined) return redacted;
+      }
+      return redactGeneric(item, opts, sub);
+    });
+  }
   if (isPlainObject(value)) {
+    const name = pairName(value);
     const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(value)) out[k] = isSecretName(k) ? mapLeaves(v, sub) : redactGeneric(v, opts, sub);
+    for (const [k, v] of Object.entries(value)) {
+      if (isSecretName(k)) out[k] = mapLeaves(v, sub);
+      else if (k === "value" && name !== undefined && isSecretHeaderName(name)) out[k] = redactHeaderValue(name, v, opts);
+      else out[k] = redactGeneric(v, opts, sub);
+    }
     return out;
   }
   return value;
@@ -427,8 +632,13 @@ function redactPathParameter(item: unknown, sub: Sub): unknown {
 
 /** Redacts one top-level section of a parsed request (`headers`, `cookies`, `data`, ...). */
 function redactSection(key: string, value: unknown, opts: RedactOptions): unknown {
-  const sub = makeSub(opts);
   if (value === null || value === undefined) return value;
+  // A JWT is a secret whatever name it sits under.
+  return scrubJwtsDeep(redactSectionByName(key, value, opts), makeSub(opts));
+}
+
+function redactSectionByName(key: string, value: unknown, opts: RedactOptions): unknown {
+  const sub = makeSub(opts);
 
   if (key === "headers") {
     if (!isPlainObject(value)) return redactGeneric(value, opts, sub);
@@ -440,7 +650,7 @@ function redactSection(key: string, value: unknown, opts: RedactOptions): unknow
   if (key === "query_params" || key === "form_data") return redactKeyedRecord(value, sub);
   if (key === "data" || key === "raw_data") {
     if (typeof value === "string") return redactBodyString(value, opts);
-    return redactJsonValue(value, sub);
+    return redactJsonValue(value, sub, opts);
   }
   if (URL_FIELDS.has(key)) return typeof value === "string" ? redactUrlString(value, opts) : clone(value);
   if (key === "path_parameters") {
