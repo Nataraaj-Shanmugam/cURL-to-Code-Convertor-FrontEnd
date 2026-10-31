@@ -42,3 +42,21 @@ describe('app metadata', () => {
     expect(existsSync(root('public/logo192.png'))).toBe(false);
   });
 });
+
+describe('social sharing metadata', () => {
+  const content = (name: string) => indexHtml.match(new RegExp(`${name}" content="([^"]*)"`))?.[1];
+
+  it('sets a canonical URL on the production origin', () => {
+    expect(indexHtml).toMatch(/<link rel="canonical" href="https:\/\/curlcraftassured\.vercel\.app\/" \/>/);
+  });
+
+  it('uses a large summary Twitter card and a 1200x630 og:image that exists', () => {
+    expect(content('twitter:card')).toBe('summary_large_image');
+    const image = content('og:image');
+    expect(image).toBe('https://curlcraftassured.vercel.app/og-image.png');
+    expect(content('og:image:width')).toBe('1200');
+    expect(content('og:image:height')).toBe('630');
+    expect(existsSync(root('public/og-image.png'))).toBe(true);
+    expect(content('twitter:image')).toBe(image);
+  });
+});
