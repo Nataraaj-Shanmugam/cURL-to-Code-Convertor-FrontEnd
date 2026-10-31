@@ -249,7 +249,7 @@ to the environment being built), not at runtime.
 | `VITE_CURL_CRAFT_API_URL` | `http://127.0.0.1:8000` (dev only) | same name | Backend base URL. **Required for `production` and `preprod` builds**: `vite build` fails if it is missing, empty, not an absolute http(s) URL, or a loopback host (`localhost`, `127.0.0.0/8`, `::1`, `0.0.0.0`). The default applies to `npm run dev` only. |
 | `VITE_CURL_CRAFT_API_PARSE_ENDPOINT` | `/api/parse` | same name | Parse a cURL command. |
 | `VITE_CURL_CRAFT_API_GENERATE_ENDPOINT` | `/api/generate-from-parsed` | `VITE_CURL_CRAFT_API_GENERATE_FROM_PARSED_ENDPOINT` | **Renamed.** Generate code from parsed data (also used per item by batch generation). |
-| `VITE_CURL_CRAFT_API_HEALTH_ENDPOINT` | `/api/health` | same name (master defaulted to `/health`) | Health check (`GET`). Called on app load to wake a sleeping backend. If the deployed backend serves `/health`, set this to `/health`. |
+| `VITE_CURL_CRAFT_API_HEALTH_ENDPOINT` | `/health` | same name, same default | Health check (`GET`) used to wake the sleeping hosted backend. Production sets it in the Vercel project; `.env.development` uses `/api/health` for the local backend. |
 | `VITE_CURL_CRAFT_API_FEEDBACK_ENDPOINT` | `/api/feedback` | same name | Submit feedback. |
 | `VITE_CURL_CRAFT_API_BODY_EDIT_ENDPOINT` | `/api/body/edit` | none (new in V3) | Edit a node of the parsed body. |
 | `VITE_CURL_CRAFT_API_BODY_DELETE_ENDPOINT` | `/api/body/delete` | none (new in V3) | Delete a node of the parsed body. |

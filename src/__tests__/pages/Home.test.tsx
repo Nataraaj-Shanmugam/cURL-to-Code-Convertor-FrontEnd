@@ -109,7 +109,7 @@ describe('Home Page', () => {
     it('should call health endpoint on mount', async () => {
       let healthCalled = false;
       server.use(
-        http.get('*/api/health', () => {
+        http.get('*/health', () => {
           healthCalled = true;
           return HttpResponse.json({ status: 'ok' });
         }),
@@ -124,7 +124,7 @@ describe('Home Page', () => {
 
     it('should handle health check failure gracefully', async () => {
       server.use(
-        http.get('*/api/health', () => {
+        http.get('*/health', () => {
           return HttpResponse.error();
         }),
       );
