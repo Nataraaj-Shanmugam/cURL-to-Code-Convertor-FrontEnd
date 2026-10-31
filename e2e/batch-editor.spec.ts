@@ -354,6 +354,9 @@ test.describe('Batch Editor Page', () => {
     await parseAll(page, [CURL_USERS, CURL_BAD]);
     await expect(sidebar(page).getByRole('listitem')).toHaveCount(1);
 
+    // the failed command is a masked snippet until the user chooses to edit it
+    await expect(page.getByRole('textbox', { name: 'cURL for command 2' })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Edit and retry command 2' }).click();
     await page.getByRole('textbox', { name: 'cURL for command 2' }).fill(CURL_ORDERS);
     await page.getByRole('button', { name: 'Retry command 2' }).click();
 

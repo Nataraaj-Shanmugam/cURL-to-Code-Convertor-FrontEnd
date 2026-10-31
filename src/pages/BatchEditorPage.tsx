@@ -12,7 +12,8 @@ import ParsedCurlEditor from "@/components/features/curl/ParsedCurlEditor";
 import BatchCodeGenerationDialog from "@/components/features/curl/BatchCodeGenerationDialog";
 import UnsavedChangesDialog from "@/components/features/curl/UnsavedChangesDialog";
 import type { BatchParseFailure, ParsedCurlEntry } from "@/types/batch";
-import { countRedactions } from "@/lib/utils/redaction";
+import { MASK, countRedactions, redactCurlString } from "@/lib/utils/redaction";
+import { MaskedString } from "@/components/features/curl/editor/SecretValue";
 import { redactBatchHistoryState, rememberBatchRequest, resolveBatchRestore } from "@/lib/utils/batchStorage";
 
 const METHOD_COLORS: Record<string, string> = {
@@ -25,7 +26,11 @@ const METHOD_COLORS: Record<string, string> = {
   OPTIONS: "bg-gray-500/15 text-gray-600 dark:text-gray-400",
 };
 
-/** One command that did not parse: shown with its error, editable, and retryable in place. */
+/**
+ * One command that did not parse: shown with its error, editable, and retryable in place. The raw
+ * command can carry secrets, so it stays a masked one-line snippet until the user chooses to edit
+ * it; only then is the textarea (with the real command, from memory) shown.
+ */
 function FailedCommandRow({
   failure,
   onParsed,
@@ -36,6 +41,7 @@ function FailedCommandRow({
   const [curl, setCurl] = useState(failure.curl);
   const [message, setMessage] = useState(failure.message);
   const [retrying, setRetrying] = useState(false);
+  const [editing, setEditing] = useState(false);
   const number = failure.index + 1;
 
   const retry = async () => {
@@ -56,26 +62,49 @@ function FailedCommandRow({
       <p>
         <span className="font-semibold">Command {number}:</span> {message}
       </p>
-      <Textarea
-        value={curl}
-        onChange={(e) => setCurl(e.target.value)}
-        aria-label={`cURL for command ${number}`}
-        rows={2}
-        spellCheck={false}
-        className="font-mono text-xs bg-background text-foreground min-h-0"
-      />
-      <Button
-        type="button"
-        size="sm"
-        variant="outline"
-        onClick={retry}
-        disabled={retrying}
-        aria-label={`Retry command ${number}`}
-        className="h-7 gap-1.5 text-xs bg-background text-foreground"
-      >
-        {retrying && <Loader2 className="w-3 h-3 animate-spin" />}
-        Retry
-      </Button>
+      {editing ? (
+        <>
+          <Textarea
+            value={curl}
+            onChange={(e) => setCurl(e.target.value)}
+            aria-label={`cURL for command ${number}`}
+            rows={2}
+            spellCheck={false}
+            className="font-mono text-xs bg-background text-foreground min-h-0"
+          />
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={retry}
+            disabled={retrying}
+            aria-label={`Retry command ${number}`}
+            className="h-7 gap-1.5 text-xs bg-background text-foreground"
+          >
+            {retrying && <Loader2 className="w-3 h-3 animate-spin" />}
+            Retry
+          </Button>
+        </>
+      ) : (
+        <div className="flex items-center gap-2">
+          <code
+            data-testid="parse-failure-snippet"
+            className="flex-1 min-w-0 truncate font-mono text-xs bg-background text-foreground rounded px-2 py-1"
+          >
+            <MaskedString text={redactCurlString(curl, { placeholder: MASK }).replace(/\s*\n\s*/g, " ")} />
+          </code>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => setEditing(true)}
+            aria-label={`Edit and retry command ${number}`}
+            className="h-7 text-xs shrink-0 bg-background text-foreground"
+          >
+            Edit and retry
+          </Button>
+        </div>
+      )}
     </li>
   );
 }

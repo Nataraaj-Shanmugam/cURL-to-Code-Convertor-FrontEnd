@@ -33,7 +33,8 @@ describe('useBatchEditor', () => {
       const { result } = renderHook(() => useBatchEditor([first]));
 
       expect(result.current.items[0]!.originalCurl).toBe(first.originalCurl);
-      expect(result.current.items[0]!.parsed).toEqual(first.parsed);
+      // the editor derives a `url` on top of the seeded request (T65 normalisation)
+      expect(result.current.items[0]!.parsed).toMatchObject(first.parsed);
     });
 
     it('handles an empty list without a selection', () => {

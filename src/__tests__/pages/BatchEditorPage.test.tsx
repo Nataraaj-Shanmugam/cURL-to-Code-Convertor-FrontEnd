@@ -93,7 +93,10 @@ describe('BatchEditorPage', () => {
       expect(within(alert).getByText(/2 commands could not be parsed/)).toBeInTheDocument();
       const entries = within(alert).getAllByTestId('parse-failure');
       expect(entries[0]).toHaveTextContent('Command 2: Invalid cURL command format');
-      expect(within(entries[0]!).getByRole('textbox', { name: 'cURL for command 2' })).toHaveValue('curl nonsense one');
+      expect(within(entries[0]!).getByTestId('parse-failure-snippet')).toHaveTextContent('curl nonsense one');
+      // the raw command is not editable until the user asks to edit it
+      expect(within(entries[0]!).queryByRole('textbox')).not.toBeInTheDocument();
+      expect(within(entries[0]!).getByRole('button', { name: 'Edit and retry command 2' })).toBeInTheDocument();
       expect(entries[1]).toHaveTextContent('Command 4: Unsupported option --foo');
       // The successful command is still there.
       expect(rowNames()).toHaveLength(1);
@@ -373,6 +376,7 @@ describe('BatchEditorPage', () => {
       const user = userEvent.setup();
       renderPage({ items: [ITEMS[0]!], failures: failing });
 
+      await user.click(screen.getByRole('button', { name: 'Edit and retry command 2' }));
       const box = screen.getByRole('textbox', { name: 'cURL for command 2' });
       await user.clear(box);
       await user.type(box, 'curl -X PUT https://api.example.com/fixed');
@@ -390,6 +394,7 @@ describe('BatchEditorPage', () => {
       const user = userEvent.setup();
       renderPage({ items: [ITEMS[0]!], failures: failing });
 
+      await user.click(screen.getByRole('button', { name: 'Edit and retry command 2' }));
       await user.click(screen.getByRole('button', { name: 'Retry command 2' }));
 
       expect(await screen.findByText('Still invalid')).toBeInTheDocument();
@@ -401,6 +406,7 @@ describe('BatchEditorPage', () => {
       parseOk();
       const user = userEvent.setup();
       renderPage({ items: [], failures: failing });
+      await user.click(screen.getByRole('button', { name: 'Edit and retry command 2' }));
       const box = screen.getByRole('textbox', { name: 'cURL for command 2' });
       await user.clear(box);
       await user.type(box, 'curl https://api.example.com/fixed');
@@ -471,7 +477,7 @@ describe('BatchEditorPage', () => {
       await waitFor(() => expect(rowNames()).toHaveLength(2));
       const alert = screen.getByRole('alert');
       expect(alert).toHaveTextContent('Command 2: Invalid cURL command format');
-      expect(within(alert).getByRole('textbox', { name: 'cURL for command 2' })).toHaveValue('curl invalid-garbage');
+      expect(within(alert).getByTestId('parse-failure-snippet')).toHaveTextContent('curl invalid-garbage');
     });
 
     it('opens the single editor, not the batch editor, for one filled and one blank entry', async () => {
@@ -524,6 +530,19 @@ describe('BatchEditorPage: secrets in history.state', () => {
     // the live editor still works with real values
     expect(generateAll()).toBeEnabled();
     expect(screen.queryByText(/redacted values? to generate code/i)).not.toBeInTheDocument();
+  });
+
+  it('shows a failed command masked, and its raw cURL only after "Edit and retry"', async () => {
+    renderPage(payload);
+    const row = await screen.findByTestId('parse-failure');
+    expect(row).not.toHaveTextContent(PASSWORD);
+    expect(within(row).queryByRole('textbox')).not.toBeInTheDocument();
+    expect(within(row).queryByRole('button', { name: 'Retry command 2' })).not.toBeInTheDocument();
+
+    await userEvent.setup().click(within(row).getByRole('button', { name: 'Edit and retry command 2' }));
+
+    expect(within(row).getByRole('textbox', { name: 'cURL for command 2' })).toHaveValue(failure.curl);
+    expect(within(row).getByRole('button', { name: 'Retry command 2' })).toBeInTheDocument();
   });
 
   it('Back/Forward within the tab restores the live values from memory', async () => {
