@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useId } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -6,7 +6,9 @@ import { X, Layers, ArrowLeft, AlertCircle } from "lucide-react";
 import { useBatchEditor } from "@/lib/hooks/useBatchEditor";
 import ParsedCurlEditor from "@/components/features/curl/ParsedCurlEditor";
 import BatchCodeGenerationDialog from "@/components/features/curl/BatchCodeGenerationDialog";
-import type { BatchParseFailure, ParsedCurlEntry } from "@/types/batch";
+import type { BatchParseFailure } from "@/types/batch";
+import { MASK, countRedactions, redactCurlString } from "@/lib/utils/redaction";
+import { redactBatchHistoryState, rememberBatchRequest, resolveBatchRestore } from "@/lib/utils/batchStorage";
 
 const METHOD_COLORS: Record<string, string> = {
   GET: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
@@ -17,15 +19,6 @@ const METHOD_COLORS: Record<string, string> = {
   HEAD: "bg-purple-500/15 text-purple-600 dark:text-purple-400",
   OPTIONS: "bg-gray-500/15 text-gray-600 dark:text-gray-400",
 };
-
-/**
- * Route state written by the Playground. Parsing happens there, before navigation, so this page
- * always receives finished items — it never has to wait for (or re-seed from) an async parse.
- */
-interface LocationState {
-  items?: ParsedCurlEntry[];
-  failures?: BatchParseFailure[];
-}
 
 const SNIPPET_LENGTH = 90;
 const snippet = (curl: string) => {
@@ -57,7 +50,7 @@ function ParseFailureBanner({
               <span className="font-semibold">Command {failure.index + 1}:</span> {failure.message}
               {failure.curl && (
                 <code className="block font-mono text-xs opacity-80 truncate">
-                  {snippet(failure.curl)}
+                  {snippet(redactCurlString(failure.curl, { placeholder: MASK }))}
                 </code>
               )}
             </li>
@@ -79,13 +72,28 @@ function ParseFailureBanner({
 export default function BatchEditorPage() {
   const location = useLocation();
   const navigate = useNavigate();
-  const state = (location.state || {}) as LocationState;
+  // Route state written by the Playground (parsing happens there, before navigation, so the items
+  // are finished). On a reload or Back/Forward it comes back from history.state, redacted; the live
+  // values are taken from memory when they are still there. Read once: the editor is seeded once.
+  const [restore] = useState(() => resolveBatchRestore(location.state));
 
-  const [failures, setFailures] = useState<BatchParseFailure[]>(state.failures ?? []);
+  // history.state outlives a reload and can be written to disk: keep only a redacted copy there,
+  // and the live values in memory for in-app Back/Forward.
+  useEffect(() => {
+    if (restore.source === "none") return;
+    if (restore.source === "live") rememberBatchRequest({ items: restore.items, failures: restore.failures });
+    redactBatchHistoryState();
+  }, [restore]);
+
+  const [failures, setFailures] = useState<BatchParseFailure[]>(restore.failures);
   const [showGenDialog, setShowGenDialog] = useState(false);
 
   const { items, selectedId, selectedItem, selectItem, updateParsed, removeItem } =
-    useBatchEditor(state.items ?? []);
+    useBatchEditor(restore.items);
+
+  // Requests restored with redacted secrets would generate code with the placeholder in it.
+  const redactedCount = items.reduce((n, item) => n + countRedactions(item.parsed), 0);
+  const redactedNoteId = useId();
 
   // Editors are expensive and hold the user's edits (and undo history) in their own state. Mount
   // one the first time its request is selected and keep it mounted — hidden — afterwards, so
@@ -141,12 +149,22 @@ export default function BatchEditorPage() {
             <Button
               size="sm"
               onClick={() => setShowGenDialog(true)}
-              disabled={items.length === 0}
+              disabled={items.length === 0 || redactedCount > 0}
+              aria-describedby={redactedCount > 0 ? redactedNoteId : undefined}
               className="text-xs h-7 px-2 gap-1"
             >
               Generate All
             </Button>
           </div>
+          {redactedCount > 0 && (
+            <p
+              id={redactedNoteId}
+              role="status"
+              className="px-3 py-2 border-b text-xs text-amber-900 dark:text-amber-200 bg-amber-500/10"
+            >
+              Re-enter {redactedCount} redacted value{redactedCount === 1 ? "" : "s"} to generate code.
+            </p>
+          )}
 
           {/* Back button */}
           <div className="px-2 py-2 border-b">

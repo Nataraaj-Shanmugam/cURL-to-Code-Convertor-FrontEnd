@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
@@ -8,6 +8,8 @@ import { renderWithProviders } from '../test-utils';
 import BatchEditorPage from '@/pages/BatchEditorPage';
 import CurlPlayground from '@/components/features/curl/CurlPlayground';
 import type { ParsedCurlEntry, BatchParseFailure } from '@/types/batch';
+import { REDACTED_PLACEHOLDER } from '@/lib/utils/redaction';
+import { forgetAllLiveRequests } from '@/lib/utils/liveRequestStore';
 
 const entry = (method: string, endpoint: string): ParsedCurlEntry => ({
   originalCurl: `curl -X ${method} https://api.example.com${endpoint}`,
@@ -267,5 +269,68 @@ describe('BatchEditorPage', () => {
 
       expect(await screen.findByText('Single editor route')).toBeInTheDocument();
     });
+  });
+});
+
+describe('BatchEditorPage: secrets in history.state', () => {
+  const TOKEN = 'batch-bearer-SECRET-123456';
+  const PASSWORD = 'batch-password-SECRET-987';
+  const secretEntry: ParsedCurlEntry = {
+    originalCurl: `curl -X POST https://api.example.com/login -H 'Authorization: Bearer ${TOKEN}'`,
+    parsed: {
+      method: 'POST',
+      base_url: 'https://api.example.com',
+      endpoint: '/login',
+      headers: { Authorization: `Bearer ${TOKEN}` },
+      data: { password: PASSWORD },
+    },
+  };
+  const failure: BatchParseFailure = { index: 1, curl: `curl https://x -H 'X-Api-Key: ${PASSWORD}'`, message: 'bad' };
+  const payload = { items: [secretEntry, entry('GET', '/a')], failures: [failure] };
+
+  beforeEach(() => {
+    forgetAllLiveRequests();
+    window.history.replaceState({ usr: payload, key: 'b', idx: 4 }, '');
+  });
+  afterEach(() => window.history.replaceState(null, ''));
+
+  const historyUsr = () => (window.history.state as { usr: unknown }).usr;
+  const generateAll = () => screen.getAllByRole('button', { name: 'Generate All' })[0]!;
+
+  it('replaces the payload in history.state with a redacted copy and keeps the live values on screen', async () => {
+    renderPage(payload);
+    await waitFor(() => expect(JSON.stringify(window.history.state)).toContain(REDACTED_PLACEHOLDER));
+    const stored = JSON.stringify(window.history.state);
+    expect(stored).not.toContain(TOKEN);
+    expect(stored).not.toContain(PASSWORD);
+    expect(window.history.state).toMatchObject({ key: 'b', idx: 4 });
+    // the failure snippet on screen is masked too
+    expect(document.body.textContent).not.toContain(PASSWORD);
+    // the live editor still works with real values
+    expect(generateAll()).toBeEnabled();
+    expect(screen.queryByText(/redacted values? to generate code/i)).not.toBeInTheDocument();
+  });
+
+  it('Back/Forward within the tab restores the live values from memory', async () => {
+    const first = renderPage(payload);
+    await waitFor(() => expect(JSON.stringify(window.history.state)).toContain(REDACTED_PLACEHOLDER));
+    first.unmount();
+
+    renderPage(historyUsr() as typeof payload);
+    expect(generateAll()).toBeEnabled();
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Reveal value of Authorization' }));
+    expect(document.body.textContent).toContain(TOKEN);
+  });
+
+  it('after a reload only the redacted copy is left: Generate All is blocked with an explanation', async () => {
+    const first = renderPage(payload);
+    await waitFor(() => expect(JSON.stringify(window.history.state)).toContain(REDACTED_PLACEHOLDER));
+    first.unmount();
+    forgetAllLiveRequests(); // a reload starts with empty memory
+
+    renderPage(historyUsr() as typeof payload);
+    expect(generateAll()).toBeDisabled();
+    expect(screen.getByText('Re-enter 2 redacted values to generate code.', { selector: 'p' })).toBeInTheDocument();
+    expect(document.body.textContent).not.toContain(TOKEN);
   });
 });
