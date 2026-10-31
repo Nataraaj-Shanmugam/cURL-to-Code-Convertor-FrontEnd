@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo } from "react";
 import type { BatchItem, ParsedCurlEntry } from "@/types/batch";
 import type { ParsedCurl, CodeGenConfig } from "@/types/curl";
+import { deepEqual } from "@/lib/utils/deepEqual";
 
 const DEFAULT_CONFIG: CodeGenConfig = {
   option: "full",
@@ -32,30 +33,49 @@ export function uniqueName(base: string, taken: ReadonlySet<string>): string {
   return `${base}_${n}`;
 }
 
+/** The path (or, failing that, host) shown for a request next to its method. */
+export function deriveItemPath(parsed: ParsedCurl, index: number): string {
+  return parsed.endpoint || parsed.base_url || "Request " + index;
+}
+
 export function deriveItemName(parsed: ParsedCurl, index: number): string {
-  return `${(parsed.method || "GET").toUpperCase()} ${
-    parsed.endpoint || parsed.base_url || "Request " + index
-  }`;
+  return `${(parsed.method || "GET").toUpperCase()} ${deriveItemPath(parsed, index)}`;
+}
+
+/** True when the item's request data differs from what it was loaded with. */
+export function isItemEdited(item: BatchItem): boolean {
+  return item.baseline !== undefined && !deepEqual(item.parsed, item.baseline);
 }
 
 // Ids only need to be unique and stable for the lifetime of the page. They are never reused, so a
 // removed item's id can't be mistaken for a later item's.
 let nextItemId = 1;
 
+const newItemId = () => `batch-item-${nextItemId++}`;
+
+function createItem(
+  entry: ParsedCurlEntry,
+  index: number,
+  taken: Set<string>,
+  id: string = newItemId()
+): BatchItem {
+  // Default method names must be unique: two `testGet_users` would not compile in one class.
+  const methodName = uniqueName(deriveMethodName(entry.parsed, index), taken);
+  taken.add(methodName);
+  const parsed = entry.parsed;
+  return {
+    id,
+    originalCurl: entry.originalCurl,
+    parsed,
+    baseline: parsed,
+    config: { ...DEFAULT_CONFIG, methodName },
+    name: deriveItemName(parsed, index),
+  };
+}
+
 function createItems(entries: ParsedCurlEntry[]): BatchItem[] {
   const taken = new Set<string>();
-  return entries.map((entry, i) => {
-    // Default method names must be unique: two `testGet_users` would not compile in one class.
-    const methodName = uniqueName(deriveMethodName(entry.parsed, i), taken);
-    taken.add(methodName);
-    return {
-      id: `batch-item-${nextItemId++}`,
-      originalCurl: entry.originalCurl,
-      parsed: entry.parsed,
-      config: { ...DEFAULT_CONFIG, methodName },
-      name: deriveItemName(entry.parsed, i),
-    };
-  });
+  return entries.map((entry, i) => createItem(entry, i, taken));
 }
 
 interface BatchState {
@@ -109,6 +129,26 @@ export function useBatchEditor(initialItems: ParsedCurlEntry[]) {
     });
   }, []);
 
+  /** Appends a request (e.g. a command that failed to parse and has since been fixed) and selects it. */
+  const addItem = useCallback((entry: ParsedCurlEntry) => {
+    const id = newItemId(); // outside the updater, which React may run twice
+    setState((prev) => {
+      const taken = new Set(prev.items.map((item) => item.config.methodName));
+      const item = createItem(entry, prev.items.length, taken, id);
+      return { items: [...prev.items, item], selectedId: item.id };
+    });
+  }, []);
+
+  /** Puts a removed item back at (about) its old position and selects it. */
+  const restoreItem = useCallback((item: BatchItem, index: number) => {
+    setState((prev) => {
+      if (prev.items.some((existing) => existing.id === item.id)) return prev;
+      const items = prev.items.slice();
+      items.splice(Math.min(index, items.length), 0, item);
+      return { items, selectedId: item.id };
+    });
+  }, []);
+
   /** Removes the item with this id. If it was selected, selection moves to its neighbour. */
   const removeItem = useCallback((id: string) => {
     setState((prev) => {
@@ -138,6 +178,8 @@ export function useBatchEditor(initialItems: ParsedCurlEntry[]) {
     selectItem,
     updateItem,
     updateParsed,
+    addItem,
+    restoreItem,
     removeItem,
   };
 }

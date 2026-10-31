@@ -18,6 +18,8 @@ export interface BatchItem {
   id: string;
   originalCurl: string;
   parsed: ParsedCurl;
+  /** The normalised request as it was loaded; `parsed` differing from it means the item was edited. */
+  baseline?: ParsedCurl;
   config: CodeGenConfig;
   name: string;
 }

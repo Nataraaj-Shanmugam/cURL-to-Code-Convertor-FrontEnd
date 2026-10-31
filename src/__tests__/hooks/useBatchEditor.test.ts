@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { server } from '../mocks/server';
-import { useBatchEditor, uniqueName } from '@/lib/hooks/useBatchEditor';
+import { useBatchEditor, uniqueName, isItemEdited } from '@/lib/hooks/useBatchEditor';
 import { parseCurlBatch } from '@/lib/utils/parseCurlBatch';
 import type { ParsedCurl } from '@/types/curl';
 import type { ParsedCurlEntry } from '@/types/batch';
@@ -272,6 +272,60 @@ describe('useBatchEditor', () => {
 
       const names = result.current.items.map((i) => i.config.methodName);
       expect(new Set(names).size).toBe(names.length);
+    });
+  });
+
+  describe('edited state', () => {
+    it('is false on load, true after a change, false again when the change is undone', () => {
+      const { result } = renderHook(() => useBatchEditor([GET_USERS()]));
+      const item = () => result.current.items[0]!;
+      expect(isItemEdited(item())).toBe(false);
+
+      act(() => result.current.updateParsed(item().id, { ...item().parsed, endpoint: '/v2' }));
+      expect(isItemEdited(item())).toBe(true);
+
+      act(() => result.current.updateParsed(item().id, { ...item().baseline! }));
+      expect(isItemEdited(item())).toBe(false);
+    });
+  });
+
+  describe('addItem and restoreItem', () => {
+    it('appends a new request with a unique method name and selects it', () => {
+      const { result } = renderHook(() => useBatchEditor([GET_USERS()]));
+
+      act(() => result.current.addItem(GET_USERS()));
+
+      expect(result.current.items.map((i) => i.config.methodName)).toEqual(['testGet_users', 'testGet_users_2']);
+      expect(result.current.selectedId).toBe(result.current.items[1]!.id);
+    });
+
+    it('restores a removed item at its old position, keeping its edits', () => {
+      const { result } = renderHook(() => useBatchEditor([GET_USERS(), POST_ORDERS(), DELETE_ITEM()]));
+      const second = result.current.items[1]!;
+      act(() => result.current.updateParsed(second.id, { ...second.parsed, endpoint: '/orders-v2' }));
+      const edited = result.current.items[1]!;
+
+      act(() => result.current.removeItem(second.id));
+      expect(result.current.items).toHaveLength(2);
+      act(() => result.current.restoreItem(edited, 1));
+
+      expect(result.current.items.map((i) => i.id)).toEqual([
+        result.current.items[0]!.id,
+        second.id,
+        result.current.items[2]!.id,
+      ]);
+      expect(result.current.items[1]!.parsed.endpoint).toBe('/orders-v2');
+      expect(isItemEdited(result.current.items[1]!)).toBe(true);
+      expect(result.current.selectedId).toBe(second.id);
+    });
+
+    it('does not restore an item twice', () => {
+      const { result } = renderHook(() => useBatchEditor([GET_USERS(), POST_ORDERS()]));
+      const first = result.current.items[0]!;
+
+      act(() => result.current.restoreItem(first, 0));
+
+      expect(result.current.items).toHaveLength(2);
     });
   });
 });

@@ -1,4 +1,4 @@
-import { memo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +8,10 @@ import { Loader2, Copy, CheckCircle2, AlertCircle } from "lucide-react";
 import { apiClient, GENERATE_TIMEOUT_MS } from "@/lib/api/apiClient";
 import { ENV } from "@/lib/env";
 import { isInsecureCurl, withRelaxedHttps } from "@/lib/utils/insecureFlag";
+import {
+  javaIdentifierError,
+} from "@/lib/utils/codegenValidation";
+import { deriveMethodName, uniqueName } from "@/lib/hooks/useBatchEditor";
 import type { BatchItem } from "@/types/batch";
 
 interface BatchCodeGenerationDialogProps {
@@ -24,6 +28,39 @@ function CodeBlock({ code }: { code: string }) {
   );
 }
 
+interface GenerationFailure {
+  name: string;
+  message: string;
+}
+
+/**
+ * Suggests one unique method name per request from its *current* method and endpoint, so an edited
+ * request is not named after what it used to be. Names the user types are kept in state instead.
+ */
+function suggestMethodNames(items: BatchItem[]): Record<string, string> {
+  const taken = new Set<string>();
+  const names: Record<string, string> = {};
+  items.forEach((item, index) => {
+    const name = uniqueName(deriveMethodName(item.parsed, index), taken);
+    taken.add(name);
+    names[item.id] = name;
+  });
+  return names;
+}
+
+function FailureList({ failures }: { failures: GenerationFailure[] }) {
+  if (failures.length === 0) return null;
+  return (
+    <ul className="space-y-0.5 text-xs">
+      {failures.map((failure, i) => (
+        <li key={i}>
+          <span className="font-semibold">{failure.name}:</span> {failure.message}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function BatchCodeGenerationDialog({
   open,
   onOpenChange,
@@ -32,8 +69,9 @@ function BatchCodeGenerationDialog({
   const [step, setStep] = useState<"config" | "result">("config");
   const [className, setClassName] = useState("BatchApiTest");
   const [methodNames, setMethodNames] = useState<Record<string, string>>(() =>
-    Object.fromEntries(items.map((item) => [item.id, item.config.methodName]))
+    suggestMethodNames(items)
   );
+  const [failures, setFailures] = useState<GenerationFailure[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
   const [combinedCode, setCombinedCode] = useState("");
@@ -42,10 +80,30 @@ function BatchCodeGenerationDialog({
   const [activeTab, setActiveTab] = useState<"test" | "pom">("test");
   const [copied, setCopied] = useState(false);
 
+  // Every name must compile: a Java identifier, and no two methods in the class may share one.
+  const classNameError = javaIdentifierError(className);
+  const rowErrors = useMemo(() => {
+    const seen = new Set<string>();
+    return Object.fromEntries(
+      items.map((item) => {
+        const name = (methodNames[item.id] ?? "").trim();
+        let method = javaIdentifierError(name);
+        if (!method && seen.has(name)) method = "Already used by another request";
+        if (!method) seen.add(name);
+        return [item.id, { method }] as const;
+      })
+    );
+  }, [items, methodNames]);
+  const hasErrors =
+    !!classNameError || items.some((item) => rowErrors[item.id]?.method);
+
   const handleGenerateAll = async () => {
+    if (hasErrors) return;
     setError(null);
+    setFailures([]);
     setIsGenerating(true);
     setProgress(0);
+    const failed: GenerationFailure[] = [];
 
     // `insecure` records, per request, whether its cURL used -k/--insecure.
     const results: { code: string; insecure: boolean }[] = [];
@@ -56,8 +114,8 @@ function BatchCodeGenerationDialog({
       const config = {
         ...item.config,
         option: "method",
-        className,
-        methodName: methodNames[item.id] ?? item.config.methodName,
+        className: className.trim(),
+        methodName: (methodNames[item.id] ?? "").trim(),
       };
 
       try {
@@ -73,13 +131,15 @@ function BatchCodeGenerationDialog({
           });
           if (result.pom_dependencies) lastPom = result.pom_dependencies as string;
         } else {
-          const errMsg = typeof result.error === "object" ? (result.error as { message: string }).message : result.error ?? "Unknown error";
+          const errMsg = typeof result.error === "object" && result.error !== null ? (result.error as { message: string }).message : result.error ?? "Unknown error";
+          failed.push({ name: item.name, message: String(errMsg) });
           results.push({
             code: `// Error generating code for: ${item.name}\n// ${errMsg}`,
             insecure: false,
           });
         }
       } catch (e) {
+        failed.push({ name: item.name, message: e instanceof Error ? e.message : "Unknown error" });
         results.push({
           code: `// Error for: ${item.name}\n// ${e instanceof Error ? e.message : "Unknown error"}`,
           insecure: false,
@@ -87,6 +147,18 @@ function BatchCodeGenerationDialog({
       }
 
       setProgress(i + 1);
+    }
+
+    setIsGenerating(false);
+    setFailures(failed);
+    if (failed.length === items.length) {
+      // Nothing was generated: stay on the config step instead of presenting error comments as code.
+      setError(
+        items.length === 1
+          ? "Code generation failed."
+          : `Code generation failed for all ${items.length} requests.`
+      );
+      return;
     }
 
     // Merge all methods into a single class
@@ -112,14 +184,13 @@ function BatchCodeGenerationDialog({
 
     const merged = `${Array.from(imports).join("\n")}
 
-public class ${className} {
+public class ${className.trim()} {
 
 ${methods.map((m) => "    " + m.replace(/\n/g, "\n    ")).join("\n\n")}
 }`;
 
     setCombinedCode(merged);
     setCombinedPom(lastPom);
-    setIsGenerating(false);
     setStep("result");
   };
 
@@ -140,6 +211,7 @@ ${methods.map((m) => "    " + m.replace(/\n/g, "\n    ")).join("\n\n")}
     setCombinedCode("");
     setCombinedPom("");
     setError(null);
+    setFailures([]);
     setProgress(0);
     setActiveTab("test");
   };
@@ -158,52 +230,74 @@ ${methods.map((m) => "    " + m.replace(/\n/g, "\n    ")).join("\n\n")}
         {step === "config" ? (
           <div className="flex-1 overflow-y-auto space-y-4">
             {error && (
-              <div className="flex items-start gap-2 p-3 bg-destructive/10 text-destructive rounded-md text-sm border border-destructive/30">
+              <div
+                role="alert"
+                className="flex items-start gap-2 p-3 bg-destructive/10 text-destructive rounded-md text-sm border border-destructive/30">
                 <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-                <span>{error}</span>
+                <div className="min-w-0 space-y-1">
+                  <p className="font-medium">{error}</p>
+                  <FailureList failures={failures} />
+                </div>
               </div>
             )}
 
             <div>
-              <label className="text-sm font-medium mb-2 block">Test Class Name</label>
+              <label htmlFor="batch-class-name" className="text-sm font-medium mb-2 block">
+                Test Class Name
+              </label>
               <Input
+                id="batch-class-name"
                 value={className}
                 onChange={(e) => setClassName(e.target.value)}
                 placeholder="BatchApiTest"
                 className="font-mono"
+                aria-invalid={classNameError ? true : undefined}
+                aria-describedby={classNameError ? "batch-class-name-error" : undefined}
               />
+              {classNameError && (
+                <p id="batch-class-name-error" className="text-xs text-destructive mt-1">
+                  {classNameError}
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
               <p className="text-sm font-medium">Method Names</p>
               <div className="border rounded-md overflow-hidden max-h-64 overflow-y-auto">
-                {items.map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex items-center gap-3 px-3 py-2 border-b last:border-0"
-                  >
-                    <Badge
-                      className="shrink-0 text-[10px] font-mono"
-                      variant="secondary"
+                {items.map((item) => {
+                  const errors = rowErrors[item.id];
+                  return (
+                    <div
+                      key={item.id}
+                      className="flex flex-wrap items-start gap-x-3 gap-y-1 px-3 py-2 border-b last:border-0"
                     >
-                      {item.parsed.method?.toUpperCase() || "GET"}
-                    </Badge>
-                    <span className="text-xs text-muted-foreground truncate flex-1">
-                      {item.name}
-                    </span>
-                    <Input
-                      value={methodNames[item.id] || ""}
-                      onChange={(e) =>
-                        setMethodNames((prev) => ({
-                          ...prev,
-                          [item.id]: e.target.value,
-                        }))
-                      }
-                      className="font-mono text-xs h-7 w-48 shrink-0"
-                      placeholder="methodName"
-                    />
-                  </div>
-                ))}
+                      <Badge className="shrink-0 text-[10px] font-mono mt-1" variant="secondary">
+                        {item.parsed.method?.toUpperCase() || "GET"}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground truncate flex-1 min-w-[8rem] mt-1.5">
+                        {item.name}
+                      </span>
+                      <div className="w-full sm:w-48 shrink-0">
+                        <Input
+                          value={methodNames[item.id] ?? ""}
+                          onChange={(e) =>
+                            setMethodNames((prev) => ({ ...prev, [item.id]: e.target.value }))
+                          }
+                          className="font-mono text-xs h-7"
+                          placeholder="methodName"
+                          aria-label={`Method name for ${item.name}`}
+                          aria-invalid={errors?.method ? true : undefined}
+                          aria-describedby={errors?.method ? `method-error-${item.id}` : undefined}
+                        />
+                        {errors?.method && (
+                          <p id={`method-error-${item.id}`} className="text-xs text-destructive mt-1">
+                            {errors.method}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
@@ -213,7 +307,7 @@ ${methods.map((m) => "    " + m.replace(/\n/g, "\n    ")).join("\n\n")}
               </Button>
               <Button
                 onClick={handleGenerateAll}
-                disabled={isGenerating || !className.trim()}
+                disabled={isGenerating || hasErrors}
                 className="gap-2"
               >
                 {isGenerating ? (
@@ -229,6 +323,21 @@ ${methods.map((m) => "    " + m.replace(/\n/g, "\n    ")).join("\n\n")}
           </div>
         ) : (
           <div className="flex-1 overflow-hidden flex flex-col">
+            {failures.length > 0 && (
+              <div
+                role="alert"
+                className="flex items-start gap-2 p-3 mb-3 bg-destructive/10 text-destructive rounded-md text-sm border border-destructive/30"
+              >
+                <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                <div className="min-w-0 space-y-1">
+                  <p className="font-medium">
+                    Code could not be generated for {failures.length} of {items.length} requests.
+                    They appear below as comments and have no test method.
+                  </p>
+                  <FailureList failures={failures} />
+                </div>
+              </div>
+            )}
             <Tabs
               value={activeTab}
               onValueChange={(v: string) => setActiveTab(v as "test" | "pom")}
