@@ -1,8 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { http, HttpResponse } from 'msw';
-import { server } from '../mocks/server';
 import { renderWithProviders } from '../test-utils';
 import Home from '@/pages/Home';
 
@@ -102,37 +100,6 @@ describe('Home Page', () => {
       await user.click(openPlaygroundButton);
 
       expect(mockNavigate).toHaveBeenCalledWith('/playground');
-    });
-  });
-
-  describe('health check (BE integration)', () => {
-    it('should call health endpoint on mount', async () => {
-      let healthCalled = false;
-      server.use(
-        http.get('*/health', () => {
-          healthCalled = true;
-          return HttpResponse.json({ status: 'ok' });
-        }),
-      );
-
-      renderWithProviders(<Home />);
-
-      await waitFor(() => {
-        expect(healthCalled).toBe(true);
-      });
-    });
-
-    it('should handle health check failure gracefully', async () => {
-      server.use(
-        http.get('*/health', () => {
-          return HttpResponse.error();
-        }),
-      );
-
-      // Should not crash
-      renderWithProviders(<Home />);
-
-      expect(screen.getByText('cURLCraft')).toBeInTheDocument();
     });
   });
 });

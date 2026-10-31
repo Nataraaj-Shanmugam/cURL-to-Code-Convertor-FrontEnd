@@ -1,4 +1,4 @@
-import { apiClient, SAFE_RETRIES } from "@/lib/api/apiClient";
+import { apiClient, isApiError, SAFE_RETRIES } from "@/lib/api/apiClient";
 import { ENV } from "@/lib/env";
 import type { ParsedCurl } from "@/types/curl";
 import type { BatchParseFailure, ParsedCurlEntry } from "@/types/batch";
@@ -19,7 +19,7 @@ const MAX_CONCURRENT_PARSES = 5;
 
 type ParseOutcome =
   | { ok: true; parsed: ParsedCurl }
-  | { ok: false; message: string };
+  | { ok: false; message: string; retryable?: boolean };
 
 function errorMessage(error: unknown, fallback: string): string {
   if (typeof error === "string" && error) return error;
@@ -42,7 +42,11 @@ async function parseOne(curl: string): Promise<ParseOutcome> {
     }
     return { ok: true, parsed: parsed as ParsedCurl };
   } catch (err) {
-    return { ok: false, message: errorMessage(err, "Failed to parse cURL command") };
+    return {
+      ok: false,
+      message: errorMessage(err, "Failed to parse cURL command"),
+      retryable: isApiError(err) && err.retryable,
+    };
   }
 }
 
@@ -69,7 +73,13 @@ export async function parseCurlBatch(curls: string[]): Promise<ParseCurlBatchRes
   outcomes.forEach((outcome, index) => {
     const curl = curls[index] ?? "";
     if (outcome?.ok) items.push({ parsed: outcome.parsed, originalCurl: curl });
-    else failures.push({ index, curl, message: outcome?.message ?? "Failed to parse cURL" });
+    else
+      failures.push({
+        index,
+        curl,
+        message: outcome?.message ?? "Failed to parse cURL",
+        ...(outcome?.retryable ? { retryable: true } : {}),
+      });
   });
   return { items, failures };
 }

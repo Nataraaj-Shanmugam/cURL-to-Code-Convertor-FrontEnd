@@ -3,6 +3,7 @@ import { useTheme } from "@/components/ui/theme-provider";
 import { Moon, Sun, Code2, Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useEffect, useState } from "react";
+import BackendStatusChip from "@/components/features/backend/BackendStatusChip";
 
 const navLinks = [
   { path: "/", label: "Home" },
@@ -57,6 +58,8 @@ export default function NavBar() {
             </Link>
           ))}
 
+          <BackendStatusChip data-testid="backend-status-nav" />
+
           {mounted && (
             <Button
               variant="ghost"
@@ -73,6 +76,7 @@ export default function NavBar() {
 
         {/* Mobile Controls */}
         <div className="flex items-center gap-2 md:hidden">
+          <BackendStatusChip compact data-testid="backend-status-nav-mobile" />
           {mounted && (
             <Button
               variant="ghost"

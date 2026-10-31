@@ -1,13 +1,15 @@
 import { useState, useEffect, useCallback, useRef, memo } from "react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
-import { apiClient, SAFE_RETRIES } from "@/lib/api/apiClient";
+import { apiClient, isApiError, SAFE_RETRIES } from "@/lib/api/apiClient";
 import { ENV } from "@/lib/env";
 import { EXAMPLE_CURLS, METHOD_COLORS } from "@/constants/curl";
 import { Terminal, Play, RotateCcw, AlertCircle, ChevronRight, Loader2, Upload, Plus, X, Layers, ShieldCheck } from "lucide-react";
 import ImportDialog from "@/components/features/import/ImportDialog";
 import { parseCurlBatch } from "@/lib/utils/parseCurlBatch";
 import type { BatchParseFailure } from "@/types/batch";
+import { useBackendStatus } from "@/contexts/BackendStatusContext";
+import BackendWaitNotice from "@/components/features/backend/BackendWaitNotice";
 
 let nextId = 1;
 function createEntry(value = ""): { id: number; value: string } {
@@ -20,6 +22,12 @@ function CurlPlayground() {
   const [entries, setEntries] = useState<Entry[]>(() => [createEntry()]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  // True when another attempt could fix the error (network, timeout, waking backend): offer Retry.
+  const [errorRetryable, setErrorRetryable] = useState(false);
+  // A parse requested before the backend was awake, held until it is.
+  const [waitingForBackend, setWaitingForBackend] = useState(false);
+  const waitControllerRef = useRef<AbortController | null>(null);
+  const backend = useBackendStatus();
   // Parse errors for individual commands in a batch, keyed by entry id.
   const [entryErrors, setEntryErrors] = useState<Record<number, string>>({});
   const [showImportDialog, setShowImportDialog] = useState(false);
@@ -31,10 +39,9 @@ function CurlPlayground() {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      waitControllerRef.current?.abort();
     };
   }, []);
-
-  const parseEndpoint = ENV.PARSE_ENDPOINT;
 
   const isMulti = entries.length > 1;
   const filledEntries = entries.filter((e) => e.value.trim());
@@ -50,10 +57,11 @@ function CurlPlayground() {
 
       setLoading(true);
       setError("");
+      setErrorRetryable(false);
       setEntryErrors({});
 
       try {
-        const { data: result } = await apiClient.post(parseEndpoint, { curl }, { retries: SAFE_RETRIES });
+        const { data: result } = await apiClient.post(ENV.PARSE_ENDPOINT, { curl }, { retries: SAFE_RETRIES });
 
         if (!result.success) {
           const errMsg = typeof result.error === "object"
@@ -70,11 +78,12 @@ function CurlPlayground() {
         });
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : "Failed to parse cURL command");
+        setErrorRetryable(isApiError(err) && err.retryable);
       } finally {
         setLoading(false);
       }
     },
-    [navigate, parseEndpoint]
+    [navigate]
   );
 
   // Parse several curls → batch editor. Parsing happens here, before navigating, so the batch
@@ -93,6 +102,7 @@ function CurlPlayground() {
 
       setLoading(true);
       setError("");
+      setErrorRetryable(false);
       setEntryErrors({});
 
       const { items, failures } = await parseCurlBatch(sources.map((s) => s.curl));
@@ -113,6 +123,7 @@ function CurlPlayground() {
         });
         setEntryErrors(byEntry);
         setError(`None of the ${sources.length} cURL commands could be parsed.`);
+        setErrorRetryable(failures.some((failure) => failure.retryable));
         return;
       }
 
@@ -121,15 +132,49 @@ function CurlPlayground() {
     [handleParseSingle, navigate]
   );
 
+  // The commands as they are now; a parse held for a waking backend sends the latest text.
+  const entriesRef = useRef(entries);
+  entriesRef.current = entries;
+
   // Smart parse: one filled command → editor, several → batch editor
   const handleParse = useCallback(async () => {
     if (loading) return; // the Ctrl/Cmd+Enter shortcut bypasses the disabled button
-    await parseBatch(entries);
-  }, [entries, loading, parseBatch]);
+
+    if (backend.status !== "ready") {
+      // Hold the parse until the backend is awake instead of letting it fail or time out.
+      const controller = new AbortController();
+      waitControllerRef.current = controller;
+      setLoading(true);
+      setWaitingForBackend(true);
+      setError("");
+      setErrorRetryable(false);
+      try {
+        await backend.waitUntilReady(controller.signal);
+      } catch (err) {
+        if (!mountedRef.current) return;
+        setLoading(false);
+        if (!(isApiError(err) && err.kind === "aborted")) {
+          setError(err instanceof Error ? err.message : "The generator isn't available right now.");
+          setErrorRetryable(true);
+        }
+        return;
+      } finally {
+        if (waitControllerRef.current === controller) waitControllerRef.current = null;
+        if (mountedRef.current) setWaitingForBackend(false);
+      }
+      if (!mountedRef.current) return;
+      setLoading(false);
+    }
+
+    await parseBatch(entriesRef.current);
+  }, [backend, loading, parseBatch]);
+
+  const cancelWaiting = () => waitControllerRef.current?.abort();
 
   const handleReset = () => {
     setEntries((prev) => [{ id: prev[0]?.id ?? nextId++, value: "" }]);
     setError("");
+    setErrorRetryable(false);
     setEntryErrors({});
   };
 
@@ -180,7 +225,9 @@ function CurlPlayground() {
     <div className="max-w-5xl mx-auto p-4 space-y-6 bg-grid min-h-[calc(100vh-12rem)]">
       {/* Screen-reader live region for async status */}
       <div aria-live="polite" aria-atomic="true" className="sr-only">
-        {loading
+        {waitingForBackend
+          ? "The generator is waking up. Your cURL will be parsed as soon as it is ready."
+          : loading
           ? "Parsing cURL command\u2026"
           : error
             ? `Error: ${[error, ...Object.values(entryErrors)].join(". ")}`
@@ -300,7 +347,9 @@ function CurlPlayground() {
           ) : (
             <Play className="w-4 h-4" />
           )}
-          {loading
+          {waitingForBackend
+            ? "Waiting for generator..."
+            : loading
             ? "Parsing..."
             : isBatchParse
               ? `Parse All (${filledEntries.length})`
@@ -324,11 +373,19 @@ function CurlPlayground() {
         </span>
       </div>
 
+      {/* Waiting for a waking backend */}
+      {waitingForBackend && <BackendWaitNotice onCancel={cancelWaiting} />}
+
       {/* Error */}
       {error && (
         <div className="flex items-start gap-2 p-3 bg-destructive/10 text-destructive rounded-lg text-sm border border-destructive/30">
           <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-          <span>{error}</span>
+          <span className="flex-1">{error}</span>
+          {errorRetryable && (
+            <Button variant="outline" size="sm" onClick={() => void handleParse()} disabled={loading}>
+              Retry
+            </Button>
+          )}
         </div>
       )}
 

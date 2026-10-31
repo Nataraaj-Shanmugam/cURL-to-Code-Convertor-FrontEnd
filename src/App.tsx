@@ -5,6 +5,7 @@ import AppLayout from "@/components/layout/AppLayout";
 import Home from "@/pages/Home";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { Toaster } from "sonner";
+import { BackendStatusProvider } from "@/contexts/BackendStatusContext";
 
 const Playground = lazy(() => import("@/pages/Playground"));
 const EditorPage = lazy(() => import("@/pages/EditorPage"));
@@ -24,6 +25,8 @@ export default function App() {
   return (
     <ErrorBoundary>
     <ThemeProvider attribute="class" defaultTheme="system" storageKey="ui-theme">
+      {/* Inside App (not main.tsx) so it works with either router setup; starts the wake-up check on every route. */}
+      <BackendStatusProvider>
       <AppLayout>
         <div key={location.pathname} className="animate-page-enter">
           <Suspense fallback={<PageLoader />}>
@@ -36,6 +39,7 @@ export default function App() {
           </Suspense>
         </div>
       </AppLayout>
+      </BackendStatusProvider>
       <Toaster richColors position="top-right" />
     </ThemeProvider>
     </ErrorBoundary>

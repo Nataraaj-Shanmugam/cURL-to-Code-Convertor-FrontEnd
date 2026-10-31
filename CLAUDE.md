@@ -26,9 +26,11 @@ npm test             # Run tests (Vitest)
 **Tech stack:** React 18 + TypeScript (strict) + Vite + Tailwind CSS + shadcn/ui + Framer Motion
 
 **Routing** (React Router v6; `src/main.tsx` mounts a data router via `createBrowserRouter` + `RouterProvider` with one catch-all route rendering `<App/>`, which owns the `<Routes>` in `src/App.tsx`; the data router is required by `useBlocker`, used for the editor's unsaved-edits guard. Tests render through a memory data router, see `src/__tests__/test-utils.tsx`):
-- `/` → `Home` — Landing page with backend health check
+- `/` → `Home` — Landing page
 - `/playground` → `Playground` — cURL input via `CurlPlayground`
 - `/editor` → `EditorPage` — Parsed cURL editor with code generation
+
+**Backend status** (`src/contexts/BackendStatusContext.tsx`, provider in `App.tsx`): the hosted backend sleeps when idle. On every app load the provider polls the health endpoint: `checking` → `waking` → `ready`, or `unavailable` after 90 s (Retry restarts). `BackendStatusChip` shows it in the NavBar and Playground; `CurlPlayground` holds a parse until `waitUntilReady()` resolves. Without a provider (isolated unit tests) the status is assumed `ready`.
 
 Data flows between routes via React Router location state: `navigate('/editor', { state: { parsed, originalCurl } })`.
 

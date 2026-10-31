@@ -12,6 +12,8 @@ export interface BatchParseFailure {
   index: number;
   curl: string;
   message: string;
+  /** Set when another attempt could succeed (network error, timeout, waking backend). */
+  retryable?: boolean;
 }
 
 export interface BatchItem {
