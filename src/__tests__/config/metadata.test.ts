@@ -60,3 +60,40 @@ describe('social sharing metadata', () => {
     expect(content('twitter:image')).toBe(image);
   });
 });
+
+describe('deploy security headers (vercel.json)', () => {
+  const config = JSON.parse(readFileSync(root('vercel.json'), 'utf8')) as {
+    headers: { source: string; headers: { key: string; value: string }[] }[];
+    rewrites: { source: string; destination: string }[];
+  };
+  const headers = Object.fromEntries(
+    (config.headers.find((h) => h.source === '/(.*)')?.headers ?? []).map((h) => [h.key, h.value]),
+  );
+  const csp = Object.fromEntries(
+    (headers['Content-Security-Policy'] ?? '')
+      .split(';')
+      .map((d) => d.trim().split(/\s+/))
+      .filter((p) => p[0])
+      .map(([name, ...sources]) => [name, sources]),
+  );
+
+  it('keeps the SPA rewrite', () => {
+    expect(config.rewrites).toContainEqual({ source: '/(.*)', destination: '/index.html' });
+  });
+
+  it('restricts scripts to self and the Vercel preview toolbar, and frames to none', () => {
+    expect(csp['default-src']).toEqual(["'self'"]);
+    expect(csp['script-src']).toEqual(["'self'", 'https://vercel.live']);
+    expect(csp['style-src']).toEqual(["'self'", "'unsafe-inline'"]);
+    expect(csp['img-src']).toEqual(["'self'", 'data:']);
+    // Vite inlines small @fontsource woff2 files as data: URIs, so fonts must allow data:
+    expect(csp['font-src']).toEqual(["'self'", 'data:']);
+    expect(csp['connect-src']).toEqual(expect.arrayContaining(["'self'", 'https:']));
+    expect(csp['frame-ancestors']).toEqual(["'none'"]);
+  });
+
+  it('sets nosniff and strict-origin-when-cross-origin referrer policy', () => {
+    expect(headers['X-Content-Type-Options']).toBe('nosniff');
+    expect(headers['Referrer-Policy']).toBe('strict-origin-when-cross-origin');
+  });
+});
