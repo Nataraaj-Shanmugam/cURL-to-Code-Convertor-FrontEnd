@@ -73,17 +73,69 @@ export interface ApiResponse<T = unknown> {
   meta?: Record<string, unknown>;
 }
 
-// Code generation response from backend v2.0.0
+// Code generation response from backend v2.0.0. Field names are production's (origin/master):
+// generated_code, pojo_code, pomXml; pojo_classes / complete_code are optional extras.
 export interface CodeGenerationResponse {
   success: boolean;
-  generated_code: string;
+  generated_code?: string;
   pojo_code?: string;
+  pojo_classes?: Record<string, string>;
   complete_code?: string;
+  /** Generated pom.xml (full POM or dependencies only, as requested in config.pomConfig). */
+  pomXml?: string;
   warnings?: string[];
   structured_json?: unknown;
   language?: string;
-  error?: string;
+  error?: ApiError | string;
   meta?: Record<string, unknown>;
+}
+
+// ---- POM / full generate contract (mirrors production's CodeGenerationConfig, origin/master) ----
+export interface PomProjectInfo {
+  groupId: string;
+  artifactId: string;
+  version: string;
+  name: string;
+  description: string;
+}
+
+export interface PomGenerationConfig {
+  pomType: "full" | "dependencies_only";
+  projectInfo?: PomProjectInfo;
+  includeJunit: boolean;
+  includeAllure: boolean;
+  includeExtent: boolean;
+  includeExcel: boolean;
+  includeFaker: boolean;
+  includeLogging: boolean;
+  includeCommonsIo: boolean;
+  javaVersion: "8" | "11" | "17" | "21";
+}
+
+export type DataFormat = "json" | "xml" | "both";
+
+/** The `config` object of POST /api/generate-from-parsed, exactly the field set production sends. */
+export interface CodeGenerationConfig {
+  option: "full" | "method";
+  /** The test class name (production calls it serviceName). */
+  serviceName: string;
+  methodName: string;
+  assertionRequired: boolean;
+  statusCode?: string;
+  loggingRequired: boolean;
+  needPojo: boolean;
+  /** Base name of the generated POJO class; only sent when needPojo is true. */
+  pojoClassName?: string;
+  useFluentApi: boolean;
+  includeRetry: boolean;
+  testGroups?: string[];
+  testPriority?: number;
+  testDescription?: string;
+  assertResponseTime: boolean;
+  maxResponseTimeMs?: number;
+  generatePom: boolean;
+  dataFormat?: DataFormat;
+  pomConfig?: PomGenerationConfig;
 }
 
 // Code generation config matching backend v2.0.0

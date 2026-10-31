@@ -248,7 +248,7 @@ to the environment being built), not at runtime.
 |----------|---------|-------------------|-------|
 | `VITE_CURL_CRAFT_API_URL` | `http://127.0.0.1:8000` (dev only) | same name | Backend base URL. **Required for `production` and `preprod` builds**: `vite build` fails if it is missing, empty, not an absolute http(s) URL, or a loopback host (`localhost`, `127.0.0.0/8`, `::1`, `0.0.0.0`). The default applies to `npm run dev` only. |
 | `VITE_CURL_CRAFT_API_PARSE_ENDPOINT` | `/api/parse` | same name | Parse a cURL command. |
-| `VITE_CURL_CRAFT_API_GENERATE_ENDPOINT` | `/api/generate-from-parsed` | `VITE_CURL_CRAFT_API_GENERATE_FROM_PARSED_ENDPOINT` | **Renamed.** Generate code from parsed data (also used per item by batch generation). |
+| `VITE_CURL_CRAFT_API_GENERATE_ENDPOINT` | `/api/generate-from-parsed` | `VITE_CURL_CRAFT_API_GENERATE_FROM_PARSED_ENDPOINT` | Generate code from parsed data (also used per item by batch generation). Master's name is still honoured as a fallback when this one is unset, so a Vercel project that only sets the old name keeps working; if both are set, this one wins. |
 | `VITE_CURL_CRAFT_API_FEEDBACK_ENDPOINT` | `/api/feedback` | same name | Submit feedback. |
 | `VITE_CURL_CRAFT_API_BODY_EDIT_ENDPOINT` | `/api/body/edit` | none (new in V3) | Edit a node of the parsed body. |
 | `VITE_CURL_CRAFT_API_BODY_DELETE_ENDPOINT` | `/api/body/delete` | none (new in V3) | Delete a node of the parsed body. |
@@ -257,11 +257,10 @@ to the environment being built), not at runtime.
 Only `VITE_CURL_CRAFT_API_URL` normally needs setting; the endpoint paths already default to the backend's routes.
 
 **Master variables V3 no longer reads** (a leftover value is harmless but has no effect; check the Vercel
-project before deploying V3 to it):
+project before deploying V3 to it). `VITE_CURL_CRAFT_API_GENERATE_FROM_PARSED_ENDPOINT` is not in this list: it is still read, as a fallback for the variable above.
 
 | Variable | What happened to it |
 |----------|---------------------|
-| `VITE_CURL_CRAFT_API_GENERATE_FROM_PARSED_ENDPOINT` | Renamed to `VITE_CURL_CRAFT_API_GENERATE_ENDPOINT`. If only the old name is set, V3 silently uses the default path. |
 | `VITE_CURL_CRAFT_API_HEALTH_ENDPOINT` | Ignored. V3 calls `GET /api/health` (hard-coded in `src/pages/Home.tsx`); master defaulted to `/health`. |
 | `VITE_CURL_CRAFT_API_PARSE_AND_GENERATE_ENDPOINT` | Ignored. V3 has no one-shot parse-and-generate call. |
 | `VITE_BE_WARMUP_WAIT_MINS` | Ignored. V3 has no backend warm-up flow. |
