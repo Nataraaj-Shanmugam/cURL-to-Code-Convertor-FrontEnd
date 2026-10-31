@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Plus, Trash2, FileText, Globe, List, Shield, Flag, Settings, Link2, Cookie } from "lucide-react";
 import { useEditorContext } from "./EditorContext";
 import EditableField from "./EditableField";
+import { encodePath } from "@/lib/utils/fieldPath";
 
 // Section styling config — static, never changes
 const sectionStyles: Record<string, { icon: typeof Globe; borderColor: string }> = {
@@ -49,39 +50,38 @@ function SectionRenderer({ title, sectionKey, data, isTopLevel = false, isFlagsS
 
   return (
     <AccordionItem value={sectionKey} className={`border-l-2 ${style.borderColor} pl-2`}>
-      <AccordionTrigger>
-        <div className="flex items-center justify-between w-full pr-2">
-          <span className="flex items-center gap-2">
-            <SectionIcon className="w-4 h-4 text-muted-foreground" />
-            {title}
-          </span>
-          <div className="flex gap-2" onClick={e => e.stopPropagation()}>
-            <button
-              type="button"
-              className="h-7 px-3 inline-flex items-center justify-center rounded-md text-xs font-medium hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              onClick={e => {
-                e.stopPropagation();
-                handleAddEntry(sectionKey);
-              }}
-            >
-              <Plus className="h-3 w-3 mr-1" />
-              {isFlagType ? "Add Flag" : "Add Entry"}
-            </button>
-            {!isTopLevel && (
+      <AccordionTrigger
+        actions={
+          isTopLevel ? undefined : (
+            <>
+              {/* Top-level groups (Request Details, Client Context) are not keys of the request,
+                  so they offer neither Add Entry nor Delete Section. */}
+              <button
+                type="button"
+                className="h-7 px-3 inline-flex items-center justify-center rounded-md text-xs font-medium hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                onClick={() => handleAddEntry(sectionKey)}
+                aria-label={`${isFlagType ? "Add Flag" : "Add Entry"} to ${title}`}
+              >
+                <Plus className="h-3 w-3 mr-1" aria-hidden="true" />
+                {isFlagType ? "Add Flag" : "Add Entry"}
+              </button>
               <button
                 type="button"
                 className="h-7 px-3 inline-flex items-center justify-center rounded-md text-xs font-medium text-destructive hover:text-destructive hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                onClick={e => {
-                  e.stopPropagation();
-                  requestConfirm({ type: "deleteSection", key: sectionKey });
-                }}
+                onClick={() => requestConfirm({ type: "deleteSection", key: sectionKey })}
+                aria-label={`Delete Section ${title}`}
               >
-                <Trash2 className="h-3 w-3 mr-1" />
+                <Trash2 className="h-3 w-3 mr-1" aria-hidden="true" />
                 Delete Section
               </button>
-            )}
-          </div>
-        </div>
+            </>
+          )
+        }
+      >
+        <span className="flex items-center gap-2">
+          <SectionIcon className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
+          {title}
+        </span>
       </AccordionTrigger>
       <AccordionContent>
         {isFlagType ? (
@@ -105,7 +105,7 @@ function SectionRenderer({ title, sectionKey, data, isTopLevel = false, isFlagsS
                     variant="ghost"
                     size="icon"
                     className="h-4 w-4 ml-1"
-                    onClick={() => deleteSingle(`${sectionKey}.${flag}`)}
+                    onClick={() => deleteSingle([sectionKey, flag])}
                     aria-label={`Delete flag ${flag}`}
                   >
                     <Trash2 className="h-3 w-3 text-destructive" />
@@ -121,16 +121,16 @@ function SectionRenderer({ title, sectionKey, data, isTopLevel = false, isFlagsS
             {Array.isArray(data)
               ? (data as unknown[]).map((item, idx) => (
                   <EditableField
-                    key={`${sectionKey}.${idx}`}
+                    key={idx}
                     label={`Item ${idx}`}
                     value={item}
-                    path={`${sectionKey}.${idx}`}
+                    path={encodePath([sectionKey, String(idx)])}
                   />
                 ))
               : Object.entries(data as Record<string, unknown>)
                   .filter(([, value]) => value !== null && value !== undefined)
                   .map(([key, value]) => {
-                    const fieldPath = isTopLevel ? key : `${sectionKey}.${key}`;
+                    const fieldPath = encodePath(isTopLevel ? [key] : [sectionKey, key]);
                     return (
                       <EditableField
                         key={fieldPath}

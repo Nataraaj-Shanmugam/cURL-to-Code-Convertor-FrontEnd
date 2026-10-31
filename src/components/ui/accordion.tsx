@@ -19,17 +19,26 @@ const AccordionItem = React.forwardRef<
 ));
 AccordionItem.displayName = "AccordionItem";
 
+interface AccordionTriggerProps extends React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Trigger> {
+  /**
+   * Controls shown in the header row next to the trigger (e.g. "Add Entry"). They are siblings of
+   * the trigger button, never nested inside it, so they keep their own accessible names.
+   */
+  actions?: React.ReactNode;
+}
+
 const AccordionTrigger = React.forwardRef<
   React.ElementRef<typeof AccordionPrimitive.Trigger>,
-  React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Trigger>
->(({ className, children, ...props }, ref) => (
-  <AccordionPrimitive.Header className="flex">
+  AccordionTriggerProps
+>(({ className, children, actions, ...props }, ref) => (
+  <AccordionPrimitive.Header className="flex items-center">
     <AccordionPrimitive.Trigger
       ref={ref}
       className={cn(
-        "flex flex-1 items-center justify-between py-2 px-3 text-sm font-medium transition-all",
+        "flex flex-1 items-center justify-between py-2 px-3 text-sm font-medium transition-all rounded-sm",
         "hover:bg-accent hover:text-accent-foreground",
-        "focus:outline-none [&[data-state=open]>svg]:rotate-180",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+        "[&[data-state=open]>svg]:rotate-180",
         className
       )}
       {...props}
@@ -37,6 +46,7 @@ const AccordionTrigger = React.forwardRef<
       {children}
       <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" />
     </AccordionPrimitive.Trigger>
+    {actions && <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 px-2">{actions}</div>}
   </AccordionPrimitive.Header>
 ));
 AccordionTrigger.displayName = "AccordionTrigger";

@@ -9,6 +9,7 @@ import { parseCurlBatch, parseCurlCommand } from "@/lib/utils/parseCurlBatch";
 import type { BatchParseFailure } from "@/types/batch";
 import { useBackendStatus } from "@/contexts/BackendStatusContext";
 import BackendWaitNotice from "@/components/features/backend/BackendWaitNotice";
+import { isBlockedByModal } from "@/lib/utils/shortcuts";
 
 let nextId = 1;
 function createEntry(value = ""): { id: number; value: string } {
@@ -202,6 +203,8 @@ function CurlPlayground() {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+        // Not behind a dialog (e.g. Ctrl+Enter typed in the Import dialog).
+        if (isBlockedByModal(e)) return;
         e.preventDefault();
         handleParse();
       }

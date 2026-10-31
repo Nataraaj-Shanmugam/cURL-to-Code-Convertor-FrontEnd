@@ -1,4 +1,5 @@
 import type { DiffEntry } from "@/types/diff";
+import { encodePath } from "./fieldPath";
 
 function normalizeData(obj: unknown): unknown {
   if (typeof obj === "string") {
@@ -57,7 +58,8 @@ export function computeDiff(
   ]);
 
   for (const key of allKeys) {
-    const childPath = basePath ? `${basePath}.${key}` : key;
+    // Escaped (see fieldPath.ts) so a key containing "." still reverts the right field.
+    const childPath = basePath ? `${basePath}.${encodePath([key])}` : encodePath([key]);
     const origVal = origRecord[key];
     const currVal = currRecord[key];
 

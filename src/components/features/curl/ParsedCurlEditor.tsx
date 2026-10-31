@@ -28,6 +28,9 @@ import type { ParsedCurl } from "@/types/curl";
 import { EditorContext } from "./editor/EditorContext";
 import SectionRenderer from "./editor/SectionRenderer";
 import BodyFieldNode from "./editor/BodyFieldNode";
+import { ROW_ACTIONS_VISIBILITY } from "./editor/rowActions";
+import { encodePath } from "@/lib/utils/fieldPath";
+import { isBlockedByModal, isTextEntryTarget } from "@/lib/utils/shortcuts";
 
 interface ParsedCurlEditorProps {
   initialData: ParsedCurl;
@@ -83,6 +86,8 @@ function ParsedCurlEditor({
     addDialogSection,
     newKey,
     newValue,
+    duplicateKey,
+    addEntryError,
     showNewSectionDialog,
     newSectionName,
     openSections,
@@ -162,20 +167,24 @@ function ParsedCurlEditor({
   }, [isDirty]);
   useEffect(() => () => onDirtyChangeRef.current?.(false), []);
 
-  // Keyboard shortcuts: Ctrl+Z = undo, Ctrl+Y / Ctrl+Shift+Z = redo
+  // Keyboard shortcuts: Ctrl+Z = undo, Ctrl+Y / Ctrl+Shift+Z = redo, Ctrl+G = Generate Code.
+  // None of them act behind an open dialog. Undo/redo also leave text fields alone, so the
+  // browser's own text undo works while typing a value.
   useEffect(() => {
     if (!isActive) return;
     const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "z" && !e.shiftKey) {
-        e.preventDefault();
-        undo();
-      } else if (
-        (e.metaKey || e.ctrlKey) &&
-        (e.key === "y" || (e.key === "z" && e.shiftKey))
-      ) {
-        e.preventDefault();
-        redo();
-      }
+      if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
+      const key = e.key.toLowerCase();
+      const isUndo = key === "z" && !e.shiftKey;
+      const isRedo = key === "y" || (key === "z" && e.shiftKey);
+      const isGenerate = key === "g" && !e.shiftKey;
+      if (!isUndo && !isRedo && !isGenerate) return;
+      if (isBlockedByModal(e)) return;
+      if ((isUndo || isRedo) && isTextEntryTarget(e.target)) return;
+      e.preventDefault();
+      if (isUndo) undo();
+      else if (isRedo) redo();
+      else setShowCodeDialog(true);
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
@@ -391,7 +400,7 @@ function ParsedCurlEditor({
               Changes
             </Button>
             {/* Primary action — always visible */}
-            <Button onClick={() => setShowCodeDialog(true)} size="sm" className="gap-1.5">
+            <Button onClick={() => setShowCodeDialog(true)} size="sm" className="gap-1.5" title="Generate Code (Ctrl+G)">
               <Code className="w-3.5 h-3.5" />
               Generate Code
             </Button>
@@ -577,15 +586,36 @@ function ParsedCurlEditor({
                   />
                 </div>
               )}
+              {addEntryError && (
+                <p role="alert" className="text-sm text-destructive">
+                  {addEntryError}
+                </p>
+              )}
+              {duplicateKey !== null && (
+                <p
+                  role="alert"
+                  className="text-sm p-2 rounded-md border border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-200"
+                >
+                  {duplicateKey === newKey.trim()
+                    ? `"${duplicateKey}" already exists. Replace its value?`
+                    : `"${duplicateKey}" already exists (header names ignore case). Replace it with "${newKey.trim()}"?`}
+                </p>
+              )}
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setShowAddDialog(false)}>
                   Cancel
                 </Button>
-                <Button onClick={saveNewEntry} disabled={!newKey.trim()}>
-                  {addDialogSection === "flags" || addDialogSection === "ssl_config"
-                    ? "Add Flag"
-                    : "Add Entry"}
-                </Button>
+                {duplicateKey !== null ? (
+                  <Button variant="destructive" onClick={() => saveNewEntry({ overwrite: true })}>
+                    Replace
+                  </Button>
+                ) : (
+                  <Button onClick={() => saveNewEntry()} disabled={!newKey.trim()}>
+                    {addDialogSection === "flags" || addDialogSection === "ssl_config"
+                      ? "Add Flag"
+                      : "Add Entry"}
+                  </Button>
+                )}
               </div>
             </div>
           </DialogContent>
@@ -658,38 +688,32 @@ function ParsedCurlEditor({
                     : Object.keys(parsed.data).length > 0
                   : parsed.data) && (
                   <AccordionItem value="data" className="border-l-2 border-l-indigo-500 pl-2">
-                    <AccordionTrigger>
-                      <div className="flex items-center justify-between w-full pr-2">
-                        <span className="flex items-center gap-2">
-                          <FileText className="w-4 h-4 text-muted-foreground" />
-                          Request Body
-                        </span>
-                        <div className="flex gap-2" onClick={e => e.stopPropagation()}>
-                          <button
-                            type="button"
-                            className="h-7 px-3 inline-flex items-center justify-center rounded-md text-xs font-medium hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                            aria-label={
-                              allExpanded ? "Collapse all body nodes" : "Expand all body nodes"
-                            }
-                            onClick={e => {
-                              e.stopPropagation();
-                              handleBodyExpandCollapseAll();
-                            }}
-                          >
-                            {allExpanded ? (
-                              <>
-                                <Minimize2 className="h-3 w-3 mr-1" />
-                                Collapse All
-                              </>
-                            ) : (
-                              <>
-                                <Maximize2 className="h-3 w-3 mr-1" />
-                                Expand All
-                              </>
-                            )}
-                          </button>
-                        </div>
-                      </div>
+                    <AccordionTrigger
+                      actions={
+                        <button
+                          type="button"
+                          className="h-7 px-3 inline-flex items-center justify-center rounded-md text-xs font-medium hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          aria-label={allExpanded ? "Collapse all body nodes" : "Expand all body nodes"}
+                          onClick={handleBodyExpandCollapseAll}
+                        >
+                          {allExpanded ? (
+                            <>
+                              <Minimize2 className="h-3 w-3 mr-1" aria-hidden="true" />
+                              Collapse All
+                            </>
+                          ) : (
+                            <>
+                              <Maximize2 className="h-3 w-3 mr-1" aria-hidden="true" />
+                              Expand All
+                            </>
+                          )}
+                        </button>
+                      }
+                    >
+                      <span className="flex items-center gap-2">
+                        <FileText className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
+                        Request Body
+                      </span>
                     </AccordionTrigger>
                     <AccordionContent>
                       {bodyApiError && (
@@ -702,10 +726,10 @@ function ParsedCurlEditor({
                         {typeof parsed.data === "object" && parsed.data !== null ? (
                           Object.entries(parsed.data).map(([key, value]) => (
                             <BodyFieldNode
-                              key={`data.${key}`}
+                              key={key}
                               fieldKey={key}
                               value={value}
-                              path={`data.${key}`}
+                              path={encodePath(["data", key])}
                               level={0}
                             />
                           ))
@@ -741,7 +765,7 @@ function ParsedCurlEditor({
                                     className="text-xs whitespace-pre-wrap break-all"
                                   />
                                 </div>
-                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div className={`flex gap-1 ${ROW_ACTIONS_VISIBILITY}`}>
                                   <Button
                                     variant="ghost"
                                     size="icon"
@@ -777,6 +801,7 @@ function ParsedCurlEditor({
                 <SectionRenderer
                   title="Client Context"
                   sectionKey="context"
+                  isTopLevel
                   data={{
                     ...(parsed.user_agent &&
                       parsed.user_agent.trim() !== "" && { user_agent: parsed.user_agent }),
