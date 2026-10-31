@@ -18,6 +18,7 @@ build
 .env.local
 .env.development.local
 .env.test.local
+.env.production
 .env.production.local
 .env.preprod
 
@@ -39,6 +40,9 @@ pnpm-debug.log*
 .vite
 
 *.zip
+
+# Agent worktrees (embedded repos; must never be committed as gitlinks)
+.claude/worktrees/
 
 # Local-only artefacts (demo video to be hosted elsewhere; old components archive)
 curlCraftAssuredDemo.mp4
