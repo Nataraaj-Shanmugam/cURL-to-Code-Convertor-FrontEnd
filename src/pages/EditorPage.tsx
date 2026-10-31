@@ -42,10 +42,6 @@ export default function EditorPage() {
   }, [location.state]);
 
   useEffect(() => {
-    document.title = "Editor — cURLCraft Assured";
-  }, []);
-
-  useEffect(() => {
     // Once the user has cleared the saved copy, keep it cleared for the rest of this visit.
     if (parsed && savedCopy !== "cleared") {
       setSavedCopy(saveEditorState(parsed, originalCurl) ? "saved" : "none");

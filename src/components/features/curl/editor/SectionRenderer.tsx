@@ -1,6 +1,8 @@
 import { memo } from "react";
 import { AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { MethodBadge } from "@/components/ui/method-badge";
 import { Plus, Trash2, FileText, Globe, List, Shield, Flag, Settings, Link2, Cookie } from "lucide-react";
 import { useEditorContext } from "./EditorContext";
 import EditableField from "./EditableField";
@@ -46,6 +48,8 @@ function SectionRenderer({ title, sectionKey, data, isTopLevel = false, isFlagsS
 
   const style = sectionStyles[sectionKey] || { icon: FileText, borderColor: "border-l-muted-foreground" };
   const SectionIcon = style.icon;
+  const entryCount = isEmpty ? 0 : Array.isArray(data) ? data.length : Object.keys(data as object).length;
+  const method = sectionKey === "request" ? (data as { method?: unknown } | null)?.method : undefined;
 
   return (
     <AccordionItem value={sectionKey} className={`border-l-2 ${style.borderColor} pl-2`}>
@@ -54,6 +58,10 @@ function SectionRenderer({ title, sectionKey, data, isTopLevel = false, isFlagsS
           <span className="flex items-center gap-2">
             <SectionIcon className="w-4 h-4 text-muted-foreground" />
             {title}
+            <Badge variant="secondary" aria-label={`${entryCount} ${entryCount === 1 ? "entry" : "entries"}`}>
+              {entryCount}
+            </Badge>
+            {typeof method === "string" && method && <MethodBadge method={method} />}
           </span>
           <div className="flex gap-2" onClick={e => e.stopPropagation()}>
             <button

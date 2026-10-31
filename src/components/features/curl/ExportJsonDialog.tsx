@@ -15,7 +15,9 @@ interface ExportJsonDialogProps {
   parsedData: ParsedCurl;
 }
 
-export const EXPORT_FILE_NAME = "parsed-curl-edited.json";
+/** One file per export instead of every download colliding on the same name: parsed-curl-2026-01-31T10-15-00.json */
+export const exportFileName = (now: Date = new Date()) =>
+  `parsed-curl-${now.toISOString().slice(0, 19).replace(/:/g, "-")}.json`;
 
 function ExportJsonDialog({ open, onOpenChange, parsedData }: ExportJsonDialogProps) {
   const [revealed, setRevealed] = useState<Set<string>>(new Set());
@@ -46,10 +48,11 @@ function ExportJsonDialog({ open, onOpenChange, parsedData }: ExportJsonDialogPr
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = EXPORT_FILE_NAME;
+    const fileName = exportFileName();
+    link.download = fileName;
     link.click();
     URL.revokeObjectURL(url);
-    notifyDownloaded(EXPORT_FILE_NAME);
+    notifyDownloaded(fileName);
   };
 
   return (

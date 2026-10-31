@@ -211,3 +211,54 @@ test.describe('Footer links (T35)', () => {
     }
   });
 });
+
+test.describe('Titles, toolbar and small details (T68)', () => {
+  test('each route sets its own document title, /batch-editor and unknown paths included', async ({ mockPage: page }) => {
+    await page.goto('/');
+    await expect(page).toHaveTitle(/^cURLCraft Assured/);
+    await page.getByRole('banner').getByRole('link', { name: 'Playground' }).click();
+    await expect(page).toHaveTitle(/^Playground/);
+    await page.getByRole('banner').getByRole('link', { name: 'Feedback' }).click();
+    await expect(page).toHaveTitle(/^Feedback/);
+
+    await page.goto('/playground');
+    await page.getByRole('textbox', { name: 'cURL command' }).fill(SAMPLE_CURL);
+    await page.getByRole('button', { name: /Add another cURL/i }).click();
+    await page.getByRole('textbox', { name: 'cURL command 2' }).fill(SAMPLE_CURL_GET);
+    await page.getByRole('button', { name: /Parse All/i }).click();
+    await page.waitForURL(/\/batch-editor/);
+    await expect(page).toHaveTitle(/^Batch Editor/);
+
+    await page.goto('/editor');
+    await expect(page).toHaveTitle(/^Editor/);
+    await page.goto('/nope');
+    await expect(page).toHaveTitle(/^Page not found/);
+  });
+
+  test('ticking a selection checkbox does not move the Generate Code button', async ({ mockPage: page }) => {
+    await parseToEditor(page);
+    const generate = page.getByRole('button', { name: /Generate Code/i });
+    const before = await generate.boundingBox();
+    await page.locator('button[role="checkbox"]:not([disabled])').first().click();
+    await expect(page.getByRole('button', { name: 'Delete (1)' })).toBeEnabled();
+    await page.evaluate(() => window.scrollTo(0, 0)); // the click scrolled the checkbox into view
+    const after = await generate.boundingBox();
+    expect(after!.x).toBeCloseTo(before!.x, 0);
+    expect(after!.y).toBeCloseTo(before!.y, 0);
+  });
+
+  test('Home links to the documentation on GitHub; the original cURL can be copied; sections show counts', async ({ mockPage: page, context }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await page.goto('/');
+    await expect(page.getByRole('link', { name: /Documentation/ })).toHaveAttribute('href', /github\.com\/Nataraaj-Shanmugam/);
+
+    await parseToEditor(page);
+    await expect(page.getByRole('button', { name: /^Request Details/ }).getByText('POST')).toBeVisible();
+    await expect(page.getByRole('button', { name: /^Request Body/ }).getByLabel(/entries/)).toBeVisible();
+    await page.getByRole('button', { name: /^Copy original cURL command/ }).click();
+    await expect(page.getByText(/copied to clipboard/)).toBeVisible();
+    const copied = await page.evaluate(() => navigator.clipboard.readText());
+    expect(copied).toContain('https://api.example.com/users');
+    expect(copied).not.toContain('token123');
+  });
+});
