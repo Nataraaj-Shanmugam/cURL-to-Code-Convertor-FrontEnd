@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, memo } from "react";
 import { Button } from "@/components/ui/button";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { apiClient } from "@/lib/api/apiClient";
 import { ENV } from "@/lib/env";
 import { EXAMPLE_CURLS } from "@/constants/curl";
@@ -10,6 +10,8 @@ import { Terminal, Play, RotateCcw, ChevronRight, Loader2, Upload, Plus, X, Laye
 import ImportDialog from "@/components/features/import/ImportDialog";
 import { parseCurlBatch } from "@/lib/utils/parseCurlBatch";
 import type { BatchParseFailure } from "@/types/batch";
+import { redactCurlString } from "@/lib/utils/redaction";
+import type { FeedbackLocationState } from "@/constants/feedback";
 
 let nextId = 1;
 function createEntry(value = ""): { id: number; value: string } {
@@ -18,10 +20,26 @@ function createEntry(value = ""): { id: number; value: string } {
 
 type Entry = { id: number; value: string };
 
+/**
+ * "Report this cURL" on a parse error: opens /feedback as a bug report with the command available
+ * to attach. Only the redacted text goes into the route state (history.state outlives a reload),
+ * and the form still asks before attaching it.
+ */
+function ReportCurlLink({ curl }: { curl: string }) {
+  const state: FeedbackLocationState = { category: "bug", curlCommand: redactCurlString(curl) };
+  return (
+    <Link to="/feedback" state={state} className="font-medium underline underline-offset-2 hover:no-underline">
+      Report this cURL
+    </Link>
+  );
+}
+
 function CurlPlayground() {
   const [entries, setEntries] = useState<Entry[]>(() => [createEntry()]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  // The command whose parse produced `error`, so the error can offer "Report this cURL".
+  const [errorCurl, setErrorCurl] = useState("");
   // Parse errors for individual commands in a batch, keyed by entry id.
   const [entryErrors, setEntryErrors] = useState<Record<number, string>>({});
   const [showImportDialog, setShowImportDialog] = useState(false);
@@ -62,6 +80,7 @@ function CurlPlayground() {
             ? result.error.message
             : result.error || "Failed to parse cURL";
           setError(errMsg);
+          setErrorCurl(curl);
           return;
         }
 
@@ -72,6 +91,7 @@ function CurlPlayground() {
         });
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : "Failed to parse cURL command");
+        setErrorCurl(curl);
       } finally {
         setLoading(false);
       }
@@ -115,6 +135,7 @@ function CurlPlayground() {
         });
         setEntryErrors(byEntry);
         setError(`None of the ${sources.length} cURL commands could be parsed.`);
+        setErrorCurl("");
         return;
       }
 
@@ -257,10 +278,13 @@ function CurlPlayground() {
             />
             {entryErrors[entry.id] && (
               <Alert variant="destructive" className="rounded-none border-x-0 border-b-0 px-4 py-2">
-                <span>
-                  {isMulti ? `${commandLabel(idx)}: ` : ""}
-                  {entryErrors[entry.id]}
-                </span>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <span>
+                    {isMulti ? `${commandLabel(idx)}: ` : ""}
+                    {entryErrors[entry.id]}
+                  </span>
+                  {entry.value.trim() && <ReportCurlLink curl={entry.value} />}
+                </div>
               </Alert>
             )}
           </div>
@@ -327,7 +351,10 @@ function CurlPlayground() {
       {/* Error */}
       {error && (
         <Alert variant="destructive">
-          <span>{error}</span>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span>{error}</span>
+            {errorCurl && <ReportCurlLink curl={errorCurl} />}
+          </div>
         </Alert>
       )}
 

@@ -4,6 +4,7 @@ import { ThemeProvider } from "@/components/ui/theme-provider";
 import AppLayout from "@/components/layout/AppLayout";
 import Home from "@/pages/Home";
 import NotFound from "@/pages/NotFound";
+import Feedback from "@/pages/Feedback";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { Toaster } from "sonner";
 import RouteEffects from "@/components/layout/RouteEffects";
@@ -49,6 +50,7 @@ export default function App() {
               <Route path="/playground" element={<Playground />} />
               <Route path="/editor" element={<EditorPage />} />
               <Route path="/batch-editor" element={<BatchEditorRoute />} />
+              <Route path="/feedback" element={<Feedback />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </Suspense>

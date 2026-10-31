@@ -77,3 +77,59 @@ test.describe('Unknown routes', () => {
     await expect(page.getByRole('heading', { level: 1, name: 'cURL Playground' })).toBeVisible();
   });
 });
+
+test.describe('Feedback (QR-6)', () => {
+  const DETAILS = 'The Export dialog should offer a one-click download.';
+
+  async function captureFeedback(page: Page) {
+    const sent: { payload: Record<string, unknown> | null } = { payload: null };
+    await page.route(/\/api\/feedback/, async (route) => {
+      sent.payload = JSON.parse(route.request().postData() ?? '{}');
+      await route.fulfill({ json: { success: true } });
+    });
+    return sent;
+  }
+
+  test('the nav and footer link to /feedback, which submits production\'s payload', async ({ mockPage: page }) => {
+    const sent = await captureFeedback(page);
+    await page.goto('/');
+    await expect(page.getByRole('contentinfo').getByRole('link', { name: 'Feedback' })).toBeVisible();
+    await page.getByRole('banner').getByRole('link', { name: 'Feedback' }).click();
+    await expect(page).toHaveURL(/\/feedback$/);
+    await expect(page.getByRole('heading', { level: 1, name: 'Feedback' })).toBeVisible();
+
+    await page.getByRole('radio', { name: 'Feature request' }).click();
+    await page.getByLabel(/Details/).fill(DETAILS);
+    await page.getByLabel(/Email/).fill('qa@example.com');
+    await page.getByRole('button', { name: /Submit Feedback/i }).click();
+    await expect(page.getByText('Thank you for your feedback!')).toBeVisible();
+
+    expect(sent.payload).toMatchObject({ email: 'qa@example.com', category: 'feature', details: DETAILS });
+    expect(sent.payload?.metadata).toEqual({
+      userAgent: expect.any(String),
+      pageUrl: expect.stringContaining('/feedback'),
+      timestamp: expect.any(String),
+      screenResolution: expect.stringMatching(/^\d+x\d+$/),
+    });
+    expect(sent.payload).not.toHaveProperty('rating');
+  });
+
+  test('Report this cURL on a parse error opens a bug report that can attach the redacted command', async ({ mockPage: page }) => {
+    const sent = await captureFeedback(page);
+    await page.goto('/playground');
+    await page.getByLabel('cURL command').fill('invalid-curl-garbage -H "Authorization: Bearer abcdef123456"');
+    await page.getByRole('button', { name: /Parse cURL/i }).click();
+    await page.getByRole('link', { name: 'Report this cURL' }).click();
+
+    await expect(page).toHaveURL(/\/feedback$/);
+    await expect(page.getByRole('radio', { name: 'Functionality bug' })).toBeChecked();
+    await page.getByRole('checkbox', { name: /Include my cURL command/i }).click();
+    await page.getByLabel(/Details/).fill('Parsing fails with the message shown.');
+    await page.getByRole('button', { name: /Submit Feedback/i }).click();
+    await expect(page.getByText('Thank you for your feedback!')).toBeVisible();
+
+    expect(sent.payload?.category).toBe('bug');
+    expect(String(sent.payload?.curl_command)).toContain('invalid-curl-garbage');
+    expect(JSON.stringify(sent.payload)).not.toContain('abcdef123456');
+  });
+});

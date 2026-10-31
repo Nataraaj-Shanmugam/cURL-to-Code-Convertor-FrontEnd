@@ -42,6 +42,28 @@ describe('CurlPlayground', () => {
     });
   });
 
+  describe('Report this cURL (QR-6)', () => {
+    it('offers a link to /feedback next to a parse error', async () => {
+      server.use(
+        http.post('*/api/parse', () =>
+          HttpResponse.json({ success: false, error: { code: 'PARSE_ERROR', message: 'Bad cURL here' } }),
+        ),
+      );
+      renderWithProviders(<CurlPlayground />);
+      await user.click(screen.getByRole('textbox'));
+      await user.paste("curl https://x.test -H 'Authorization: Bearer tok-12345678'");
+      await user.click(screen.getByText('Parse cURL').closest('button')!);
+
+      expect(await screen.findByText('Bad cURL here')).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'Report this cURL' })).toHaveAttribute('href', '/feedback');
+    });
+
+    it('does not offer it when there is no error', () => {
+      renderWithProviders(<CurlPlayground />);
+      expect(screen.queryByRole('link', { name: 'Report this cURL' })).not.toBeInTheDocument();
+    });
+  });
+
   describe('labels (QU-10)', () => {
     it('names the textarea with a visible <label>, and numbers the inputs in batch mode', async () => {
       renderWithProviders(<CurlPlayground />);

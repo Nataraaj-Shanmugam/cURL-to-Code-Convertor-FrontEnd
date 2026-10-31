@@ -16,6 +16,10 @@ export default function Footer() {
             Playground
           </Link>
           <span className="text-border">|</span>
+          <Link to="/feedback" className="hover:text-foreground transition-colors">
+            Feedback
+          </Link>
+          <span className="text-border">|</span>
           <span>cURL to REST Assured</span>
         </div>
       </div>
