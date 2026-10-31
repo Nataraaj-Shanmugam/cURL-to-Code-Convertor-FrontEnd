@@ -9,7 +9,7 @@ export default function Footer() {
       <div className="container mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
         <div className="flex items-center gap-2">
           <Code2 className="w-4 h-4 text-primary" />
-          <span>&copy; {currentYear} CurlCraft Assured</span>
+          <span>&copy; {currentYear} cURLCraft Assured</span>
         </div>
         <div className="flex items-center gap-4">
           <Link to="/playground" className="hover:text-foreground transition-colors">

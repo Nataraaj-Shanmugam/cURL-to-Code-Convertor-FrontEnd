@@ -111,7 +111,7 @@ function FeedbackDialog({
                                 <CheckCircle2 className="w-8 h-8 text-primary" />
                             </div>
                             <p className="text-sm text-muted-foreground text-center">
-                                Your feedback helps us improve CurlCraft Assured.
+                                Your feedback helps us improve cURLCraft Assured.
                             </p>
                             <Button variant="outline" onClick={handleClose}>
                                 Close

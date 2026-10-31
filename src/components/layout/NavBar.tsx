@@ -34,7 +34,7 @@ export default function NavBar() {
             <Code2 className="w-5 h-5 text-primary-foreground" strokeWidth={2.5} />
           </div>
           <span className="text-lg font-bold font-mono text-foreground">
-            CurlCraft<span className="text-primary"> Assured</span>
+            cURLCraft<span className="text-primary"> Assured</span>
           </span>
         </Link>
 
