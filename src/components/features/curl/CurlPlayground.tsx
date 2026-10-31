@@ -1,12 +1,11 @@
 import { useState, useEffect, useCallback, useRef, memo } from "react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
-import { apiClient, isApiError, SAFE_RETRIES } from "@/lib/api/apiClient";
-import { ENV } from "@/lib/env";
+import { isApiError } from "@/lib/api/apiClient";
 import { EXAMPLE_CURLS, METHOD_COLORS } from "@/constants/curl";
 import { Terminal, Play, RotateCcw, AlertCircle, ChevronRight, Loader2, Upload, Plus, X, Layers, ShieldCheck } from "lucide-react";
 import ImportDialog from "@/components/features/import/ImportDialog";
-import { parseCurlBatch } from "@/lib/utils/parseCurlBatch";
+import { parseCurlBatch, parseCurlCommand } from "@/lib/utils/parseCurlBatch";
 import type { BatchParseFailure } from "@/types/batch";
 import { useBackendStatus } from "@/contexts/BackendStatusContext";
 import BackendWaitNotice from "@/components/features/backend/BackendWaitNotice";
@@ -60,28 +59,21 @@ function CurlPlayground() {
       setErrorRetryable(false);
       setEntryErrors({});
 
-      try {
-        const { data: result } = await apiClient.post(ENV.PARSE_ENDPOINT, { curl }, { retries: SAFE_RETRIES });
+      const outcome = await parseCurlCommand(curl);
+      // The user may have left the Playground while this was in flight: don't pull them back.
+      if (!mountedRef.current) return;
+      setLoading(false);
 
-        if (!result.success) {
-          const errMsg = typeof result.error === "object"
-            ? result.error.message
-            : result.error || "Failed to parse cURL";
-          setError(errMsg);
-          return;
-        }
-
-        const parsed = Array.isArray(result.data) ? result.data[0] : result.data;
-
-        navigate("/editor", {
-          state: { parsed, originalCurl: curl },
-        });
-      } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : "Failed to parse cURL command");
-        setErrorRetryable(isApiError(err) && err.retryable);
-      } finally {
-        setLoading(false);
+      if (!outcome.ok) {
+        // Includes a "success" response without data, which must not open a previously saved request.
+        setError(outcome.message);
+        setErrorRetryable(outcome.retryable ?? false);
+        return;
       }
+
+      navigate("/editor", {
+        state: { parsed: outcome.parsed, originalCurl: curl },
+      });
     },
     [navigate]
   );

@@ -17,7 +17,7 @@ export interface ParseCurlBatchResult {
  */
 const MAX_CONCURRENT_PARSES = 5;
 
-type ParseOutcome =
+export type ParseOutcome =
   | { ok: true; parsed: ParsedCurl }
   | { ok: false; message: string; retryable?: boolean };
 
@@ -30,7 +30,11 @@ function errorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
-async function parseOne(curl: string): Promise<ParseOutcome> {
+/**
+ * Parses one command. Never throws: a backend rejection, a success without data and a failed
+ * request all come back as `{ ok: false, message }` (`retryable` when another attempt may help).
+ */
+export async function parseCurlCommand(curl: string): Promise<ParseOutcome> {
   try {
     const { data: result } = await apiClient.post(ENV.PARSE_ENDPOINT, { curl }, { retries: SAFE_RETRIES });
     if (!result?.success) {
@@ -61,7 +65,7 @@ export async function parseCurlBatch(curls: string[]): Promise<ParseCurlBatchRes
   const worker = async () => {
     while (next < curls.length) {
       const index = next++;
-      outcomes[index] = await parseOne(curls[index] ?? "");
+      outcomes[index] = await parseCurlCommand(curls[index] ?? "");
     }
   };
   await Promise.all(
