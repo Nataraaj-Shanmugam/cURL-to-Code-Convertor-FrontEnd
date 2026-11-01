@@ -162,5 +162,9 @@ describe('testng.xml', () => {
   });
   it('lists only public top-level types', () => {
     expect(publicTypeNames('public final class A {}\nclass B {}\npublic interface C {}')).toEqual(['A', 'C']);
+    // Nested static classes are not separate files (a POJO with a nested object stays User.java).
+    expect(
+      publicTypeNames('public class User {\n  String s = "{";\n  // }\n  public static class Address {}\n}')
+    ).toEqual(['User']);
   });
 });

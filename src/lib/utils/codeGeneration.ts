@@ -249,8 +249,31 @@ export function readGenerateResponse(
 const TYPE_DECLARATION = /^\s*public\s+(?:(?:abstract|final|static)\s+)*(?:class|interface|enum|record)\s+([A-Za-z_$][\w$]*)/gm;
 
 /** Names of the public top-level types declared in Java source. */
+/** Public top-level type names; nested types (e.g. `public static class Address`) are skipped. */
 export function publicTypeNames(code: string): string[] {
-  return [...code.matchAll(TYPE_DECLARATION)].map((m) => m[1]!);
+  return [...code.matchAll(TYPE_DECLARATION)]
+    .filter((m) => braceDepth(code, m.index ?? 0) === 0)
+    .map((m) => m[1]!);
+}
+
+/** Brace depth at `end`, ignoring braces inside string/char literals and comments. */
+function braceDepth(code: string, end: number): number {
+  let depth = 0;
+  for (let i = 0; i < end; i++) {
+    const c = code[i];
+    if (c === "/" && code[i + 1] === "/") {
+      i = code.indexOf("\n", i);
+      if (i === -1) break;
+    } else if (c === "/" && code[i + 1] === "*") {
+      i = code.indexOf("*/", i + 2);
+      if (i === -1) break;
+      i++;
+    } else if (c === '"' || c === "'") {
+      for (i++; i < end && code[i] !== c; i++) if (code[i] === "\\") i++;
+    } else if (c === "{") depth++;
+    else if (c === "}") depth--;
+  }
+  return depth;
 }
 
 const PACKAGE_DECLARATION = /^\s*package\s+([\w.]+)\s*;/m;
