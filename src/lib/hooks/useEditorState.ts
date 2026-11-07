@@ -37,6 +37,21 @@ export const parseBodyData = (data: ParsedCurl | undefined): ParsedCurl => {
   return clone;
 };
 
+// The backend also returns the body as text in `data_raw`. It is never shown, but it is sent along with
+// the request, so when the body changes it must change with it (otherwise it keeps stale values, or a
+// redacted placeholder that no visible field accounts for). Back at the original body, the original text returns.
+const syncDataRaw = (original: ParsedCurl, current: ParsedCurl | undefined, next: ParsedCurl): ParsedCurl => {
+  const record = next as unknown as Record<string, unknown>;
+  if (typeof record.data_raw !== "string") return next;
+  if (current && deepEqual(current.data, next.data)) return next;
+  const originalRaw = (original as unknown as Record<string, unknown>).data_raw;
+  let raw: string | null;
+  if (deepEqual(original.data, next.data) && typeof originalRaw === "string") raw = originalRaw;
+  else if (typeof next.data === "string") raw = next.data;
+  else raw = next.data === undefined || next.data === null ? null : JSON.stringify(next.data);
+  return { ...next, data_raw: raw } as unknown as ParsedCurl;
+};
+
 export const useEditorState = (initialData: ParsedCurl | undefined) => {
   // Both sides are normalised the same way at load. The original used to keep the raw JSON-string
   // body while the working copy held the parsed object, so an untouched body looked "modified"
@@ -47,7 +62,8 @@ export const useEditorState = (initialData: ParsedCurl | undefined) => {
   const [editing, setEditing] = useState<EditingState>({});
   const [editedValues, setEditedValues] = useState<EditedValues>({});
   const [bodyCollapsed, setBodyCollapsed] = useState<CollapsedState>({});
-  const [allExpanded, setAllExpanded] = useState(false);
+  // The body starts fully expanded, so the toggle starts as "Collapse all".
+  const [allExpanded, setAllExpanded] = useState(true);
 
   // Undo/redo history stored in refs to avoid stale-closure issues
   const historyRef = useRef<ParsedCurl[]>([structuredClone(originalParsed)]);
@@ -68,7 +84,7 @@ export const useEditorState = (initialData: ParsedCurl | undefined) => {
   // through here, so this is where url and base_url/endpoint/query_params are kept in sync.
   const setParsed = useCallback((nextState: ParsedCurl) => {
     const current = historyRef.current[historyIndexRef.current];
-    const newState = current ? syncRequestUrl(current, nextState) : nextState;
+    const newState = syncDataRaw(originalParsed, current, current ? syncRequestUrl(current, nextState) : nextState);
     historyRef.current = historyRef.current.slice(0, historyIndexRef.current + 1);
     historyRef.current.push(structuredClone(newState));
     if (historyRef.current.length > MAX_HISTORY) {
@@ -77,7 +93,7 @@ export const useEditorState = (initialData: ParsedCurl | undefined) => {
     historyIndexRef.current = historyRef.current.length - 1;
     setParsedInternal(newState);
     syncHistoryFlags();
-  }, []);
+  }, [originalParsed]);
 
   const undo = useCallback(() => {
     if (historyIndexRef.current > 0) {

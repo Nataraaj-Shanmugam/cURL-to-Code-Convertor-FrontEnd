@@ -8,7 +8,7 @@ import { AlertCircle, MessageSquare, ShieldAlert } from "lucide-react";
 import { curlApi, generationErrorMessage } from "@/lib/api/curl";
 import type { ParsedCurl } from "@/types/curl";
 import FeedbackDialog from "@/components/features/feedback/FeedbackDialog";
-import { collectSecretValues, countRedactions } from "@/lib/utils/redaction";
+import { collectSecretValues, countVisibleRedactions } from "@/lib/utils/redaction";
 import { detectDataFormat } from "@/lib/utils/dataFormatDetector";
 import {
   ADVANCED_FIELDS,
@@ -74,7 +74,7 @@ function CodeGenerationDialogInner({ open, onOpenChange, parsedData, isPojoDisab
   const requestId = useRef(0);
 
   const secretValues = useMemo(() => collectSecretValues(parsedData), [parsedData]);
-  const redactedCount = countRedactions(parsedData);
+  const redactedCount = countVisibleRedactions(parsedData);
   const pojoDisabled = isPojoDisabled ?? isNonBodyMethod(parsedData.method);
   const detectedFormat = useMemo(() => detectDataFormat(parsedData), [parsedData]);
   const effectiveFormat = form.dataFormatOverride ?? detectedFormat;

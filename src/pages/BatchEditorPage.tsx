@@ -12,7 +12,7 @@ import ParsedCurlEditor from "@/components/features/curl/ParsedCurlEditor";
 import BatchCodeGenerationDialog from "@/components/features/curl/BatchCodeGenerationDialog";
 import UnsavedChangesDialog from "@/components/features/curl/UnsavedChangesDialog";
 import type { BatchParseFailure, ParsedCurlEntry } from "@/types/batch";
-import { MASK, countRedactions, redactCurlString } from "@/lib/utils/redaction";
+import { MASK, countVisibleRedactions, redactCurlString } from "@/lib/utils/redaction";
 import { MaskedString } from "@/components/features/curl/editor/SecretValue";
 import { redactBatchHistoryState, rememberBatchRequest, resolveBatchRestore } from "@/lib/utils/batchStorage";
 
@@ -184,7 +184,7 @@ export default function BatchEditorPage() {
   const { isBlocked, stay, leave } = useUnsavedChangesGuard(hasEdits);
 
   // Requests restored with redacted secrets would generate code with the placeholder in it.
-  const redactedCount = items.reduce((n, item) => n + countRedactions(item.parsed), 0);
+  const redactedCount = items.reduce((n, item) => n + countVisibleRedactions(item.parsed), 0);
   const redactedNoteId = useId();
 
   // Editors are expensive and hold the user's edits (and undo history) in their own state. Mount

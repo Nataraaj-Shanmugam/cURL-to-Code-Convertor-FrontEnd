@@ -226,10 +226,6 @@ test.describe('Secrets', () => {
       await page.getByRole('button', { name: `Save ${label}`, exact: true }).click();
     }
     await expect(page.locator('main span:text-is("Redacted: re-enter value")')).toHaveCount(0);
-    // BUG-E2E-07: the hidden data_raw copy of the body still holds a placeholder, so Generate stays
-    // disabled; deleting the bogus "Data Raw" section is the only way out.
-    await page.getByRole('button', { name: 'Delete Section Data Raw' }).click();
-    await page.getByRole('dialog', { name: 'Delete section?' }).getByRole('button', { name: 'Delete' }).click();
     await expect(generateBtn).toBeEnabled();
     await openCodegen(page);
     await page.locator('#option-full').check();
@@ -241,7 +237,6 @@ test.describe('Secrets', () => {
   });
 
   test('[ED-22] after a reload, re-entering every field marked "re-enter" unblocks Generate (BUG-E2E-07)', async ({ page }) => {
-    test.fail(true, 'BUG-E2E-07: a redacted copy of the body in data_raw keeps Generate Code disabled after every marked field is re-entered');
     await parseToEditor(page, LOGIN);
     await expect.poll(() => page.evaluate((k) => sessionStorage.getItem(k), STORAGE_KEY)).not.toBeNull();
     await page.reload();

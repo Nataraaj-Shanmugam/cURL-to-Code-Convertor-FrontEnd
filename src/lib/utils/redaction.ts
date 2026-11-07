@@ -765,6 +765,18 @@ export function countRedactions(value: unknown): number {
   return 0;
 }
 
+/** Backend bookkeeping fields: copies of the body, never shown or edited, so they never need re-entry. */
+export const INTERNAL_FIELDS: readonly string[] = ["data_raw", "data_type"];
+
+/** Redactions in the fields the user can see and edit (internal copies of the body are not counted). */
+export function countVisibleRedactions(parsed: unknown): number {
+  if (!isPlainObject(parsed)) return countRedactions(parsed);
+  return Object.entries(parsed).reduce<number>(
+    (n, [key, value]) => (INTERNAL_FIELDS.includes(key) ? n : n + countRedactions(value)),
+    0,
+  );
+}
+
 export function containsRedaction(value: unknown): boolean {
   return countRedactions(value) > 0;
 }

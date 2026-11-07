@@ -64,7 +64,7 @@ export const useSectionManager = (
       const valid: string[] = [];
       const skipKeys = [
         "method", "url", "base_url", "endpoint", "path_template",
-        "raw_data", "all_options", "meta", "user_agent", "referer", "proxy",
+        "raw_data", "data_raw", "data_type", "all_options", "meta", "user_agent", "referer", "proxy",
       ];
 
       const record = data as unknown as Record<string, unknown>;
@@ -209,6 +209,7 @@ export const useSectionManager = (
 
   const saveNewSection = useCallback(() => {
     if (!newSectionName.trim()) return;
+    if (isForbiddenSegment(newSectionName.trim())) return;
     const newParsed = structuredClone(parsed);
     const record = newParsed as unknown as Record<string, unknown>;
     if (newSectionName === "flags" || newSectionName === "ssl_config")

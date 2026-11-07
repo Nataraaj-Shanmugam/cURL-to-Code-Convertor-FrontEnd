@@ -101,3 +101,25 @@ describe('useParsedCurlEditor change tracking with a JSON-string body', () => {
     expect(result.current.isDirty).toBe(false);
   });
 });
+
+describe('hidden data_raw (E2E-03, E2E-07)', () => {
+  const withRaw = { ...mockParsedCurl, data: { user: 'a', password: '[REDACTED]' }, data_raw: '{"user":"a","password":"[REDACTED]"}' } as unknown as ParsedCurl;
+
+  it('is kept in sync with the edited body and not counted as a redaction', async () => {
+    const { countVisibleRedactions } = await import('@/lib/utils/redaction');
+    const { result } = renderHook(() => useEditorState(withRaw));
+    expect(countVisibleRedactions(result.current.parsed)).toBe(1);
+    act(() => result.current.setParsed({ ...result.current.parsed, data: { user: 'a', password: 'new' } }));
+    const record = result.current.parsed as unknown as Record<string, unknown>;
+    expect(record.data_raw).toBe('{"user":"a","password":"new"}');
+    expect(countVisibleRedactions(result.current.parsed)).toBe(0);
+    expect(JSON.stringify(result.current.parsed)).not.toContain('[REDACTED]');
+  });
+
+  it('ignores a stale redacted data_raw when counting', async () => {
+    const { countVisibleRedactions, countRedactions } = await import('@/lib/utils/redaction');
+    const stale = { ...mockParsedCurl, data: { a: 1 }, data_raw: '[REDACTED]' } as unknown as ParsedCurl;
+    expect(countRedactions(stale)).toBe(1);
+    expect(countVisibleRedactions(stale)).toBe(0);
+  });
+});

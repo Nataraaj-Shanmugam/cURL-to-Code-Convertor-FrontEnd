@@ -235,7 +235,7 @@ describe('useSectionManager: new section', () => {
   // BUG FE-UNIT-02 (low): unlike "Add entry", "Add section" does not reject `__proto__`/`prototype`/
   // `constructor`. `record['__proto__'] = {}` silently swaps the request's prototype instead of creating
   // a section, yet the dialog closes and the name is listed as an open section that has no data.
-  it.fails('BUG FE-UNIT-02: a section named __proto__ is rejected like a key named __proto__ is', () => {
+  it('FE-UNIT-02: a section named __proto__ is rejected like a key named __proto__ is', () => {
     const r = setup(pc({}));
     act(() => r.result.current.setNewSectionName('__proto__'));
     act(() => r.result.current.saveNewSection());

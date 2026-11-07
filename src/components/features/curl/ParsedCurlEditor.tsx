@@ -27,7 +27,7 @@ import RequestPreviewDialog from "./RequestPreviewDialog";
 import DiffViewDialog from "./DiffViewDialog";
 import ExportJsonDialog from "./ExportJsonDialog";
 import { MaskedText } from "./editor/SecretValue";
-import { MASK, REDACTED_PLACEHOLDER, countRedactions, redactBodyString, redactCurlString } from "@/lib/utils/redaction";
+import { MASK, REDACTED_PLACEHOLDER, countRedactions, countVisibleRedactions, redactBodyString, redactCurlString } from "@/lib/utils/redaction";
 import type { ParsedCurl } from "@/types/curl";
 import { EditorContext } from "./editor/EditorContext";
 import SectionRenderer from "./editor/SectionRenderer";
@@ -138,7 +138,7 @@ function ParsedCurlEditor({
   // Values redacted before this request was saved: the user must re-enter them before generating
   // code. Counted on the working copy only, so the warning goes once every field is filled in again
   // (the Original cURL card keeps its placeholders; it is labelled as such).
-  const redactedCount = countRedactions(parsed);
+  const redactedCount = countVisibleRedactions(parsed);
   const originalCurlRedacted = countRedactions(originalCurl) > 0;
   const redactedNoticeId = useId();
 
@@ -235,7 +235,7 @@ function ParsedCurlEditor({
       sections.push({ key: "request", title: "Request Details", data: requestData });
 
     const flagSections = ["flags", "misc_flags"];
-    const skipKeys = [...fixedSections, "data", "raw_data", "all_options", "meta", "user_agent", "referer", "proxy"];
+    const skipKeys = [...fixedSections, "data", "raw_data", "data_raw", "data_type", "all_options", "meta", "user_agent", "referer", "proxy"];
 
     Object.keys(parsedRecord).forEach(key => {
       if (skipKeys.includes(key)) return;
