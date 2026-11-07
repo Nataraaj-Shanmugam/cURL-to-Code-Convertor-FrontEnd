@@ -75,7 +75,6 @@ test.describe('Playground: single cURL against the real parser', () => {
   });
 
   test('[PG-03] Chrome "Copy as cURL (cmd)" parses (BUG-E2E-01: backend BUG-P7, ^ escaping unsupported)', async ({ page, api }) => {
-    test.fail(true, 'BUG-E2E-01 / backend BUG-P7: Windows cmd ^-escaped cURL is rejected with INVALID_URL');
     await page.goto('/playground');
     await curlInput(page).fill(CHROME_CMD);
     await page.getByRole('button', { name: 'Parse cURL' }).click();
@@ -85,7 +84,6 @@ test.describe('Playground: single cURL against the real parser', () => {
   });
 
   test('[PG-05] Chrome "Copy as PowerShell" is either parsed faithfully or refused (BUG-E2E-02)', async ({ page }) => {
-    test.fail(true, 'BUG-E2E-02: Invoke-WebRequest is "parsed" as a bare GET; method, headers and body are dropped');
     await page.goto('/playground');
     await curlInput(page).fill(CHROME_POWERSHELL);
     await page.getByRole('button', { name: 'Parse cURL' }).click();
@@ -273,27 +271,23 @@ test.describe('Playground: several commands', () => {
 test.describe('Known backend parser bugs, seen through the UI (ids from the backend unit suite)', () => {
 
   test('[PG-18] -X GET with -d stays a GET (backend BUG-P1)', async ({ page }) => {
-    test.fail(true, 'backend BUG-P1: an explicit -X GET with -d is parsed as POST');
     await parseToEditor(page, `curl -X GET "https://api.example.com/search" -d 'q=shoes'`);
     await expect(page.getByRole('button', { name: /^Request Details/ }).getByText('GET', { exact: true })).toBeVisible({ timeout: 3_000 });
   });
 
   test('[PG-18] bundled -XPOST is honoured (backend BUG-P6)', async ({ page }) => {
-    test.fail(true, 'backend BUG-P6: bundled short flags such as -XPOST / -sSL are ignored');
     await parseToEditor(page, `curl -sSL -XPOST "https://api.example.com/jobs"`);
     await expect(page.getByRole('button', { name: /^Request Details/ }).getByText('POST', { exact: true })).toBeVisible({ timeout: 3_000 });
   });
 
   test("[PG-18] ANSI-C $'...' quoting is accepted (backend BUG-P8)", async ({ page }) => {
-    test.fail(true, "backend BUG-P8: $'...' arguments (Chrome bash copies with escapes) are rejected");
     await parseToEditor(page, `curl 'https://api.example.com/notes' -H 'content-type: application/json' --data-raw $'{"text":"it\\'s ok"}'`);
     await expect(page.getByText(`"it's ok"`, { exact: true })).toBeVisible({ timeout: 3_000 });
   });
 
   test("[PG-18] a '\\'' inside single quotes keeps the rest of the body (backend BUG-P14)", async ({ page }) => {
-    test.fail(true, "backend BUG-P14: '\\'' truncates the quoted argument");
     await parseToEditor(page, `curl -X POST "https://api.example.com/notes" -H "Content-Type: application/json" -d '{"text":"it'\\''s fine","n":1}'`);
     await expect(page.getByText(`"it's fine"`, { exact: true })).toBeVisible({ timeout: 3_000 });
-    await expect(page.getByText('1', { exact: true })).toBeVisible({ timeout: 3_000 });
+    await expect(page.getByText('1', { exact: true }).first()).toBeVisible({ timeout: 3_000 });
   });
 });

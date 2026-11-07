@@ -333,13 +333,11 @@ test.describe('Editor: sections and fields', () => {
   });
 
   test('[PG-17] a referer given before the URL is not taken as the request URL (BUG-E2E-06)', async ({ page }) => {
-    test.fail(true, 'BUG-E2E-06: with `-e <referer>` before the target URL, the backend parses the referer as the request URL');
     await parseToEditor(page, 'curl -e "https://referrer.example.com/page" "https://api.example.com/ping"');
     await expect(page.getByRole('region', { name: /^Request Details/ }).getByText('https://api.example.com/ping', { exact: true })).toBeVisible({ timeout: 3_000 });
   });
 
   test('[CG-24] -A / -e reach the generated Java as User-Agent / Referer headers (BUG-E2E-05)', async ({ page, api }) => {
-    test.fail(true, 'BUG-E2E-05: the REST Assured generator ignores transfer_config.user_agent / referer, so -A and -e are dropped');
     await parseToEditor(page, 'curl "https://api.example.com/ping" -A "CurlCraft-E2E/1.0" -e "https://referrer.example.com/page"');
     const { code } = await generateNow(page, api);
     expect(code).toContain('CurlCraft-E2E/1.0');

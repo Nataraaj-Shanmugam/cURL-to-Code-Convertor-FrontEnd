@@ -354,7 +354,6 @@ test.describe('Code generation: POJO, POM, testng.xml', () => {
   });
 
   test('[CG-14] an XML request\'s pom.xml includes JAXB for Java 11+, as the dialog promises (BUG-E2E-08)', async ({ page }) => {
-    test.fail(true, 'BUG-E2E-08: the dialog says JAXB "is included automatically" for Java 11/17/21, but the generated POM has no JAXB dependency');
     await parseToEditor(page, XML_PUT);
     await openCodegen(page);
     await page.locator('#option-full').check();
