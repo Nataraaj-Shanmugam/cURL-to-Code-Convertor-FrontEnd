@@ -23,7 +23,9 @@ const BASELINE = join(ROOT, 'perf/baseline.json');
 
 // metric -> [headroom factor over baseline, absolute floor]. Lab timings on a shared box vary +-30%, hence the headroom.
 const WEB = { lcpMs: [1.6, 1500], cls: [1, 0.1], tbtMs: [2, 300], ttiMs: [1.6, 2500] };
-const STRESS = { parseToEditorMs: [1.75, 1500], typingP95Ms: [2, 100], saveEditMs: [2, 100], undoMs: [2, 100], redoMs: [2, 100], reviewOpenMs: [2, 400], longestTaskMs: [2, 600], heapMB: [1.5, 40] };
+// Floors tightened after FE-PERF-1..5 (editor rendering fixes): roughly 3x the idle-box numbers of the small scenarios,
+// so a regression to per-keystroke whole-tree renders or deep-copy history fails even on a busy machine.
+const STRESS = { parseToEditorMs: [1.75, 600], typingP95Ms: [2, 60], saveEditMs: [2, 80], undoMs: [2, 60], redoMs: [2, 60], reviewOpenMs: [2, 250], longestTaskMs: [2, 400], heapMB: [1.5, 25] };
 const BUNDLE_HEADROOM = 1.08;
 
 function run(cmd, cmdArgs, env = {}) {

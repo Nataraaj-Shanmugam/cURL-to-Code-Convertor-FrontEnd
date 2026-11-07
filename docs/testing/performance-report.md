@@ -14,6 +14,55 @@ average 8-12 was 2-4x slower (baseline editor parse-to-editor 404 ms vs 187 ms; 
 1846 ms vs 541 ms). Budgets carry 1.6-2x headroom for that reason; a failing `perf:check` on a busy machine should be re-run before it is believed.
 Medians of 5 (web) or 3 (stress) fresh-context runs.
 
+## 0. After the fixes (branch `fix/fe-perf`, FE-PERF-1..5)
+
+Same harness and machine, idle (load average ~1.5), `npm run perf:check --rebaseline` (5 web runs, 3 stress runs, medians). Sections 1-5 below are
+the original **before** measurements and are kept for reference; `perf/baseline.json` now holds the **after** numbers.
+
+| scenario | metric | before | after |
+|---|---|---|---|
+| editor flow | CLS | 0.178 | **0.051** (the 0.035 left is the playground route itself, same as the Playground page) |
+| editor flow | LCP / TTI | 252 / 678 ms | 208 / 581 ms |
+| baseline (small) | parse->editor / typing p95 / Review | 187 / 19 / 48 ms | 152 / 19 / 69 ms |
+| 500 headers | parse->editor | 553 ms | 448 ms |
+| 500 headers | typing p50 / p95 | 76 / 107 ms | 40 / 85 ms |
+| 500 headers | save / undo / redo | 80 / 25 / 29 ms | 34 / 16 / 16 ms |
+| 2000-node body | parse->editor | 1449 ms | **184 ms** |
+| 2000-node body | typing p50 / p95 / max | 541 / 645 / 1019 ms | **7 / 19 / 20 ms** |
+| 2000-node body | save / undo / redo | 177 / 114 / 94 ms | 20 / 11 / 16 ms |
+| 2000-node body | Review Changes | 2082 ms | **59 ms** |
+| 2000-node body | heap / DOM nodes / longest task | 30.5 MB / 36,745 / 1019 ms | 7.0 MB / 1,426 / 64 ms |
+| 5 MB body (~35k records) | result | **tab crashed** | parse->editor 1165 ms (JSON parse + normalise), typing p95 19 ms, save 16 ms, undo 11 ms, Review 74 ms, heap 29.5 MB, 627 DOM nodes |
+| batch of 25 | parse / switch / Review | 252 / 38 / 51 ms | 211 / 28 / 69 ms |
+
+Bundle (`perf/bundle-size.mjs`): total JS 245.8 -> 247.9 KiB gzip, ParsedCurlEditor.js 76.9 -> ~79 KiB (store, raw view, paging);
+initial JS unchanged at 110.9 KiB. `perf:check` (full browser run, no rebaseline) passes against the new budgets.
+
+What changed:
+- **FE-PERF-2** `editor/EditorContext.tsx`: the context value is created once (stable callbacks that call the latest handler through a ref);
+  per-row state (editing, edited value, selection, collapsed) is read with `useSyncExternalStore` selectors from a small store that
+  `ParsedCurlEditor` replaces while rendering and notifies from a layout effect. A keystroke re-renders the edited row only.
+  `countRedactions(parsed)` (every render) is now cached per subtree by identity (`lib/utils/redactionCount.ts`).
+- **FE-PERF-1** bodies with more than 200 nodes start collapsed (`bodyCollapsedDefault`; Expand/Collapse All flip the default instead of
+  listing every path); children mount only when expanded and in pages of 100 with a "Show N more" button (`BodyChildList`); bodies over
+  20,000 nodes open in a raw-JSON view (`editor/RawBodyView.tsx`: masked, shortened preview; "Edit raw JSON" + Apply as one undoable edit;
+  "Show as tree"). Thresholds: `lib/utils/bodySize.ts`.
+- **FE-PERF-3** Request Preview, Export JSON and Review Changes mount only while open (`useMountedWhileOpen`, keeps the 200 ms exit animation);
+  closed, they re-stringified and re-masked the whole request on every editor render. Review Changes diffs only while open, renders
+  200 rows a page and builds the Raw JSON panes only on that tab. The code dialog (kept mounted for its settings) gets the request only while open.
+  With bodies collapsed, the page behind the modal is small, so Radix's aria-hidden/focus/scroll-lock work is small too.
+- **FE-PERF-4** sources found with a layout-shift attribution probe: (a) the playground command bar grew 4 px when the first character
+  appeared (the Copy button is taller than the label): 0.143 of the 0.178; fixed with `leading-5` on the label. (b) With a backend slower than
+  the 500 ms input window, the editor moved down 74 px (0.47) a frame after mounting: the "saved copy" notice was set in a passive effect
+  (`EditorPage.tsx`) and the accordion sections opened in a mount effect; both now run in layout effects, before the first paint.
+- **FE-PERF-5** states are immutable and structurally shared: edits use copy-on-write drafts (`createDraft` in `lib/utils/fieldPath.ts`) that
+  copy only the containers on the edited path; history entries, undo/redo and Reset no longer `structuredClone`. Untouched sections are
+  shared by identity with the original, so `isDirty` and `computeDiff` short-circuit on them.
+
+Budgets (`perf/budgets.json`, regenerated from this baseline): the stress floors in `perf/check.mjs` were tightened (parse 1500 -> 600 ms,
+typing p95 100 -> 60, save 100 -> 80, undo/redo 100 -> 60, Review 400 -> 250, longest task 600 -> 400, heap 40 -> 25 MB), editor CLS
+0.178 -> 0.1, and `body5mb` now has a budget (parse 2038 ms, heap 45 MB). A return of whole-tree re-renders or deep-copy history fails them.
+
 ## 1. Bundle (gzip, KiB; `perf/bundle-size.mjs`)
 
 | chunk | raw | gzip | brotli |
@@ -86,15 +135,15 @@ Harness caveat: profile phases include Playwright's own selector evaluation (`ge
 
 ## 5. Findings summary
 
-| id | severity | finding |
-|---|---|---|
-| FE-PERF-1 | high | 5 MB JSON body crashes the tab on render (repro: `node perf/measure.mjs stress body5mb`) |
-| FE-PERF-2 | high | typing in any field with a 2000-node body: 541 ms median per keystroke (unusable); 500 headers: 76 ms |
-| FE-PERF-3 | medium | Review Changes takes 2.1 s with a 2000-node body |
-| FE-PERF-4 | low | editor flow CLS 0.178 |
-| FE-PERF-5 | low | undo history keeps up to 50 deep copies |
+| id | severity | finding | status |
+|---|---|---|---|
+| FE-PERF-1 | high | 5 MB JSON body crashes the tab on render (repro: `node perf/measure.mjs stress body5mb`) | fixed: 1.2 s, 29.5 MB, raw-JSON view |
+| FE-PERF-2 | high | typing in any field with a 2000-node body: 541 ms median per keystroke (unusable); 500 headers: 76 ms | fixed: 7 ms; 500 headers 40 ms |
+| FE-PERF-3 | medium | Review Changes takes 2.1 s with a 2000-node body | fixed: 59 ms |
+| FE-PERF-4 | low | editor flow CLS 0.178 | fixed: 0.051 |
+| FE-PERF-5 | low | undo history keeps up to 50 deep copies | fixed: structural sharing |
 
 ## 6. Scripts
 
 `perf/bundle-size.mjs` (size per chunk, budget check), `perf/measure.mjs` (+ `scenarios.mjs`, `lib.mjs`: web vitals, stress, mocked backend, in-page probes), `perf/profile.mjs`, `perf/check.mjs`, `perf/vite.perf.config.ts`
-(outDir `dist-perf`, per-module size plugin, `PERF_PROFILE=1` for sourcemapped unminified build). `body5mb` is measured and reported but has no budget (it crashes); add one after the fix.
+(outDir `dist-perf`, per-module size plugin, `PERF_PROFILE=1` for sourcemapped unminified build). `body5mb` has a budget since the FE-PERF-1 fix.

@@ -291,7 +291,9 @@ function CurlPlayground() {
                 <span className="w-2.5 h-2.5 rounded-full bg-yellow-400/70"></span>
                 <span className="w-2.5 h-2.5 rounded-full bg-green-400/70"></span>
               </div>
-              <label htmlFor={`curl-input-${entry.id}`} className="text-xs text-muted-foreground font-mono ml-2">
+              {/* leading-5 = the height of the Copy button that appears with text, so typing or pasting the
+                  first character does not grow this bar and shift the page (FE-PERF-4). */}
+              <label htmlFor={`curl-input-${entry.id}`} className="text-xs leading-5 text-muted-foreground font-mono ml-2">
                 {commandLabel(idx)}
               </label>
               <div className="flex-1" />

@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useMemo } from "react";
+import { useLayoutEffect, useCallback, useMemo } from "react";
 import type { ParsedCurl } from "@/types/curl";
 import { useEditorState } from "./useEditorState";
 import { useBodyApi } from "./useBodyApi";
@@ -7,6 +7,7 @@ import { deepEqual } from "@/lib/utils/deepEqual";
 import {
   type FieldPath,
   compareForDeletion,
+  createDraft,
   decodePath,
   deleteAtPath,
   encodePath,
@@ -83,6 +84,9 @@ export const useParsedCurlEditor = (initialData: ParsedCurl | undefined) => {
     setEditedValues,
     bodyCollapsed,
     setBodyCollapsed,
+    bodyCollapsedDefault,
+    setBodyCollapsedDefault,
+    initialBodyCollapsed,
     allExpanded,
     setAllExpanded,
     toggleSelect,
@@ -130,8 +134,9 @@ export const useParsedCurlEditor = (initialData: ParsedCurl | undefined) => {
     saveNewSection,
   } = sectionManager;
 
-  // Initialize open sections on mount
-  useEffect(() => {
+  // Initialize open sections on mount, before the first paint: opening them after it moved the
+  // whole editor down (layout shift, FE-PERF-4).
+  useLayoutEffect(() => {
     setOpenSections(computeOpenSections(parsed));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -139,13 +144,16 @@ export const useParsedCurlEditor = (initialData: ParsedCurl | undefined) => {
   // ── actions ────────────────────────────────────────────────────────────────
 
   const handleReset = useCallback(() => {
-    const resetState = structuredClone(originalParsed);
+    // States are immutable (see useEditorState), so the original's subtrees can be shared.
+    const resetState = { ...originalParsed };
     resetParsed(resetState);
     setOpenSections(computeOpenSections(resetState));
     setSelected(new Set());
     setEditing({});
     setEditedValues({});
     setBodyCollapsed({});
+    setBodyCollapsedDefault(initialBodyCollapsed);
+    setAllExpanded(!initialBodyCollapsed);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [originalParsed, resetParsed, computeOpenSections]);
 
@@ -186,7 +194,9 @@ export const useParsedCurlEditor = (initialData: ParsedCurl | undefined) => {
         closeEditor();
         return;
       }
-      const newParsed = structuredClone(parsed);
+      const draft = createDraft(parsed);
+      draft.prepare(segments);
+      const newParsed = draft.root;
       if (!setAtPath(newParsed, segments, finalValue)) {
         closeEditor();
         return;
@@ -205,12 +215,14 @@ export const useParsedCurlEditor = (initialData: ParsedCurl | undefined) => {
 
   const deleteSelected = useCallback(() => {
     if (selected.size === 0) return;
-    const newParsed = structuredClone(parsed);
+    const draft = createDraft(parsed);
+    const newParsed = draft.root;
     let changed = false;
     [...selected]
       .map(decodePath)
       .sort(compareForDeletion)
       .forEach(segments => {
+        draft.prepare(segments);
         if (deleteAtPath(newParsed, segments)) changed = true;
       });
     if (changed) setParsed(newParsed);
@@ -222,7 +234,9 @@ export const useParsedCurlEditor = (initialData: ParsedCurl | undefined) => {
     (path: FieldPath) => {
       const segments = toSegments(path);
       const id = encodePath(segments);
-      const newParsed = structuredClone(parsed);
+      const draft = createDraft(parsed);
+      draft.prepare(segments);
+      const newParsed = draft.root;
       if (deleteAtPath(newParsed, segments)) {
         // Local delete is final; the backend call (flag-gated) is advisory and sent with the
         // pre-delete body, as before.
@@ -260,36 +274,42 @@ export const useParsedCurlEditor = (initialData: ParsedCurl | undefined) => {
     URL.revokeObjectURL(url);
   }, [parsed]);
 
+  // Collapse All / Expand All change the default for every node and drop per-node overrides, so
+  // neither walks the body (it can hold hundreds of thousands of nodes).
+  // Collapsing also marks the top-level containers explicitly (a handful of entries).
   const handleBodyExpandCollapseAll = useCallback(() => {
-    if (allExpanded) {
-      const allPaths: string[] = [];
-      const collectPaths = (obj: unknown, currentPath: string[] = ["data"]) => {
-        if (typeof obj === "object" && obj !== null) {
-          Object.keys(obj as Record<string, unknown>).forEach(key => {
-            const p = [...currentPath, key];
-            allPaths.push(encodePath(p));
-            collectPaths((obj as Record<string, unknown>)[key], p);
-          });
-        }
-      };
-      collectPaths(parsed.data);
-      const collapsed: Record<string, boolean> = {};
-      allPaths.forEach(p => (collapsed[p] = true));
-      setBodyCollapsed(collapsed);
-    } else {
-      setBodyCollapsed({});
+    const collapsing = allExpanded;
+    const data = parsed.data;
+    const topLevel: Record<string, boolean> = {};
+    if (collapsing && typeof data === "object" && data !== null) {
+      Object.entries(data as Record<string, unknown>).forEach(([key, value]) => {
+        if (typeof value === "object" && value !== null) topLevel[encodePath(["data", key])] = true;
+      });
     }
+    setBodyCollapsed(topLevel);
+    setBodyCollapsedDefault(collapsing);
     setAllExpanded(prev => !prev);
-  }, [allExpanded, parsed.data, setBodyCollapsed, setAllExpanded]);
+  }, [allExpanded, parsed.data, setBodyCollapsed, setBodyCollapsedDefault, setAllExpanded]);
+
+  // Replace the whole body (the raw-JSON view of a very large body). Undoable like any edit.
+  const replaceBody = useCallback(
+    (value: unknown) => {
+      if (deepEqual(value, parsed.data)) return;
+      setParsed({ ...parsed, data: value as ParsedCurl["data"] });
+    },
+    [parsed, setParsed],
+  );
 
   // Revert a single field to its original value. `path` is an escaped path (as produced by the
   // diff engine) or its segments.
   const revertField = useCallback((path: FieldPath) => {
     const segments = toSegments(path);
     if (!isSafePath(segments)) return;
-    const clone = structuredClone(parsed);
+    const draft = createDraft(parsed);
+    draft.prepare(segments);
+    const clone = draft.root;
     const ok = hasPath(originalParsed, segments)
-      ? setAtPath(clone, segments, structuredClone(getAtPath(originalParsed, segments)), originalParsed)
+      ? setAtPath(clone, segments, getAtPath(originalParsed, segments), originalParsed)
       : deleteAtPath(clone, segments);
     if (ok && !deepEqual(clone, parsed)) setParsed(clone);
   }, [originalParsed, parsed, setParsed]);
@@ -312,6 +332,7 @@ export const useParsedCurlEditor = (initialData: ParsedCurl | undefined) => {
     newSectionName,
     openSections,
     bodyCollapsed,
+    bodyCollapsedDefault,
     allExpanded,
     canUndo,
     canRedo,
@@ -330,6 +351,7 @@ export const useParsedCurlEditor = (initialData: ParsedCurl | undefined) => {
     undo,
     redo,
     revertField,
+    replaceBody,
     deleteSection,
     toggleSelect,
     toggleEdit,

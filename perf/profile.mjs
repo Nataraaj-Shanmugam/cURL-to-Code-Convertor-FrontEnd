@@ -8,7 +8,7 @@
  */
 import { spawnSync } from 'node:child_process';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { join } from 'node:path';
 import { createRequire } from 'node:module';
 import { ROOT, SCENARIOS, startPreview, launch, round } from './lib.mjs';
 import { stressSingle, stressBatch } from './scenarios.mjs';

@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { useCallback, useEffect, useMemo, useRef, useState, Suspense, lazy } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, Suspense, lazy } from "react";
 import { Terminal, ArrowRight, ShieldCheck, Clock } from "lucide-react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -49,7 +49,9 @@ export default function EditorPage() {
   const parsed = restore.snapshot?.parsed;
   const originalCurl = restore.snapshot?.originalCurl;
 
-  useEffect(() => {
+  // A layout effect, so the "saved copy" notice it shows is in the first paint: shown a frame
+  // later, it pushed the whole editor down (layout shift 0.47 on the editor flow, FE-PERF-4).
+  useLayoutEffect(() => {
     // Once the user has cleared the saved copy, keep it cleared for the rest of this visit.
     if (parsed && savedCopy !== "cleared") {
       setSavedCopy(saveEditorState(parsed, originalCurl) ? "saved" : "none");
