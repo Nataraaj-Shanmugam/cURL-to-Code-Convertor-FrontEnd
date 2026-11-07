@@ -115,6 +115,29 @@ function DiffRow({ entry, onRevert }: { entry: DiffEntry; onRevert: (path: strin
   );
 }
 
+/** Rows rendered at first; "Show more" adds a page. A large diff no longer mounts every row (FE-PERF-3). */
+const DIFF_ROW_PAGE = 200;
+
+/** The two JSON panes, built only while the Raw JSON tab is shown (stringifying a big request is slow). */
+function RawJsonPanes({ originalParsed, currentParsed }: { originalParsed: ParsedCurl; currentParsed: ParsedCurl }) {
+  const originalJson = useMemo(() => JSON.stringify(originalParsed, null, 2), [originalParsed]);
+  const currentJson = useMemo(() => JSON.stringify(currentParsed, null, 2), [currentParsed]);
+  const maskedOriginalJson = useMemo(() => JSON.stringify(maskParsedCurl(originalParsed), null, 2), [originalParsed]);
+  const maskedCurrentJson = useMemo(() => JSON.stringify(maskParsedCurl(currentParsed), null, 2), [currentParsed]);
+  return (
+    <div className="grid grid-cols-2 gap-3 h-full">
+      <div className="space-y-1">
+        <p className="text-xs font-medium text-muted-foreground">Original</p>
+        <MaskedText label="original request JSON" text={originalJson} maskedText={maskedOriginalJson} className={RAW_JSON_CLASS} />
+      </div>
+      <div className="space-y-1">
+        <p className="text-xs font-medium text-muted-foreground">Current</p>
+        <MaskedText label="current request JSON" text={currentJson} maskedText={maskedCurrentJson} className={RAW_JSON_CLASS} />
+      </div>
+    </div>
+  );
+}
+
 const RAW_JSON_CLASS =
   "text-xs font-mono bg-slate-950 text-slate-50 p-3 rounded-md overflow-auto max-h-[50vh] whitespace-pre-wrap break-all";
 
@@ -126,16 +149,14 @@ function DiffViewDialog({
   onRevert,
 }: DiffViewDialogProps) {
   const [activeTab, setActiveTab] = useState<"table" | "raw">("table");
+  const [rowLimit, setRowLimit] = useState(DIFF_ROW_PAGE);
 
+  // Only while open. computeDiff skips subtrees shared by identity, so with the editor's
+  // structural sharing its cost follows the size of the change, not of the request.
   const diffs = useMemo(
-    () => computeDiff(originalParsed as unknown, currentParsed as unknown),
-    [originalParsed, currentParsed]
+    () => (open ? computeDiff(originalParsed as unknown, currentParsed as unknown) : []),
+    [open, originalParsed, currentParsed]
   );
-
-  const originalJson = useMemo(() => JSON.stringify(originalParsed, null, 2), [originalParsed]);
-  const currentJson = useMemo(() => JSON.stringify(currentParsed, null, 2), [currentParsed]);
-  const maskedOriginalJson = useMemo(() => JSON.stringify(maskParsedCurl(originalParsed), null, 2), [originalParsed]);
-  const maskedCurrentJson = useMemo(() => JSON.stringify(maskParsedCurl(currentParsed), null, 2), [currentParsed]);
 
   const additions = diffs.filter((d) => d.type === "added").length;
   const modifications = diffs.filter((d) => d.type === "modified").length;
@@ -193,26 +214,27 @@ function DiffViewDialog({
                     </tr>
                   </thead>
                   <tbody>
-                    {diffs.map((entry) => (
+                    {diffs.slice(0, rowLimit).map((entry) => (
                       <DiffRow key={entry.path} entry={entry} onRevert={onRevert} />
                     ))}
                   </tbody>
                 </table>
+                {diffs.length > rowLimit && (
+                  <div className="flex items-center justify-center gap-2 p-2 border-t text-xs text-muted-foreground">
+                    Showing {rowLimit.toLocaleString()} of {diffs.length.toLocaleString()} changes.
+                    <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setRowLimit((l) => l + DIFF_ROW_PAGE)}>
+                      Show {Math.min(DIFF_ROW_PAGE, diffs.length - rowLimit).toLocaleString()} more
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
           </TabsContent>
 
           <TabsContent value="raw" className="flex-1 overflow-auto mt-0 pt-3">
-            <div className="grid grid-cols-2 gap-3 h-full">
-              <div className="space-y-1">
-                <p className="text-xs font-medium text-muted-foreground">Original</p>
-                <MaskedText label="original request JSON" text={originalJson} maskedText={maskedOriginalJson} className={RAW_JSON_CLASS} />
-              </div>
-              <div className="space-y-1">
-                <p className="text-xs font-medium text-muted-foreground">Current</p>
-                <MaskedText label="current request JSON" text={currentJson} maskedText={maskedCurrentJson} className={RAW_JSON_CLASS} />
-              </div>
-            </div>
+            {open && activeTab === "raw" && (
+              <RawJsonPanes originalParsed={originalParsed} currentParsed={currentParsed} />
+            )}
           </TabsContent>
         </Tabs>
 

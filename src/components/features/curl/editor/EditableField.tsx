@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Edit2, Trash2, Save } from "lucide-react";
-import { useEditorContext } from "./EditorContext";
+import { useEditorContext, useFieldState } from "./EditorContext";
 import { ROW_ACTIONS_VISIBILITY } from "./rowActions";
 import { MaskedString, RevealToggle } from "./SecretValue";
 import { MASK, countRedactions, isSecretField, redactFieldValue } from "@/lib/utils/redaction";
@@ -21,11 +21,10 @@ interface EditableFieldProps {
 }
 
 function EditableField({ label, value, path }: EditableFieldProps) {
-  const { editing, editedValues, selected, toggleSelect, toggleEdit, handleEditChange, deleteSingle } =
-    useEditorContext();
+  const { toggleSelect, toggleEdit, handleEditChange, deleteSingle } = useEditorContext();
+  const { isEditing, editedValue, isSelected } = useFieldState(path);
 
-  const isEditing = editing[path];
-  const currentValue = isEditing ? editedValues[path] : value;
+  const currentValue = isEditing ? editedValue : value;
   const isComplex = typeof value === "object" && value !== null;
   const isNonDeletable = ["method", "url", "base_url", "endpoint"].includes(label);
 
@@ -42,7 +41,7 @@ function EditableField({ label, value, path }: EditableFieldProps) {
   return (
     <div className="flex items-start gap-3 p-2 hover:bg-accent/30 rounded-md group transition-colors">
       <Checkbox
-        checked={selected.has(path)}
+        checked={isSelected}
         onCheckedChange={() => toggleSelect(path)}
         className="mt-1"
         disabled={isNonDeletable}

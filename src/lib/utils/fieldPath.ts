@@ -136,6 +136,46 @@ export const setAtPath = (
   return true;
 };
 
+/**
+ * Copy-on-write drafts for structural sharing. Editor states are immutable: an edit copies only the
+ * containers on the edited path (root included) and shares every other subtree with the previous
+ * state, so undo history costs a few shallow copies per entry instead of a deep copy of the request.
+ *
+ *   const draft = createDraft(parsed);
+ *   draft.prepare(segments);           // shallow-copies each existing container on the path
+ *   setAtPath(draft.root, segments, v) // in-place writes now only touch the copies
+ *
+ * `prepare` can be called for several paths; a container is copied at most once per draft.
+ */
+export const createDraft = <T>(root: T): { root: T; prepare: (segments: PathSegments) => void } => {
+  const copied = new WeakSet<object>();
+  const copy = <C extends object>(c: C): C => {
+    const out = (Array.isArray(c) ? [...c] : { ...c }) as C;
+    copied.add(out);
+    return out;
+  };
+  const draftRoot = (isContainer(root) ? copy(root) : root) as T;
+  return {
+    root: draftRoot,
+    prepare: (segments: PathSegments) => {
+      if (!isSafePath(segments) || !isContainer(draftRoot)) return;
+      let node: Record<string, unknown> | unknown[] = draftRoot;
+      // The last segment is written or deleted in its parent; only the parents need copying.
+      for (let i = 0; i < segments.length - 1; i++) {
+        const segment = segments[i]!;
+        const child = childOf(node, segment);
+        if (!isContainer(child)) return;
+        const next = copied.has(child) ? child : copy(child);
+        if (next !== child) {
+          if (Array.isArray(node)) node[Number(segment)] = next;
+          else node[segment] = next;
+        }
+        node = next;
+      }
+    },
+  };
+};
+
 /** Removes the value at `segments` in place (array items are spliced out). */
 export const deleteAtPath = (root: unknown, segments: PathSegments): boolean => {
   if (!hasPath(root, segments)) return false;

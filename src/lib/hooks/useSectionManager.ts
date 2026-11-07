@@ -167,9 +167,17 @@ export const useSectionManager = (
       return;
     }
     const isFlag = addDialogSection === "flags" || addDialogSection === "ssl_config";
-    const newParsed = structuredClone(parsed);
+    // Copy-on-write: only the request object and the edited section are copied (the editor's
+    // states are immutable and share untouched sections with the undo history).
+    const newParsed = { ...parsed };
     const record = newParsed as unknown as Record<string, unknown>;
-    const current = record[addDialogSection];
+    const existingSection = record[addDialogSection];
+    const current = Array.isArray(existingSection)
+      ? [...(existingSection as unknown[])]
+      : existingSection && typeof existingSection === "object"
+        ? { ...(existingSection as Record<string, unknown>) }
+        : existingSection;
+    if (current !== existingSection) record[addDialogSection] = current;
 
     if (Array.isArray(current)) {
       // path_parameters is a list of { name, value }.
@@ -209,7 +217,7 @@ export const useSectionManager = (
 
   const saveNewSection = useCallback(() => {
     if (!newSectionName.trim()) return;
-    const newParsed = structuredClone(parsed);
+    const newParsed = { ...parsed };
     const record = newParsed as unknown as Record<string, unknown>;
     if (newSectionName === "flags" || newSectionName === "ssl_config")
       record[newSectionName] = {};

@@ -21,7 +21,7 @@ import {
   Edit2, Trash2, Save, Download, Code, FolderPlus,
   Maximize2, Minimize2, RotateCcw, FileText, Copy, Undo2, Redo2, MoreHorizontal, Eye, GitCompare, ShieldAlert,
 } from "lucide-react";
-import { useState, useMemo, memo, useEffect, useCallback, useId, useRef } from "react";
+import { useState, useMemo, memo, useEffect, useLayoutEffect, useCallback, useId, useRef } from "react";
 import CodeGenerationDialog from "./CodeGenerationDialog";
 import RequestPreviewDialog from "./RequestPreviewDialog";
 import DiffViewDialog from "./DiffViewDialog";
@@ -29,11 +29,14 @@ import ExportJsonDialog from "./ExportJsonDialog";
 import { MaskedText } from "./editor/SecretValue";
 import { MASK, REDACTED_PLACEHOLDER, countRedactions, redactBodyString, redactCurlString } from "@/lib/utils/redaction";
 import type { ParsedCurl } from "@/types/curl";
-import { EditorContext } from "./editor/EditorContext";
+import { EditorContext, createEditorStore, type EditorCallbacks, type EditorRowState } from "./editor/EditorContext";
 import SectionRenderer from "./editor/SectionRenderer";
-import BodyFieldNode from "./editor/BodyFieldNode";
+import { BodyChildList } from "./editor/BodyFieldNode";
+import RawBodyView from "./editor/RawBodyView";
+import { isHugeBody } from "@/lib/utils/bodySize";
+import { countVisibleRedactionsShared } from "@/lib/utils/redactionCount";
+import { useMountedWhileOpen } from "@/lib/hooks/useMountedWhileOpen";
 import { ROW_ACTIONS_VISIBILITY } from "./editor/rowActions";
-import { encodePath } from "@/lib/utils/fieldPath";
 import { isBlockedByModal, isTextEntryTarget } from "@/lib/utils/shortcuts";
 
 interface ParsedCurlEditorProps {
@@ -97,6 +100,7 @@ function ParsedCurlEditor({
     newSectionName,
     openSections,
     bodyCollapsed,
+    bodyCollapsedDefault,
     allExpanded,
     canUndo,
     canRedo,
@@ -111,6 +115,7 @@ function ParsedCurlEditor({
     undo,
     redo,
     revertField,
+    replaceBody,
     deleteSection,
     toggleSelect,
     toggleEdit,
@@ -134,12 +139,22 @@ function ParsedCurlEditor({
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
   const [showDiffDialog, setShowDiffDialog] = useState(false);
   const [showExportDialog, setShowExportDialog] = useState(false);
+  // The code dialog stays mounted (it keeps the user's settings between opens), so it gets the
+  // request only while open: given every edit, it re-stringified and re-scanned the whole request
+  // for secrets each time even when closed. On reopen it sees the latest request (and drops a
+  // result generated from an older one, as before).
+  const codegenParsedRef = useRef<ParsedCurl | null>(null);
+  if (showCodeDialog || codegenParsedRef.current === null) codegenParsedRef.current = parsed;
+  const previewMounted = useMountedWhileOpen(showPreviewDialog);
+  const diffMounted = useMountedWhileOpen(showDiffDialog);
+  const exportMounted = useMountedWhileOpen(showExportDialog);
 
   // Values redacted before this request was saved: the user must re-enter them before generating
   // code. Counted on the working copy only, so the warning goes once every field is filled in again
   // (the Original cURL card keeps its placeholders; it is labelled as such).
-  const redactedCount = countRedactions(parsed);
-  const originalCurlRedacted = countRedactions(originalCurl) > 0;
+  // Memoized on identity: both walk the whole request (FE-PERF bottleneck 5).
+  const redactedCount = useMemo(() => countVisibleRedactionsShared(parsed), [parsed]);
+  const originalCurlRedacted = useMemo(() => countRedactions(originalCurl) > 0, [originalCurl]);
   const redactedNoticeId = useId();
 
   // Confirmation dialog state — replaces window.confirm
@@ -277,33 +292,66 @@ function ParsedCurlEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [parsed, openSections]);
 
-  // Build the context value so sub-components don't need prop drilling
-  const editorCtx = useMemo(
-    () => ({
-      editing,
-      editedValues,
-      selected,
-      bodyCollapsed,
-      allExpanded,
-      toggleSelect,
-      toggleEdit,
-      handleEditChange,
-      deleteSingle,
-      toggleBodyCollapse,
-      handleAddEntry,
-      handleBodyExpandCollapseAll,
-      hasActiveFlags,
-      getActiveFlags,
-      hasValidData,
-      requestConfirm,
-    }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [editing, editedValues, selected, bodyCollapsed, allExpanded],
+  // Per-field state goes through an external store and the context value never changes, so a
+  // keystroke in one field re-renders that field only, not every row of the editor (FE-PERF-2).
+  // The store's state is replaced during render (so rows rendering in the same pass read the new
+  // values) and subscribers are notified before paint.
+  const rowState = useMemo<EditorRowState>(
+    () => ({ editing, editedValues, selected, bodyCollapsed, bodyCollapsedDefault }),
+    [editing, editedValues, selected, bodyCollapsed, bodyCollapsedDefault],
   );
+  const [store] = useState(() => createEditorStore(rowState));
+  store.replace(rowState);
+  useLayoutEffect(() => store.notify(), [store, rowState]);
+
+  // Callbacks change identity with the state they close over; rows call the latest one through
+  // stable wrappers.
+  const latest = {
+    toggleSelect,
+    toggleEdit,
+    handleEditChange,
+    deleteSingle,
+    toggleBodyCollapse,
+    handleAddEntry,
+    handleBodyExpandCollapseAll,
+    hasActiveFlags,
+    getActiveFlags,
+    hasValidData,
+    requestConfirm,
+  };
+  const latestRef = useRef(latest);
+  latestRef.current = latest;
+  const editorCtx = useMemo<EditorCallbacks>(
+    () => ({
+      store,
+      toggleSelect: path => latestRef.current.toggleSelect(path),
+      toggleEdit: (path, value) => void latestRef.current.toggleEdit(path, value),
+      handleEditChange: (path, value) => latestRef.current.handleEditChange(path, value),
+      deleteSingle: path => latestRef.current.deleteSingle(path),
+      toggleBodyCollapse: path => latestRef.current.toggleBodyCollapse(path),
+      handleAddEntry: section => latestRef.current.handleAddEntry(section),
+      handleBodyExpandCollapseAll: () => latestRef.current.handleBodyExpandCollapseAll(),
+      hasActiveFlags: v => latestRef.current.hasActiveFlags(v),
+      getActiveFlags: v => latestRef.current.getActiveFlags(v),
+      hasValidData: v => latestRef.current.hasValidData(v),
+      requestConfirm: action => latestRef.current.requestConfirm(action),
+    }),
+    [store],
+  );
+
+  // Very large bodies open as raw JSON; the tree (collapsed, paged) is one click away.
+  const [bodyView, setBodyView] = useState<"tree" | "raw">(() =>
+    isHugeBody(parsed?.data) ? "raw" : "tree",
+  );
+  const bodyIsHuge = useMemo(() => isHugeBody(parsed?.data), [parsed?.data]);
+  const showRawBody = bodyView === "raw" && bodyIsHuge && typeof parsed?.data === "object" && parsed.data !== null;
 
   // What the Original cURL card shows while masked; Copy puts the redacted form on the clipboard
   // (never the secrets, whether or not the card is currently revealed).
-  const maskedOriginal = originalCurl ? redactCurlString(originalCurl, { placeholder: MASK }) : "";
+  const maskedOriginal = useMemo(
+    () => (originalCurl ? redactCurlString(originalCurl, { placeholder: MASK }) : ""),
+    [originalCurl],
+  );
   const originalHasSecret = Boolean(originalCurl) && maskedOriginal !== originalCurl;
 
   if (!parsed || Object.keys(parsed).length === 0) {
@@ -560,31 +608,38 @@ function ParsedCurlEditor({
         <CodeGenerationDialog
           open={showCodeDialog}
           onOpenChange={setShowCodeDialog}
-          parsedData={parsed}
+          parsedData={codegenParsedRef.current ?? parsed}
         />
 
+        {/* The dialogs below are mounted only while open (or closing): see useMountedWhileOpen. */}
         {/* Request Preview Dialog */}
-        <RequestPreviewDialog
-          open={showPreviewDialog}
-          onOpenChange={setShowPreviewDialog}
-          parsedData={parsed}
-        />
+        {previewMounted && (
+          <RequestPreviewDialog
+            open={showPreviewDialog}
+            onOpenChange={setShowPreviewDialog}
+            parsedData={parsed}
+          />
+        )}
 
         {/* Export JSON Dialog */}
-        <ExportJsonDialog
-          open={showExportDialog}
-          onOpenChange={setShowExportDialog}
-          parsedData={parsed}
-        />
+        {exportMounted && (
+          <ExportJsonDialog
+            open={showExportDialog}
+            onOpenChange={setShowExportDialog}
+            parsedData={parsed}
+          />
+        )}
 
         {/* Diff View Dialog */}
-        <DiffViewDialog
-          open={showDiffDialog}
-          onOpenChange={setShowDiffDialog}
-          originalParsed={originalParsed as import("@/types/curl").ParsedCurl}
-          currentParsed={parsed}
-          onRevert={revertField}
-        />
+        {diffMounted && (
+          <DiffViewDialog
+            open={showDiffDialog}
+            onOpenChange={setShowDiffDialog}
+            originalParsed={originalParsed as import("@/types/curl").ParsedCurl}
+            currentParsed={parsed}
+            onRevert={revertField}
+          />
+        )}
 
         {/* Confirmation Dialog */}
         <Dialog open={pendingConfirm !== null} onOpenChange={open => !open && setPendingConfirm(null)}>
@@ -763,6 +818,7 @@ function ParsedCurlEditor({
                   <AccordionItem value="data" className="border-l-2 border-l-indigo-500 pl-2">
                     <AccordionTrigger
                       actions={
+                        showRawBody ? undefined : (
                         <button
                           type="button"
                           className="h-7 px-3 inline-flex items-center justify-center rounded-md text-xs font-medium hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -781,6 +837,7 @@ function ParsedCurlEditor({
                             </>
                           )}
                         </button>
+                        )
                       }
                     >
                       <span className="flex items-center gap-2">
@@ -801,16 +858,29 @@ function ParsedCurlEditor({
                         </Alert>
                       )}
                       <div className="bg-muted/30 rounded-md p-3 font-mono text-sm overflow-x-auto">
-                        {typeof parsed.data === "object" && parsed.data !== null ? (
-                          Object.entries(parsed.data).map(([key, value]) => (
-                            <BodyFieldNode
-                              key={key}
-                              fieldKey={key}
-                              value={value}
-                              path={encodePath(["data", key])}
+                        {showRawBody ? (
+                          <RawBodyView data={parsed.data} onApply={replaceBody} onShowTree={() => setBodyView("tree")} />
+                        ) : typeof parsed.data === "object" && parsed.data !== null ? (
+                          <>
+                            {bodyIsHuge && (
+                              <div className="mb-2 flex justify-end font-sans">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 text-xs"
+                                  onClick={() => setBodyView("raw")}
+                                >
+                                  Show as raw JSON
+                                </Button>
+                              </div>
+                            )}
+                            <BodyChildList
+                              value={parsed.data as Record<string, unknown> | unknown[]}
+                              path="data"
                               level={0}
+                              bracketIndices={false}
                             />
-                          ))
+                          </>
                         ) : (
                           <div className="group">
                             {editing["data"] ? (

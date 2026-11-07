@@ -1,9 +1,10 @@
 import { memo, useState } from "react";
+import { BODY_CHILD_PAGE } from "@/lib/utils/bodySize";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Edit2, Trash2, Save, ChevronDown, ChevronRight } from "lucide-react";
-import { useEditorContext } from "./EditorContext";
+import { useEditorContext, useFieldState } from "./EditorContext";
 import { ROW_ACTIONS_VISIBILITY } from "./rowActions";
 import { RevealToggle, MaskedString } from "./SecretValue";
 import { MASK, countRedactions, isSecretField, redactFieldValue } from "@/lib/utils/redaction";
@@ -17,14 +18,63 @@ interface BodyFieldNodeProps {
   level?: number;
 }
 
-function BodyFieldNode({ fieldKey, value, path, level = 0 }: BodyFieldNodeProps) {
-  const { editing, editedValues, bodyCollapsed, toggleBodyCollapse, toggleEdit, handleEditChange, deleteSingle } =
-    useEditorContext();
+interface BodyChildListProps {
+  value: Record<string, unknown> | unknown[];
+  /** Path id of the container (`data` for the body root). */
+  path: string;
+  level: number;
+  /** Label array items `[0]` (nested) or `0` (the body root, as before). */
+  bracketIndices?: boolean;
+}
 
-  const isEditing = editing[path];
-  const currentValue = isEditing ? editedValues[path] : value;
+/**
+ * The children of a body object/array, a page at a time: a container with thousands of entries
+ * (a bulk payload) shows the first BODY_CHILD_PAGE and a "Show more" button instead of mounting
+ * every row (FE-PERF-1).
+ */
+function BodyChildListImpl({ value, path, level, bracketIndices = true }: BodyChildListProps) {
+  const [limit, setLimit] = useState(BODY_CHILD_PAGE);
+  const isArray = Array.isArray(value);
+  const entries: Array<[string, unknown]> = isArray
+    ? (value as unknown[]).slice(0, limit).map((item, idx) => [String(idx), item])
+    : Object.entries(value as Record<string, unknown>).slice(0, limit);
+  const total = isArray ? (value as unknown[]).length : Object.keys(value).length;
+  const remaining = total - entries.length;
+  return (
+    <div>
+      {entries.map(([key, child]) => (
+        <MemoBodyFieldNode
+          key={key}
+          fieldKey={isArray && bracketIndices ? `[${key}]` : key}
+          value={child}
+          path={`${path}.${encodePath([key])}`}
+          level={level}
+        />
+      ))}
+      {remaining > 0 && (
+        <div style={{ marginLeft: `${Math.min(level * 24, 120)}px` }} className="p-1.5">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs text-muted-foreground"
+            onClick={() => setLimit(l => l + BODY_CHILD_PAGE)}
+          >
+            Show {Math.min(BODY_CHILD_PAGE, remaining)} more ({remaining.toLocaleString()} not shown)
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export const BodyChildList = memo(BodyChildListImpl);
+
+function BodyFieldNode({ fieldKey, value, path, level = 0 }: BodyFieldNodeProps) {
+  const { toggleBodyCollapse, toggleEdit, handleEditChange, deleteSingle } = useEditorContext();
+  const { isEditing, editedValue, isCollapsed } = useFieldState(path);
+
+  const currentValue = isEditing ? editedValue : value;
   const isComplex = typeof value === "object" && value !== null;
-  const isCollapsed = bodyCollapsed[path] || false;
   const indent = Math.min(level * 24, 120); // cap at 5 levels to prevent mobile overflow
 
   // Leaf values under a secret-named key (password, token, ...) are masked until revealed.
@@ -85,29 +135,8 @@ function BodyFieldNode({ fieldKey, value, path, level = 0 }: BodyFieldNodeProps)
           </div>
         </div>
 
-        {!isCollapsed && (
-          <div>
-            {isArray
-              ? (complexValue as unknown[]).map((item, idx) => (
-                  <BodyFieldNode
-                    key={idx}
-                    fieldKey={`[${idx}]`}
-                    value={item}
-                    path={`${path}.${idx}`}
-                    level={level + 1}
-                  />
-                ))
-              : Object.entries(complexValue as Record<string, unknown>).map(([childKey, childValue]) => (
-                  <BodyFieldNode
-                    key={childKey}
-                    fieldKey={childKey}
-                    value={childValue}
-                    path={`${path}.${encodePath([childKey])}`}
-                    level={level + 1}
-                  />
-                ))}
-          </div>
-        )}
+        {/* Children mount only while expanded. */}
+        {!isCollapsed && <BodyChildList value={complexValue} path={path} level={level + 1} />}
       </div>
     );
   }
@@ -172,4 +201,5 @@ function BodyFieldNode({ fieldKey, value, path, level = 0 }: BodyFieldNodeProps)
   );
 }
 
-export default memo(BodyFieldNode);
+const MemoBodyFieldNode = memo(BodyFieldNode);
+export default MemoBodyFieldNode;
