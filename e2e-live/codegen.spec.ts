@@ -157,7 +157,6 @@ test.describe('Code generation: test class and method', () => {
   });
 
   test('[CG-04] in Method Only an invalid (hidden) class name does not block generation (BUG-E2E-09)', async ({ page }) => {
-    test.fail(true, 'BUG-E2E-09: the hidden class name is still sent as serviceName and the backend rejects the request');
     await parseToEditor(page, SIMPLE_POST);
     await openCodegen(page);
     await page.locator('#option-full').check();

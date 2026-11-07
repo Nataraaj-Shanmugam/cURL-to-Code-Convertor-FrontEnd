@@ -36,6 +36,9 @@ async function runGenerateAll(page: Page) {
   return (await dialog.locator('pre').first().innerText()).replace(/\u00a0/g, ' ');
 }
 
+/** A Java-shaped name the frontend accepts but the backend refuses (over its 100-character limit). */
+const TOO_LONG_NAME = 'm'.repeat(101);
+
 test.describe('Batch editor', () => {
   test('[BE-01][BE-16] the parsed requests are listed by method and path; the first is open', async ({ page }) => {
     await parseAll(page, [SIMPLE_GET, SIMPLE_POST, DELETE_ITEM]);
@@ -197,16 +200,16 @@ test.describe('Generate All', () => {
   test('[BE-11] a request the generator rejects is reported; the others are still generated', async ({ page, api }) => {
     await parseAll(page, [SIMPLE_GET, SIMPLE_POST]);
     const dialog = await openGenerateAll(page);
-    // The frontend accepts a Java keyword as a method name; the backend refuses it (a realistic per-request failure).
-    await dialog.getByRole('textbox', { name: 'Method name for POST /users' }).fill('switch');
+    // The frontend only checks the name's shape; the backend also caps its length at 100 (a realistic per-request failure).
+    await dialog.getByRole('textbox', { name: 'Method name for POST /users' }).fill(TOO_LONG_NAME);
     await dialog.getByRole('button', { name: 'Generate All' }).click();
     await expect(dialog.getByRole('heading', { name: 'Generated Batch Code' })).toBeVisible({ timeout: 60_000 });
     const alert = dialog.getByRole('alert');
     await expect(alert).toContainText('Code could not be generated for 1 of 2 requests.');
-    await expect(alert).toContainText(/POST \/users: .*keyword/i);
+    await expect(alert).toContainText(/POST \/users: /);
     const code = await dialog.locator('pre').first().innerText();
     expect(code).toContain('/users/42');
-    expect(code).not.toContain('public void switch()');
+    expect(code).not.toContain(TOO_LONG_NAME);
     await api.settle();
     expect(api.of('/api/generate-from-parsed').map((c) => c.status)).toEqual([200, 422]);
   });
@@ -214,8 +217,8 @@ test.describe('Generate All', () => {
   test('[BE-11] when every request is rejected, an error is shown instead of a result', async ({ page }) => {
     await parseAll(page, [SIMPLE_GET, SIMPLE_POST]);
     const dialog = await openGenerateAll(page);
-    await dialog.getByRole('textbox', { name: 'Method name for GET /users/42' }).fill('class');
-    await dialog.getByRole('textbox', { name: 'Method name for POST /users' }).fill('switch');
+    await dialog.getByRole('textbox', { name: 'Method name for GET /users/42' }).fill(TOO_LONG_NAME);
+    await dialog.getByRole('textbox', { name: 'Method name for POST /users' }).fill(TOO_LONG_NAME);
     await dialog.getByRole('button', { name: 'Generate All' }).click();
     await expect(dialog.getByRole('alert')).toContainText('Code generation failed for all 2 requests.', { timeout: 60_000 });
     await expect(dialog.getByRole('heading', { name: 'Generated Batch Code' })).toHaveCount(0);
@@ -242,7 +245,6 @@ test.describe('Generate All', () => {
   });
 
   test('[BE-09] relaxed HTTPS only for the request that used -k (BUG-E2E-10)', async ({ page }) => {
-    test.fail(true, 'BUG-E2E-10: the backend reports -k as ssl_config.basic.insecure, which isInsecureCurl does not read; the merged method loses relaxed HTTPS');
     await parseAll(page, [SIMPLE_GET, INSECURE_GET]);
     await openGenerateAll(page);
     const code = await runGenerateAll(page);

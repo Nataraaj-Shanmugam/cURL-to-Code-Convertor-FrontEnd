@@ -2,6 +2,10 @@ import { describe, it, expect } from 'vitest';
 import { defaultStatusForMethod, javaIdentifierError, statusCodeError } from '@/lib/utils/codegenValidation';
 
 describe('javaIdentifierError', () => {
+  it('E2E-12: rejects Java keywords and literals, accepts look-alikes', () => {
+    for (const bad of ['switch', 'class', ' int ', 'null', 'true']) expect(javaIdentifierError(bad)).toMatch(/keyword/);
+    for (const ok of ['Switch', 'classes', 'switch1']) expect(javaIdentifierError(ok)).toBeNull();
+  });
   it('accepts identifiers', () => {
     for (const ok of ['testGet_users', '_x', '$y', 'Batch2', ' padded ']) expect(javaIdentifierError(ok)).toBeNull();
   });

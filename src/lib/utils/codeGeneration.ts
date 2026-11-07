@@ -9,6 +9,10 @@ import type {
   ParsedCurl,
   PomGenerationConfig,
 } from "@/types/curl";
+import { javaIdentifierError } from "@/lib/utils/codegenValidation";
+
+/** The class name the backend uses when a request names none (Method-only mode sends none). */
+const DEFAULT_SERVICE_NAME = "ApiTest";
 
 export type JavaVersion = PomGenerationConfig["javaVersion"];
 export type PomType = PomGenerationConfig["pomType"];
@@ -85,8 +89,6 @@ export type FormField =
 /** Fields that live in the collapsed "Maven & advanced" section. */
 export const ADVANCED_FIELDS: readonly FormField[] = ["maxResponseTimeMs", "groupId", "artifactId", "version"];
 
-const JAVA_IDENTIFIER = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/;
-
 /** The POM coordinates are asked for only when a full POM is produced for a full class. */
 export const needsCoordinates = (form: CodeGenForm): boolean =>
   form.generatePom && form.option === "full" && form.pomType === "full";
@@ -95,11 +97,7 @@ export interface FormContext {
   pojoDisabled: boolean;
 }
 
-function identifierError(value: string): string | undefined {
-  if (!value.trim()) return "Required";
-  if (!JAVA_IDENTIFIER.test(value.trim())) return "Must be a valid Java identifier (no spaces or special characters)";
-  return undefined;
-}
+const identifierError = (value: string): string | undefined => javaIdentifierError(value) ?? undefined;
 
 /**
  * Errors for the fields that are in use right now. Derived from the form each time, never stored, so a field that
@@ -156,7 +154,8 @@ export function buildGenerateConfig(
   const maxMs = Number(form.maxResponseTimeMs);
   const config: CodeGenerationConfig = {
     option: form.option,
-    serviceName: form.className.trim(),
+    // The class name is hidden in Method-only mode, so it is neither validated nor sent (the backend defaults it).
+    ...(form.option === "full" ? { serviceName: form.className.trim() } : {}),
     methodName: form.methodName.trim(),
     assertionRequired: form.assertionRequired,
     statusCode: form.statusCode,
@@ -230,14 +229,14 @@ export function readGenerateResponse(
   const suite = pomIsFull ? suiteFileFromPom(pomXml) : undefined;
   return {
     option: config.option,
-    serviceName: config.serviceName,
+    serviceName: config.serviceName ?? DEFAULT_SERVICE_NAME,
     methodName: config.methodName,
     testCode,
     pojoCode,
     pomXml,
     pomIsFull,
     warnings: response.warnings ?? [],
-    testngXml: pomIsFull ? buildTestngXml(testCode, config.serviceName) : "",
+    testngXml: pomIsFull ? buildTestngXml(testCode, config.serviceName ?? DEFAULT_SERVICE_NAME) : "",
     testngFileName: suite ? suite.split("/").pop()! : "testng.xml",
     testngHint: suite
       ? `The generated pom.xml runs ${suite}. Save this file at that path, relative to pom.xml, then run mvn test.`

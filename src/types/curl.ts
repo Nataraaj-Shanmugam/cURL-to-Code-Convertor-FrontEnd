@@ -118,7 +118,7 @@ export type DataFormat = "json" | "xml" | "both";
 export interface CodeGenerationConfig {
   option: "full" | "method";
   /** The test class name (production calls it serviceName). */
-  serviceName: string;
+  serviceName?: string;
   methodName: string;
   assertionRequired: boolean;
   statusCode?: string;

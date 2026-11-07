@@ -16,6 +16,14 @@ import {
 const full = (patch: Partial<CodeGenForm> = {}): CodeGenForm => ({ ...DEFAULT_FORM, option: 'full', ...patch });
 const ctx = { pojoDisabled: false };
 
+describe('Method Only mode (E2E-09)', () => {
+  it('neither validates nor sends the hidden class name', () => {
+    const form = { ...DEFAULT_FORM, option: 'method' as const, className: '123 Bad' };
+    expect(validateForm(form, ctx)).toEqual({});
+    expect(buildGenerateConfig(form, { dataFormat: 'json', pojoDisabled: false })).not.toHaveProperty('serviceName');
+  });
+});
+
 describe('buildGenerateConfig (production contract)', () => {
   it('sends exactly the field set production sends, with serviceName and no className', () => {
     const config = buildGenerateConfig(full(), { dataFormat: 'json', pojoDisabled: false });

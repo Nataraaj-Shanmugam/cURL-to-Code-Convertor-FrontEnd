@@ -5,6 +5,15 @@
 
 const JAVA_IDENTIFIER = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/;
 
+/** Reserved words and literals: valid identifier syntax, but the compiler (and the backend) reject them. */
+const JAVA_KEYWORDS = new Set([
+  "abstract", "assert", "boolean", "break", "byte", "case", "catch", "char", "class", "const", "continue",
+  "default", "do", "double", "else", "enum", "extends", "final", "finally", "float", "for", "goto", "if",
+  "implements", "import", "instanceof", "int", "interface", "long", "native", "new", "package", "private",
+  "protected", "public", "return", "short", "static", "strictfp", "super", "switch", "synchronized", "this",
+  "throw", "throws", "transient", "try", "void", "volatile", "while", "_", "true", "false", "null",
+]);
+
 /** Returns an error message, or null when `value` is usable as a Java class or method name. */
 export function javaIdentifierError(value: string): string | null {
   const trimmed = value.trim();
@@ -12,6 +21,7 @@ export function javaIdentifierError(value: string): string | null {
   if (!JAVA_IDENTIFIER.test(trimmed)) {
     return "Must be a valid Java identifier (no spaces or special characters)";
   }
+  if (JAVA_KEYWORDS.has(trimmed)) return `"${trimmed}" is a Java keyword and can't be used as a name`;
   return null;
 }
 
