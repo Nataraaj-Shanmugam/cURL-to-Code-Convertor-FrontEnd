@@ -47,3 +47,8 @@ pnpm-debug.log*
 # Local-only artefacts (demo video to be hosted elsewhere; old components archive)
 curlCraftAssuredDemo.mp4
 Archieve/
+
+# Perf builds and run output (baseline.json / budgets.json are tracked)
+dist-perf/
+dist-perf-profile/
+perf/results/

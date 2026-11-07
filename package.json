@@ -17,7 +17,12 @@
     "test:e2e": "npx playwright test",
     "test:e2e:ui": "npx playwright test --ui",
     "test:e2e:headed": "npx playwright test --headed",
-    "test:e2e:report": "npx playwright show-report"
+    "test:e2e:report": "npx playwright show-report",
+    "perf:build": "VITE_CURL_CRAFT_API_URL=http://127.0.0.1:8000 vite build --config perf/vite.perf.config.ts --mode perf",
+    "perf:bundle": "node perf/bundle-size.mjs --check",
+    "perf:web": "node perf/measure.mjs all",
+    "perf:profile": "node perf/profile.mjs",
+    "perf:check": "node perf/check.mjs"
   },
   "dependencies": {
     "@fontsource/dm-sans": "^5.2.8",
@@ -63,6 +68,7 @@
     "jsdom": "^28.1.0",
     "msw": "^2.12.10",
     "postcss": "^8.4.32",
+    "source-map-js": "^1.2.1",
     "tailwindcss": "^3.4.0",
     "typescript": "^5.2.2",
     "typescript-eslint": "^8.72.1",
