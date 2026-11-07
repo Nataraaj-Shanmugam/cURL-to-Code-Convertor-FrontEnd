@@ -213,7 +213,11 @@ export default function FeedbackForm({
               className="mt-0.5"
             />
             <span>
-              {curlCommand && generatedCode ? "Include my cURL command and generated code" : "Include my cURL command"}
+              {curlCommand && generatedCode
+                ? "Include my cURL command and generated code"
+                : generatedCode
+                  ? "Include my generated code"
+                  : "Include my cURL command"}
               <span className="block text-xs text-muted-foreground">
                 Off by default. Secrets (tokens, API keys, passwords, cookies) are redacted before anything is sent.
               </span>

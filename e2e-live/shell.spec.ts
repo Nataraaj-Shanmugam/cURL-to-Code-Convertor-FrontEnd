@@ -254,7 +254,6 @@ test.describe('Feedback', () => {
   });
 
   test('[FB-05] the attach option after generating names what is attached (BUG-E2E-11)', async ({ page }) => {
-    test.fail(true, 'BUG-E2E-11: the codegen Feedback dialog labels the opt-in "Include my cURL command" but attaches the generated code only');
     await parseToEditor(page, SIMPLE_POST);
     await openCodegen(page);
     await page.locator('#option-full').check();

@@ -81,7 +81,6 @@ test.describe('Editor: sections and fields', () => {
   });
 
   test('[ED-29] only request sections are shown, not backend bookkeeping fields (BUG-E2E-03)', async ({ page }) => {
-    test.fail(true, 'BUG-E2E-03: the backend\'s data_raw / data_type fields are shown as "Data Raw" (one entry per character) and "Data Type" sections');
     await parseToEditor(page, SIMPLE_POST);
     await expect(page.getByRole('button', { name: /^Request Body/ })).toBeVisible();
     await expect(page.getByRole('button', { name: /^Data Raw/ })).toHaveCount(0, { timeout: 2_000 });
@@ -204,8 +203,7 @@ test.describe('Editor: sections and fields', () => {
     await page.getByRole('button', { name: 'Expand shipping' }).click();
     await expect(page.getByText('"Bengaluru"', { exact: true })).toBeVisible();
 
-    // Everything starts expanded, yet the button offers "Expand All" (BUG-E2E-04): the first press only flips it.
-    await page.getByRole('button', { name: 'Expand all body nodes' }).click();
+    // Everything starts expanded, so the toggle starts as "Collapse All".
     await page.getByRole('button', { name: 'Collapse all body nodes' }).click();
     await expect(page.getByText('"SKU-RED-42"', { exact: true })).toHaveCount(0);
     await expect(page.getByText('"C-1001"', { exact: true })).toBeVisible(); // top-level leaves stay
@@ -214,7 +212,6 @@ test.describe('Editor: sections and fields', () => {
   });
 
   test('[ED-10] with every node expanded the toggle offers Collapse All (BUG-E2E-04)', async ({ page }) => {
-    test.fail(true, 'BUG-E2E-04: the body toggle starts as "Expand All" although every node is expanded, so the first press does nothing visible');
     await parseToEditor(page, CHROME_BASH);
     await expect(page.getByText('"SKU-RED-42"', { exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Collapse all body nodes' })).toBeVisible({ timeout: 2_000 });

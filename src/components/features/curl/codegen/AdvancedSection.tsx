@@ -173,8 +173,9 @@ export default function AdvancedSection({
               <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-md flex gap-2">
                 <Info className="w-4 h-4 text-blue-600 mt-0.5 shrink-0" aria-hidden="true" />
                 <p className="text-xs text-muted-foreground">
-                  <strong className="text-foreground">XML dependencies:</strong> JAXB is required for Java 11+ to handle XML
-                  binding. It is included automatically when the Java version is 11, 17 or 21.
+                  <strong className="text-foreground">XML dependencies:</strong> Java 11+ no longer bundles JAXB. When the
+                  request body is XML and the Java version is 11, 17 or 21, the generated pom.xml adds the JAXB
+                  dependency. Check it there before you build.
                 </p>
               </div>
             )}
