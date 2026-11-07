@@ -26,20 +26,23 @@ const VERIFY_KEYS = new Set(["verify", "verify_ssl", "ssl_verify", "verify_peer"
 
 const normalizeKey = (key: string) => key.trim().toLowerCase().replace(/^-+/, "").replace(/-/g, "_");
 
+/** Checks one flag group; the backend nests options one level deeper (`ssl_config.basic.insecure`). */
+function groupHasInsecure(group: unknown, depth: number): boolean {
+  if (!group || typeof group !== "object" || Array.isArray(group)) return false;
+  for (const [key, flag] of Object.entries(group as Record<string, unknown>)) {
+    const name = normalizeKey(key);
+    if (INSECURE_KEYS.has(name) && flag === true) return true;
+    if (VERIFY_KEYS.has(name) && flag === false) return true;
+    if (depth > 0 && groupHasInsecure(flag, depth - 1)) return true;
+  }
+  return false;
+}
+
 /** True when the parsed cURL carried -k / --insecure (certificate verification disabled). */
 export function isInsecureCurl(parsed: ParsedCurl | null | undefined): boolean {
   if (!parsed) return false;
   const record = parsed as unknown as Record<string, unknown>;
-  for (const section of FLAG_SECTIONS) {
-    const value = record[section];
-    if (!value || typeof value !== "object" || Array.isArray(value)) continue;
-    for (const [key, flag] of Object.entries(value as Record<string, unknown>)) {
-      const name = normalizeKey(key);
-      if (INSECURE_KEYS.has(name) && flag === true) return true;
-      if (VERIFY_KEYS.has(name) && flag === false) return true;
-    }
-  }
-  return false;
+  return FLAG_SECTIONS.some((section) => groupHasInsecure(record[section], 1));
 }
 
 const RELAXED_CALL = /relaxedHTTPSValidation\s*\(/;

@@ -57,7 +57,7 @@ describe('computeDiff', () => {
   // through the key loop, which compares two strings directly and never normalises. A whitespace-only
   // reformat of a JSON body therefore shows as a modified `data` field even though the comment says
   // the body is compared by value. Remove .fails once the loop recurses with basePath "data".
-  it.fails('BUG FE-UNIT-01: a whitespace-only change to a JSON string body is not a diff', () => {
+  it('FE-UNIT-01: a whitespace-only change to a JSON string body is not a diff', () => {
     expect(computeDiff({ data: '{"a":1,"b":2}' }, { data: '{ "b": 2,\n "a": 1 }' })).toEqual([]);
   });
   it('handles very large arrays and unicode keys', () => {

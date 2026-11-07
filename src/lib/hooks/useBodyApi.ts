@@ -7,6 +7,15 @@ import { ENV } from "@/lib/env";
 export const toBodyPath = (path: string): string =>
   path.startsWith("data.") ? path.slice(5) : path;
 
+// `typeof null === "object"`, so a null error needs its own check before reading `.message`.
+const apiErrorMessage = (error: unknown, fallback: string): string => {
+  if (error && typeof error === "object") {
+    const message = (error as { message?: unknown }).message;
+    return typeof message === "string" && message ? message : fallback;
+  }
+  return typeof error === "string" && error ? error : fallback;
+};
+
 /**
  * Mirrors body edits/deletes to the backend. This is advisory: callers apply the edit locally
  * first and must not depend on the result. With `enabled` false (the default, see
@@ -27,10 +36,7 @@ export const useBodyApi = (getBody: () => unknown, enabled: boolean = ENV.BODY_A
         value,
       });
       if (result.success !== false) return true;
-      const errMsg =
-        typeof result.error === "object"
-          ? (result.error as { message?: string }).message
-          : result.error || "Edit failed";
+      const errMsg = apiErrorMessage(result.error, "Edit failed");
       setBodyApiError(errMsg);
       return false;
     } catch (err: unknown) {
@@ -51,10 +57,7 @@ export const useBodyApi = (getBody: () => unknown, enabled: boolean = ENV.BODY_A
         path: toBodyPath(path),
       });
       if (result.success !== false) return true;
-      const errMsg =
-        typeof result.error === "object"
-          ? (result.error as { message?: string }).message
-          : result.error || "Delete failed";
+      const errMsg = apiErrorMessage(result.error, "Delete failed");
       setBodyApiError(errMsg);
       return false;
     } catch (err: unknown) {

@@ -1,4 +1,5 @@
 import type { DiffEntry } from "@/types/diff";
+import { deepEqual } from "./deepEqual";
 import { encodePath } from "./fieldPath";
 
 function normalizeData(obj: unknown): unknown {
@@ -60,10 +61,12 @@ export function computeDiff(
   for (const key of allKeys) {
     // Escaped (see fieldPath.ts) so a key containing "." still reverts the right field.
     const childPath = basePath ? `${basePath}.${encodePath([key])}` : encodePath([key]);
-    const origVal = origRecord[key];
-    const currVal = currRecord[key];
+    // The request body may be a JSON string on one side and an object (or reformatted string) on the other.
+    const isBody = childPath === "data";
+    const origVal = isBody ? normalizeData(origRecord[key]) : origRecord[key];
+    const currVal = isBody ? normalizeData(currRecord[key]) : currRecord[key];
 
-    if (origVal === currVal) continue;
+    if (origVal === currVal || (isBody && deepEqual(origVal, currVal))) continue;
 
     if (origVal === undefined) {
       entries.push({ path: childPath, type: "added", newValue: currVal });

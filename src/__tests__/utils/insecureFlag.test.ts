@@ -5,6 +5,10 @@ import type { ParsedCurl } from '@/types/curl';
 const base: ParsedCurl = { method: 'GET', base_url: 'https://a.com', endpoint: '/x' };
 
 describe('isInsecureCurl', () => {
+  it('E2E-10: reads the backend\'s nested ssl_config.basic.insecure', () => {
+    expect(isInsecureCurl({ ...base, ssl_config: { basic: { insecure: true } } } as never)).toBe(true);
+    expect(isInsecureCurl({ ...base, ssl_config: { basic: { insecure: false } } } as never)).toBe(false);
+  });
   it('is false for a plain request', () => {
     expect(isInsecureCurl(base)).toBe(false);
     expect(isInsecureCurl(undefined)).toBe(false);

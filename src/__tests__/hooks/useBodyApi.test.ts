@@ -126,7 +126,7 @@ describe('useBodyApi', () => {
   // BUG FE-UNIT-03 (low): `typeof null === "object"`, so `{ success: false, error: null }` reads
   // `null.message` and throws a TypeError, which the catch turns into "Cannot read properties of null"
   // shown to the user instead of "Edit failed".
-  it.fails('BUG FE-UNIT-03: success:false with error:null reports "Edit failed"', async () => {
+  it('FE-UNIT-03: success:false with error:null reports "Edit failed"', async () => {
     capture('/api/body/edit', () => HttpResponse.json({ success: false, error: null }));
     const { result } = renderHook(() => useBodyApi(() => ({}), true));
     await act(async () => {
