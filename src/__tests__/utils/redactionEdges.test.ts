@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- loose fixtures for deliberately malformed/untyped inputs */
 import { describe, it, expect } from 'vitest';
 import {
   MASK,

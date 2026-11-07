@@ -48,6 +48,14 @@ if (!('ResizeObserver' in globalThis)) {
   Object.defineProperty(globalThis, 'ResizeObserver', { writable: true, value: MockResizeObserver });
 }
 
+// jsdom has no pointer capture; sonner's toast calls it on pointerdown, which surfaced as an unhandled
+// error (and a non-zero exit) whenever a test clicked a toast.
+for (const method of ['setPointerCapture', 'releasePointerCapture', 'hasPointerCapture'] as const) {
+  if (!(method in Element.prototype)) {
+    Object.defineProperty(Element.prototype, method, { writable: true, configurable: true, value: () => false });
+  }
+}
+
 beforeAll(() => server.listen({ onUnhandledRequest: 'warn' }));
 afterEach(() => {
   cleanup();

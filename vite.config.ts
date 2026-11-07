@@ -24,7 +24,19 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: ['src/**/*.{ts,tsx}'],
+      exclude: [
+        // Test code, fixtures, mocks and setup are not product code.
+        'src/__tests__/**',
+        // main.tsx only calls createRoot(...).render() against the real DOM root and mounts the
+        // router; it has no logic, and its behaviour is covered by the e2e suite (Playwright).
+        'src/main.tsx',
+        // Type declarations only: they compile to nothing, so there is nothing to execute.
+        'src/types/**',
+        'src/**/*.d.ts',
+      ],
       reporter: ['text-summary', 'json-summary', 'lcov'],
+      // CI gate: `npm run test:coverage` fails when any metric drops below 90%.
+      thresholds: { statements: 90, branches: 90, functions: 90, lines: 90 },
     },
     // Same values as the fallbacks in src/lib/env.ts, so tests behave as before but no longer warn
     // "[env] ... is not set" on every run.
