@@ -238,8 +238,8 @@ test.describe('Feedback', () => {
 
     await page.getByRole('dialog').getByRole('button', { name: 'Feedback' }).click();
     await fb.getByRole('radio', { name: 'UI/UX issue' }).click();
-    // BUG-E2E-11: the label says "cURL command" although only the generated code is attached here.
-    await fb.getByRole('checkbox', { name: /Include my cURL command/ }).click();
+    // Only the generated code is attached here, and the label says so (BUG-E2E-11).
+    await fb.getByRole('checkbox', { name: /Include my generated code/ }).click();
     await fb.getByLabel(/Details/).fill('The generated class name differs from what I typed.');
     await fb.getByRole('button', { name: /Submit Feedback/ }).click();
     await expect.poll(() => api.of('/api/feedback').length).toBe(1);

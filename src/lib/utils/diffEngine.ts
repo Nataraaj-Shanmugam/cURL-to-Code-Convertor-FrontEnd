@@ -1,5 +1,6 @@
 import type { DiffEntry } from "@/types/diff";
 import { deepEqual } from "./deepEqual";
+import { INTERNAL_FIELDS } from "./redaction";
 import { encodePath } from "./fieldPath";
 
 function normalizeData(obj: unknown): unknown {
@@ -59,6 +60,8 @@ export function computeDiff(
   ]);
 
   for (const key of allKeys) {
+    // Backend bookkeeping copies of the body (kept in sync with it) are not request changes.
+    if (basePath === "" && INTERNAL_FIELDS.includes(key)) continue;
     // Escaped (see fieldPath.ts) so a key containing "." still reverts the right field.
     const childPath = basePath ? `${basePath}.${encodePath([key])}` : encodePath([key]);
     // The request body may be a JSON string on one side and an object (or reformatted string) on the other.

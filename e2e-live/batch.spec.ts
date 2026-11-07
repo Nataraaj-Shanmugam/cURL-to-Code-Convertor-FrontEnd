@@ -217,7 +217,7 @@ test.describe('Generate All', () => {
   test('[BE-11] when every request is rejected, an error is shown instead of a result', async ({ page }) => {
     await parseAll(page, [SIMPLE_GET, SIMPLE_POST]);
     const dialog = await openGenerateAll(page);
-    await dialog.getByRole('textbox', { name: 'Method name for GET /users/42' }).fill(TOO_LONG_NAME);
+    await dialog.getByRole('textbox', { name: 'Method name for GET /users/42' }).fill(`g${TOO_LONG_NAME}`);
     await dialog.getByRole('textbox', { name: 'Method name for POST /users' }).fill(TOO_LONG_NAME);
     await dialog.getByRole('button', { name: 'Generate All' }).click();
     await expect(dialog.getByRole('alert')).toContainText('Code generation failed for all 2 requests.', { timeout: 60_000 });

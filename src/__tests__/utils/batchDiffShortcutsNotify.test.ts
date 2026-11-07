@@ -60,6 +60,9 @@ describe('computeDiff', () => {
   it('FE-UNIT-01: a whitespace-only change to a JSON string body is not a diff', () => {
     expect(computeDiff({ data: '{"a":1,"b":2}' }, { data: '{ "b": 2,\n "a": 1 }' })).toEqual([]);
   });
+  it('ignores the hidden data_raw copy of the body', () => {
+    expect(computeDiff({ data: { a: 1 }, data_raw: '{"a":1}' }, { data: { a: 2 }, data_raw: '{"a":2}' }).map((e) => e.path)).toEqual(['data.a']);
+  });
   it('handles very large arrays and unicode keys', () => {
     const a = Array.from({ length: 20_000 }, (_, i) => i);
     const b = [...a];
