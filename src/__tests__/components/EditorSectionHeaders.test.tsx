@@ -20,7 +20,7 @@ describe('editor section headers (QU-3, QR-23, QU-26, QU-2)', () => {
     expect(screen.getByRole('button', { name: 'Request Body' })).toHaveAttribute('aria-expanded');
     expect(screen.getByRole('button', { name: 'Add Entry to Headers' })).not.toHaveAttribute('aria-expanded');
     expect(screen.getByRole('button', { name: 'Delete Section Headers' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Expand all body nodes/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Collapse all body nodes/ })).toBeInTheDocument();
   });
 
   it('header actions work without toggling the section', async () => {

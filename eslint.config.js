@@ -10,6 +10,8 @@ export default [
     ignores: [
       "node_modules/",
       "dist/",
+      "dist-perf/",
+      "dist-perf-profile/",
       "build/",
       ".vite/",
       "coverage/",
@@ -58,5 +60,10 @@ export default [
     settings: { 
       react: { version: "detect" } 
     }
+  },
+  // Perf scripts run in Node and pass functions to the page (page.evaluate), so both sets of globals apply.
+  {
+    files: ["perf/**/*.mjs"],
+    languageOptions: { globals: { ...globals.node, ...globals.browser } },
   }
 ];

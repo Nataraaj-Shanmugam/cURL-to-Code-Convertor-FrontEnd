@@ -443,19 +443,20 @@ describe('useParsedCurlEditor', () => {
     it('should expand/collapse all body nodes', () => {
       const { result } = renderHook(() => useParsedCurlEditor(sampleParsedData));
 
-      // Collapse all
+      // E2E-04: the body starts fully expanded, so the first press collapses.
+      expect(result.current.allExpanded).toBe(true);
       act(() => {
         result.current.handleBodyExpandCollapseAll();
       });
-
-      expect(result.current.allExpanded).toBe(true);
+      expect(result.current.allExpanded).toBe(false);
+      expect(Object.values(result.current.bodyCollapsed).some(Boolean)).toBe(true);
 
       // Expand all
       act(() => {
         result.current.handleBodyExpandCollapseAll();
       });
 
-      expect(result.current.allExpanded).toBe(false);
+      expect(result.current.allExpanded).toBe(true);
     });
   });
 
