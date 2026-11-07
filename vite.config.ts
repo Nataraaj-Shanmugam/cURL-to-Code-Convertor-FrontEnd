@@ -21,6 +21,11 @@ export default defineConfig({
     setupFiles: ['./src/__tests__/setup.ts'],
     css: true,
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    coverage: {
+      provider: 'v8',
+      include: ['src/**/*.{ts,tsx}'],
+      reporter: ['text-summary', 'json-summary', 'lcov'],
+    },
     // Same values as the fallbacks in src/lib/env.ts, so tests behave as before but no longer warn
     // "[env] ... is not set" on every run.
     env: {
