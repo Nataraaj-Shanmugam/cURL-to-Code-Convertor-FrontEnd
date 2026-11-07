@@ -74,7 +74,7 @@ const server = await startPreview(DIST);
 const browser = await launch();
 const out = {};
 try {
-  for (const name of [...Object.keys(SCENARIOS).filter((n) => n !== 'baseline'), 'batch25']) {
+  for (const name of [...Object.keys(SCENARIOS).filter((n) => n !== 'baseline' && (n !== 'body5mb' || wanted.includes('body5mb'))) /* body5mb crashes the tab: name it explicitly */, 'batch25']) {
     if (wanted.length && !wanted.includes(name)) continue;
     out[name] = {};
     const phase = async (pname, fn, { cdp }) => {

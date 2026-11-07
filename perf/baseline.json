@@ -1,0 +1,296 @@
+{
+  "bundle": {
+    "jsGzipKB": 245.8,
+    "jsRawKB": 766.02,
+    "cssGzipKB": 36,
+    "initialJsGzipKB": 110.9,
+    "initialJsRawKB": 347.66,
+    "largestJsChunkGzipKB": 110.9,
+    "chunkCount": 10
+  },
+  "chunks": {
+    "index.js": 110.9,
+    "ParsedCurlEditor.js": 76.89,
+    "index.css": 36,
+    "js-yaml.js": 14.54,
+    "Playground.js": 13.57,
+    "dialog.js": 10.87,
+    "notify.js": 8.39,
+    "BatchEditorPage.js": 7.22,
+    "EditorPage.js": 1.9,
+    "parseCurlBatch.js": 0.92,
+    "UnsavedChangesDialog.js": 0.6
+  },
+  "web": {
+    "home": {
+      "runs": 5,
+      "fcpMs": 232,
+      "lcpMs": 232,
+      "cls": 0.0008,
+      "tbtMs": 0,
+      "longTasks": 1,
+      "longestTaskMs": 63,
+      "ttiMs": 232,
+      "loadMs": 60.6
+    },
+    "playground": {
+      "runs": 5,
+      "fcpMs": 140,
+      "lcpMs": 216,
+      "cls": 0.0344,
+      "tbtMs": 0,
+      "longTasks": 0,
+      "longestTaskMs": 0,
+      "ttiMs": 200.5,
+      "loadMs": 63.4
+    },
+    "editor": {
+      "runs": 5,
+      "fcpMs": 124,
+      "lcpMs": 252,
+      "cls": 0.1779,
+      "tbtMs": 0,
+      "longTasks": 0,
+      "longestTaskMs": 0,
+      "ttiMs": 677.5,
+      "loadMs": 59.5
+    }
+  },
+  "stress": {
+    "baseline": {
+      "runs": 3,
+      "heapBefore": {
+        "usedMB": 3.5,
+        "totalMB": 4.4,
+        "domNodes": 249,
+        "scriptS": 0,
+        "layoutS": 0,
+        "styleS": 0
+      },
+      "parseToEditorMs": 186.8,
+      "responseToEditorMs": 176.1,
+      "heapAfterRender": {
+        "usedMB": 5.4,
+        "totalMB": 6.1,
+        "domNodes": 718,
+        "scriptS": 0.09,
+        "layoutS": 0.01,
+        "styleS": 0.01
+      },
+      "typingP50Ms": 9.2,
+      "typingP95Ms": 18.7,
+      "typingMaxMs": 23.1,
+      "slowKeyEvents": 80,
+      "worstKeyEventMs": 32,
+      "saveEditMs": 20.7,
+      "saveEditMaxMs": 24.4,
+      "heapAfterEdits": {
+        "usedMB": 6.5,
+        "totalMB": 6.9,
+        "domNodes": 636,
+        "scriptS": 0.28,
+        "layoutS": 0.03,
+        "styleS": 0.02
+      },
+      "undoMs": 11.4,
+      "undoMaxMs": 14.7,
+      "redoMs": 15.4,
+      "redoMaxMs": 15.9,
+      "reviewOpenMs": 48.1,
+      "reviewOpenMaxMs": 60.6,
+      "heapFinal": {
+        "usedMB": 6.9,
+        "totalMB": 7.6,
+        "domNodes": 627,
+        "scriptS": 0.36,
+        "layoutS": 0.03,
+        "styleS": 0.1
+      },
+      "heapMB": 6.9,
+      "longTasks": 0,
+      "longestTaskMs": 0
+    },
+    "headers500": {
+      "runs": 3,
+      "heapBefore": {
+        "usedMB": 3.5,
+        "totalMB": 3.9,
+        "domNodes": 249,
+        "scriptS": 0,
+        "layoutS": 0,
+        "styleS": 0
+      },
+      "parseToEditorMs": 552.8,
+      "responseToEditorMs": 539.2,
+      "heapAfterRender": {
+        "usedMB": 13.8,
+        "totalMB": 14.6,
+        "domNodes": 11168,
+        "scriptS": 0.28,
+        "layoutS": 0.06,
+        "styleS": 0.1
+      },
+      "typingP50Ms": 76.2,
+      "typingP95Ms": 106.8,
+      "typingMaxMs": 130,
+      "slowKeyEvents": 152,
+      "worstKeyEventMs": 136,
+      "saveEditMs": 79.9,
+      "saveEditMaxMs": 94,
+      "heapAfterEdits": {
+        "usedMB": 18.7,
+        "totalMB": 19.4,
+        "domNodes": 10588,
+        "scriptS": 1.86,
+        "layoutS": 0.09,
+        "styleS": 0.11
+      },
+      "undoMs": 24.8,
+      "undoMaxMs": 32.6,
+      "redoMs": 28.9,
+      "redoMaxMs": 45.6,
+      "reviewOpenMs": 98.6,
+      "reviewOpenMaxMs": 115.3,
+      "heapFinal": {
+        "usedMB": 18.9,
+        "totalMB": 19.6,
+        "domNodes": 10579,
+        "scriptS": 2.08,
+        "layoutS": 0.1,
+        "styleS": 0.56
+      },
+      "heapMB": 18.9,
+      "longTasks": 19,
+      "longestTaskMs": 303
+    },
+    "body2000": {
+      "runs": 3,
+      "heapBefore": {
+        "usedMB": 3.5,
+        "totalMB": 4.4,
+        "domNodes": 249,
+        "scriptS": 0,
+        "layoutS": 0,
+        "styleS": 0
+      },
+      "parseToEditorMs": 1448.6,
+      "responseToEditorMs": 1440.4,
+      "heapAfterRender": {
+        "usedMB": 16,
+        "totalMB": 16.6,
+        "domNodes": 36745,
+        "scriptS": 0.36,
+        "layoutS": 0.16,
+        "styleS": 0.3
+      },
+      "typingP50Ms": 540.5,
+      "typingP95Ms": 645.1,
+      "typingMaxMs": 1019.1,
+      "slowKeyEvents": 152,
+      "worstKeyEventMs": 1032,
+      "saveEditMs": 177.1,
+      "saveEditMaxMs": 211.8,
+      "heapAfterEdits": {
+        "usedMB": 30.3,
+        "totalMB": 31.4,
+        "domNodes": 36663,
+        "scriptS": 3.34,
+        "layoutS": 0.17,
+        "styleS": 0.3
+      },
+      "undoMs": 114.4,
+      "undoMaxMs": 174.1,
+      "redoMs": 93.5,
+      "redoMaxMs": 121,
+      "reviewOpenMs": 2082.1,
+      "reviewOpenMaxMs": 2093.1,
+      "heapFinal": {
+        "usedMB": 30.5,
+        "totalMB": 31.4,
+        "domNodes": 36654,
+        "scriptS": 4.08,
+        "layoutS": 0.18,
+        "styleS": 1.65
+      },
+      "heapMB": 30.5,
+      "longTasks": 104,
+      "longestTaskMs": 1019
+    },
+    "body5mb": {
+      "runs": 1,
+      "heapBefore": {
+        "usedMB": 3.5,
+        "totalMB": 4.1,
+        "domNodes": 249,
+        "scriptS": 0,
+        "layoutS": 0,
+        "styleS": 0
+      },
+      "fatal": "page.evaluate: Target crashed "
+    },
+    "batch25": {
+      "runs": 3,
+      "heapBefore": {
+        "usedMB": 4.4,
+        "totalMB": 5.1,
+        "domNodes": 1083,
+        "scriptS": 0,
+        "layoutS": 0,
+        "styleS": 0
+      },
+      "parseToEditorMs": 252.3,
+      "heapAfterRender": {
+        "usedMB": 6.1,
+        "totalMB": 6.9,
+        "domNodes": 1919,
+        "scriptS": 0.11,
+        "layoutS": 0.02,
+        "styleS": 0.03
+      },
+      "switchRequestMs": 38.1,
+      "switchRequestMaxMs": 56.1,
+      "typingP50Ms": 8.7,
+      "typingP95Ms": 18.6,
+      "typingMaxMs": 18.8,
+      "slowKeyEvents": 84,
+      "worstKeyEventMs": 32,
+      "saveEditMs": 26.9,
+      "saveEditMaxMs": 31.6,
+      "heapAfterEdits": {
+        "usedMB": 12,
+        "totalMB": 12.6,
+        "domNodes": 4843,
+        "scriptS": 0.57,
+        "layoutS": 0.06,
+        "styleS": 0.11
+      },
+      "undoMs": 17.3,
+      "undoMaxMs": 24.3,
+      "redoMs": 15.4,
+      "redoMaxMs": 15.7,
+      "reviewOpenMs": 50.5,
+      "reviewOpenMaxMs": 59.8,
+      "heapFinal": {
+        "usedMB": 12.2,
+        "totalMB": 12.9,
+        "domNodes": 4834,
+        "scriptS": 0.74,
+        "layoutS": 0.07,
+        "styleS": 0.19
+      },
+      "heapMB": 12.2,
+      "longTasks": 0,
+      "longestTaskMs": 0
+    }
+  },
+  "meta": {
+    "cpuThrottle": 1,
+    "runs": 5,
+    "stressRuns": 3,
+    "observeMs": 4000,
+    "quietMs": 2000,
+    "date": "2026-11-07T02:59:48.894Z",
+    "node": "v22.23.4",
+    "chromium": "153.0.8010.12"
+  }
+}

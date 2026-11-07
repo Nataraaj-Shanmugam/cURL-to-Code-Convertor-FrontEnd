@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Production bundle size per chunk (raw + gzip + brotli) and the initial-load JS (what index.html pulls in
- * before first paint). Reads dist/, so run `npm run perf:build` first (perf:check does it for you).
+ * before first paint). Reads dist-perf/, so run `npm run perf:build` first (perf:check does it for you).
  *
  *   node perf/bundle-size.mjs            # print table, write perf/results/bundle.json
  *   node perf/bundle-size.mjs --check    # also compare against perf/budgets.json, exit 1 on a breach
@@ -12,7 +12,7 @@ import { join, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const DIST = join(ROOT, process.env.PERF_DIST ?? 'dist');
+const DIST = join(ROOT, process.env.PERF_DIST ?? 'dist-perf');
 const kb = (n) => Math.round((n / 1024) * 100) / 100;
 
 export function measureBundle() {

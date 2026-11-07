@@ -37,11 +37,13 @@ export async function webRun(browser, which, cfg) {
 }
 
 // ── editor stress ────────────────────────────────────────────────────────────
+// batch editor keeps one (hidden) editor per visited request: pick the visible one
+const VIS = `const vis = (sel) => [...document.querySelectorAll(sel)].find((e) => !e.closest('[hidden]'));`;
 const timed = (page, fnSrc, arg) => page.evaluate(`(async (arg) => { const t0 = performance.now(); await (${fnSrc})(arg); await window.__paint(); return performance.now() - t0; })(${JSON.stringify(arg ?? null)})`);
 
 /** Everything after the editor is on screen: typing, committing edits, undo/redo, Review Changes, heap. */
 async function editorInteractions(page, cdp, m, ph) {
-  const step = async (name, fn) => { try { await phase(name, fn); } catch (e) { (m.errors ??= {})[name] = String(e.message).split('\n')[0]; } };
+  const step = async (name, fn) => { try { await ph(name, fn); } catch (e) { (m.errors ??= {})[name] = String(e.message).split('\n')[0]; } };
   const EDIT = 'Content-Type';
 
   await step('typing', async () => {
@@ -66,14 +68,14 @@ async function editorInteractions(page, cdp, m, ph) {
         await page.getByRole('button', { name: `Edit ${EDIT}`, exact: true }).first().click();
         await page.getByRole('textbox', { name: `Value of ${EDIT}`, exact: true }).fill(`application/json; v=${i}`);
       }
-      saves.push(await timed(page, `(async () => { [...document.querySelectorAll('button')].find(b => b.getAttribute('aria-label') === 'Save ${EDIT}').click(); await window.__until(() => !document.querySelector('input[aria-label="Value of ${EDIT}"]')); })`));
+      saves.push(await timed(page, `(async () => { ${VIS} vis('button[aria-label="Save ${EDIT}"]').click(); await window.__until(() => !vis('input[aria-label="Value of ${EDIT}"]')); })`));
     }
     m.saveEditMs = round(median(saves)); m.saveEditMaxMs = round(Math.max(...saves));
   });
   m.heapAfterEdits = await heap(cdp);
 
   await step('undo', async () => {
-    const sel = (label) => `(async () => { const b = document.querySelector('button[aria-label="${label}"]'); if (!b || b.disabled) throw new Error('${label} disabled'); b.click(); })`;
+    const sel = (label) => `(async () => { ${VIS} const b = vis('button[aria-label="${label}"]'); if (!b || b.disabled) throw new Error('${label} disabled'); b.click(); })`;
     const undo = []; const redo = [];
     for (let i = 0; i < 4; i++) undo.push(await timed(page, sel('Undo')));
     for (let i = 0; i < 4; i++) redo.push(await timed(page, sel('Redo')));
@@ -84,7 +86,7 @@ async function editorInteractions(page, cdp, m, ph) {
   await step('review', async () => {
     const times = [];
     for (let i = 0; i < 3; i++) {
-      times.push(await timed(page, `(async () => { const b = document.querySelector('button[title="Review changes"]'); if (!b || b.disabled) throw new Error('Changes button disabled'); b.click(); await window.__until(() => [...document.querySelectorAll('[role=dialog]')].some(d => d.textContent.includes('Review Changes'))); })`));
+      times.push(await timed(page, `(async () => { ${VIS} const b = vis('button[title="Review changes"]'); if (!b || b.disabled) throw new Error('Changes button disabled'); b.click(); await window.__until(() => [...document.querySelectorAll('[role=dialog]')].some(d => d.textContent.includes('Review Changes'))); })`));
       await page.keyboard.press('Escape');
       await page.waitForFunction(() => !document.querySelector('[role=dialog]'));
     }
