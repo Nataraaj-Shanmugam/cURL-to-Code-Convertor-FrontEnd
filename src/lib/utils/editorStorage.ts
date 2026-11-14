@@ -11,7 +11,7 @@
  * it is the same request.
  */
 import type { ParsedCurl } from "@/types/curl";
-import { redactCurlString, redactParsedCurl } from "@/lib/utils/redaction";
+import { redactCurlString, redactParsedCurlWithSecrets } from "@/lib/utils/redaction";
 import {
   LIVE_REQUEST_TTL_MS,
   forgetLiveRequest,
@@ -57,10 +57,16 @@ function isParsedShape(value: unknown): value is ParsedCurl {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/**
+ * The raw command is scrubbed by pattern AND by the secret values of its parsed request: the parser
+ * understands shells (PowerShell cookie objects, cmd quoting, ...) that the text patterns may miss.
+ */
 function redactSnapshot(snapshot: EditorSnapshot): EditorSnapshot {
+  const { redacted, secrets } = redactParsedCurlWithSecrets(snapshot.parsed);
   return {
-    parsed: redactParsedCurl(snapshot.parsed),
-    originalCurl: typeof snapshot.originalCurl === "string" ? redactCurlString(snapshot.originalCurl) : undefined,
+    parsed: redacted,
+    originalCurl:
+      typeof snapshot.originalCurl === "string" ? redactCurlString(snapshot.originalCurl, { knownSecrets: secrets }) : undefined,
   };
 }
 

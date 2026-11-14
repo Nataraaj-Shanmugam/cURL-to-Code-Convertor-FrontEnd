@@ -128,3 +128,73 @@ test.describe('Secrets are not persisted', () => {
     expect(session).not.toContain(TOKEN);
   });
 });
+
+/**
+ * SEC-2: Chrome's two Windows copy formats. The raw paste is kept (redacted) in sessionStorage and
+ * history.state and shown in the Original cURL card; the cookie/body values must be scrubbed there
+ * too, not only in the parsed request.
+ */
+const WINDOWS_PASTES = {
+  'Copy as PowerShell': {
+    curl: [
+      '$session = New-Object Microsoft.PowerShell.Commands.WebRequestSession',
+      '$session.UserAgent = "Mozilla/5.0"',
+      '$session.Cookies.Add((New-Object System.Net.Cookie("sid", "MKSESSIONCOOKIE1", "/", "api.example.com")))',
+      'Invoke-WebRequest -UseBasicParsing -Uri "https://api.example.com/users" `',
+      '-Method "POST" `',
+      '-WebSession $session `',
+      '-Headers @{',
+      '"authority"="api.example.com"',
+      '  "accept"="*/*"',
+      '} `',
+      '-ContentType "application/json" `',
+      '-Body "{`"name`":`"John`",`"password`":`"MKBODYPASSWORD2`"}"',
+    ].join('\n'),
+    data: { cookies: { sid: 'MKSESSIONCOOKIE1' }, data: { name: 'John', password: 'MKBODYPASSWORD2' } },
+    markers: ['MKSESSIONCOOKIE1', 'MKBODYPASSWORD2'],
+    kept: '-Uri "https://api.example.com/users"',
+  },
+  'Copy as cURL (cmd)': {
+    curl: [
+      'curl ^"https://api.example.com/users^" ^',
+      '  -H ^"accept: */*^" ^',
+      '  -b ^"sid=MKCMDCOOKIE3; theme=dark^" ^',
+      '  --data-raw ^"^{^\\^"name^\\^":^\\^"John^\\^",^\\^"password^\\^":^\\^"MKCMDPASSWORD4^\\^"^}^"',
+    ].join('\n'),
+    data: { cookies: { sid: 'MKCMDCOOKIE3', theme: 'dark' }, data: { name: 'John', password: 'MKCMDPASSWORD4' } },
+    markers: ['MKCMDCOOKIE3', 'MKCMDPASSWORD4'],
+    kept: 'curl ^"https://api.example.com/users^"',
+  },
+} as const;
+
+for (const [format, paste] of Object.entries(WINDOWS_PASTES)) {
+  test(`Chrome "${format}" paste: no cookie or body secret in storage, history or the Original cURL card`, async ({ mockPage: page }) => {
+    await page.route(/\/api\/parse$/, (route) =>
+      route.fulfill({ json: { success: true, data: { ...MOCK_PARSED_CURL, ...paste.data } } }),
+    );
+    await page.goto('/playground');
+    await page.locator('textarea').first().fill(paste.curl);
+    await page.getByRole('button', { name: /Parse cURL/i }).click();
+    await expect(page).toHaveURL(/\/editor/, { timeout: 10_000 });
+    await expect.poll(() => page.evaluate((k) => sessionStorage.getItem(k), STORAGE_KEY)).not.toBeNull();
+
+    const { local, session } = await dumpStorage(page);
+    const history = await page.evaluate(() => JSON.stringify(window.history.state));
+    const shown = await page.locator('body').innerText();
+    for (const marker of paste.markers) {
+      expect(local, marker).not.toContain(marker);
+      expect(session, marker).not.toContain(marker);
+      expect(history, marker).not.toContain(marker);
+      expect(shown, marker).not.toContain(marker);
+    }
+    // The stored command is still the user's command (not mangled by over-redaction).
+    const stored = await page.evaluate((k) => sessionStorage.getItem(k), STORAGE_KEY);
+    expect((JSON.parse(stored ?? '{}') as { originalCurl?: string }).originalCurl).toContain(paste.kept);
+
+    page.on('dialog', (dialog) => void dialog.accept());
+    await page.reload();
+    await expect(page.getByText('Original cURL Command')).toBeVisible({ timeout: 10_000 });
+    const after = await page.evaluate(() => JSON.stringify(window.history.state) + Object.values(sessionStorage).join('\n'));
+    for (const marker of paste.markers) expect(after, marker).not.toContain(marker);
+  });
+}
