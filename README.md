@@ -1,564 +1,281 @@
-# 🚀 cURL to REST Assured Code Generator
+# CurlCraft: cURL-to-Code Convertor (frontend)
 
-A modern web application that parses cURL commands and generates REST Assured test code with an intuitive visual editor.
+CurlCraft turns a cURL command into an editable request and then into REST Assured / TestNG test code.
+Paste or import a request, correct it in a visual editor, preview it, and generate a Java test class,
+a single test method, POJOs and the `pom.xml` dependencies.
 
-[![React](https://img.shields.io/badge/React-18.x-blue.svg)](https://reactjs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg)](https://www.typescriptlang.org/)
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.x-38bdf8.svg)](https://tailwindcss.com/)
-[![shadcn/ui](https://img.shields.io/badge/shadcn%2Fui-Latest-black.svg)](https://ui.shadcn.com/)
+**Live site:** https://curlcraftassured.vercel.app
 
----
+The frontend is a React single-page app. All parsing and code generation happen in a separate Python
+backend (FastAPI), so this repository contains no parser or generator logic.
 
-## 📋 Table of Contents
+## Contents
 
-- [Features](#-features)
-- [Tech Stack](#-tech-stack)
-- [Getting Started](#-getting-started)
-- [Environment Variables](#environment-variables)
-- [Usage Guide](#-usage-guide)
-- [Project Structure](#-project-structure)
-- [API Integration](#-api-integration)
-- [Components Overview](#-components-overview)
-- [Customization](#-customization)
-- [Contributing](#-contributing)
-- [License](#-license)
+- [Features](#features)
+- [Routes](#routes)
+- [Limits](#limits)
+- [Secrets handling](#secrets-handling)
+- [Backend status](#backend-status)
+- [Getting started](#getting-started)
+- [Environment variables](#environment-variables)
+- [Scripts](#scripts)
+- [Testing](#testing)
+- [Performance budgets](#performance-budgets)
+- [Deployment](#deployment)
+- [Project layout](#project-layout)
 
----
+## Features
 
-## ✨ Features
+**Playground (`/playground`)**
+- Paste one cURL command and press Parse (or Ctrl/Cmd + Enter). One filled command opens the editor.
+- Add more command boxes and parse them together. Several commands open the Batch Editor; a command
+  that fails does not discard the others, and each failure is shown against its command number.
+- Example commands to start from.
+- On a parse error, "Report this cURL" opens the feedback form with the redacted command attached.
+  The form shows what will be attached before it is sent.
 
-### 🎯 Core Features
+**Import (Playground > Import)**
+- Paste or upload (up to 5 MB) a **Postman Collection v2.1**, an **OpenAPI 3 / Swagger** spec, or a
+  cURL command. JSON and YAML are both accepted; the format is detected from the content.
+- A Postman environment file can be uploaded with a collection to resolve `{{variables}}`.
+- Choose which requests to import. One request opens the editor; several open the Batch Editor.
 
-#### **1. cURL Command Parsing**
-- Parse any cURL command into structured, editable data
-- Support for all HTTP methods (GET, POST, PUT, PATCH, DELETE, etc.)
-- Extract and organize:
-  - Request URL (base URL + endpoint)
-  - HTTP headers
-  - Query parameters
-  - Request body (JSON, form-data, raw)
-  - Authentication details
-  - Cookies
-  - Network configurations
-  - SSL/TLS settings
-  - Various flags and options
+**Parsed request editor (`/editor`)**
+- The parsed request is shown as accordion sections: request details, headers, query parameters, cookies,
+  authentication, body, form data, network, SSL/TLS, flags, path parameters and client context. Sections
+  with data open by default; missing sections can be added, and sections or entries can be deleted.
+- Click a value to edit it inline. The body is a tree (objects, arrays, primitives) with expand and
+  collapse controls. Large bodies are previewed and rendered on demand.
+- **Undo / redo**: Ctrl/Cmd + Z and Ctrl/Cmd + Y (or Ctrl/Cmd + Shift + Z), outside text fields.
+- **Preview request** shows the request as it will be sent.
+- **Review Changes** lists every edit made since the original parse, as added, removed and modified rows.
+- **Reset** restores the original parse (asks first).
+- **Export JSON** downloads the edited request. You can choose to redact secrets in the file; otherwise
+  the file contains the real secret values.
+- Ctrl/Cmd + G opens code generation.
 
-#### **2. Visual Editor**
-- **Accordion-based Interface**: Organized sections for different request components
-- **Inline Editing**: Click to edit any field directly
-- **Expandable/Collapsible Sections**: 
-  - Request Details
-  - Headers
-  - Query Parameters
-  - Request Body (with nested object/array visualization)
-  - Cookies
-  - Authentication
-  - Form Data
-  - Network Configuration
-  - SSL/TLS Configuration
-  - Flags
-  - Path Parameters
-  - Client Context (User Agent, Referer, Proxy)
+**Code generation**
+- Output: a full TestNG / REST Assured test class, or the test method only.
+- Options: class and method names, assertions, expected status code, request/response logging, and
+  optional POJO generation (Lombok `@Data` and `@Builder`) for request bodies.
+- Tabs: test code, POJO classes (when enabled), and the `pom.xml` (or dependencies only).
+- Copy any tab or download it; batch generation can download every file.
+- Generation is blocked while the request still contains redacted values (see below).
 
-#### **3. Advanced Request Body Editor**
-- **Hierarchical View**: Nested JSON objects and arrays
-- **Expand/Collapse All**: Bulk control for complex payloads
-- **Inline Editing**: Edit primitive values directly
-- **Path Visualization**: Clear display of nested paths
-- **Type Indicators**: Visual distinction between objects, arrays, and primitives
+**Batch Editor (`/batch-editor`)**
+- Edits several parsed requests at once: the list of requests, a per-request editor, an "edited" marker,
+  and removal of requests.
+- "Generate All" generates code for the batch.
 
-#### **4. Section Management**
-- **Add Missing Sections**: Dynamic section addition based on valid cURL options
-- **Delete Sections**: Remove entire sections when not needed
-- **Add Entries**: Add new headers, query params, cookies, etc.
-- **Delete Entries**: Remove individual fields with confirmation
-- **Bulk Selection**: Select multiple fields for batch deletion
-- **Smart Defaults**: Auto-open sections with data
+**Other**
+- Light, dark and system theme.
+- Feedback form (`/feedback`) for bug reports, feature requests and questions.
+- Unknown routes show a 404 page.
 
-#### **5. Code Generation**
+## Routes
 
-##### **Configuration Options**:
-- **Generation Type**:
-  - Full Test Class (complete Java class with imports and setup)
-  - Test Method Only (just the @Test method)
-  
-- **Customization**:
-  - Custom class names
-  - Custom method names
-  - Include/exclude assertions
-  - Configure expected status codes
-  - Toggle logging
-  - POJO class generation
+| Path | Page |
+|------|------|
+| `/` | Landing page |
+| `/playground` | cURL input, import and parse |
+| `/editor` | Parsed request editor and code generation |
+| `/batch-editor` | Batch Editor |
+| `/feedback` | Feedback form |
+| anything else | 404 |
 
-##### **POJO Generation**:
-- Automatic POJO creation from request body
-- Lombok annotations (@Data, @Builder)
-- Nested class support
-- Custom class naming
+The editor and batch editor receive their data through React Router location state. A reload restores
+the last request from this tab's session storage (see below). Opening `/editor` directly with nothing to
+restore sends you back to the Playground.
 
-##### **Output Formats**:
-- **Test Code Tab**: Generated REST Assured test
-- **POJO Classes Tab**: Generated data models (when enabled)
-- **Dependencies Tab**: Complete pom.xml with all required dependencies
+## Limits
 
-##### **Code Actions**:
-- Copy to clipboard
-- Download as .java file
-- Download pom.xml
-- Syntax-highlighted preview
+- **cURL command length: 50,000 characters.** The frontend does not check this itself. The backend
+  enforces it (`MAX_CURL_COMMAND_LENGTH`, default 50000) and answers HTTP 413, which the app shows as an
+  error. Batch parsing applies the limit to each command separately.
+- Import files: 5 MB per file (checked in the browser).
+- Up to 5 commands are parsed in parallel in a batch; the rest wait their turn.
+- The editor keeps up to 50 undo steps.
 
-#### **6. Data Management**
-- **Reset to Original**: Revert all changes to initial parsed state
-- **Export JSON**: Download edited data as JSON file
-- **Save Changes**: Persist modifications (with callback support)
-- **Validation**: Required fields protection (method, URL)
+## Secrets handling
 
-#### **7. Flag & Configuration Management**
-- **Visual Flag Display**: Active flags shown as badges
-- **Flag Types**:
-  - Network flags (insecure, verbose, silent, etc.)
-  - SSL/TLS flags
-  - Redirect flags
-  - Compression flags
-  
-#### **8. User Experience**
+Credentials are masked everywhere they are shown, and are not kept in browser storage.
 
-##### **Theme Support**:
-- Light mode
-- Dark mode
-- System preference detection
-- Smooth theme transitions
+- **What counts as a secret:** `Authorization`, `Proxy-Authorization`, `Cookie` and `Set-Cookie` header
+  values; `-u user:password`; proxy and URL credentials; every cookie value; any header, query, form or
+  body key whose name looks secret (token, key, secret, password, session, auth and similar); JWT-shaped
+  values anywhere. Name matching is deliberately broad: a harmless value gets masked rather than a
+  credential leaking. The rules live in `src/lib/utils/redaction.ts`.
+- **On screen:** secret values show as `••••••••` with a per-value eye toggle to reveal them.
+- **Code generation** is disabled until every redacted value is re-entered, so generated code never
+  contains a placeholder in place of a real credential.
+- **Storage:** the editor and batch state are saved to `sessionStorage` only (gone when the tab closes),
+  with secrets already redacted. The live values stay in memory. Entries expire 8 hours after the last
+  activity. Older builds kept the editor state, secrets included, in `localStorage`; that entry is
+  removed (or migrated in redacted form) on load.
+- **Feedback:** the "Report this cURL" text is redacted before it is put into the route state.
+- **Build:** never put a secret in a `VITE_*` variable. Every such value is written into the shipped
+  JavaScript.
 
-##### **Responsive Design**:
-- Mobile-friendly interface
-- Tablet-optimized layouts
-- Desktop-first workflow
-- Adaptive component sizing
+## Backend status
 
-##### **Navigation**:
-- Back to playground
-- Auto-navigation after parsing
-- State preservation between routes
-- Original cURL display
+The hosted backend sleeps when idle. On every app load (any route) the frontend polls the health endpoint
+and shows the state in the navigation bar and on the Playground:
 
-##### **Visual Feedback**:
-- Hover effects on editable fields
-- Success/error toast notifications
-- Copy confirmation indicators
-- Loading states
-- Disabled state handling
+| Chip | Meaning |
+|------|---------|
+| Checking generator | First probe in progress |
+| Waking generator | Backend is starting; the app waits up to 90 seconds |
+| Generator ready | Backend answered |
+| Generator unavailable | No answer in 90 seconds; **Retry** starts the check again |
 
----
+A parse started while the backend is waking is held and sent once it is ready, so it is not lost to a
+timeout. Requests use longer timeouts (20 s) until the backend has answered recently, and retry network
+errors and 502/503/504 responses with backoff.
 
-## 🛠 Tech Stack
+## Getting started
 
-### **Frontend Framework**
-- **React 18.x** - UI library
-- **TypeScript 5.x** - Type safety
-- **Vite** - Build tool and dev server
-
-### **Styling**
-- **Tailwind CSS 3.x** - Utility-first CSS
-- **shadcn/ui** - Component library
-- **Radix UI** - Headless UI primitives
-- **Framer Motion** - Animations
-
-### **UI Components**
-- Accordion
-- Button
-- Card
-- Checkbox
-- Dialog
-- Input
-- Select
-- Textarea
-- Theme Provider
-
-### **State Management**
-- React Hooks (useState, useEffect, useReducer patterns)
-- Custom hooks for business logic
-- Location state for navigation
-
-### **Routing**
-- React Router v6
-
-### **HTTP Client**
-- Axios
-
-### **Development Tools**
-- ESLint
-- Prettier (implied)
-- TypeScript compiler
-
----
-
-## 🚀 Getting Started
-
-### Prerequisites
-```bash
-node >= 18.0.0
-npm >= 9.0.0
-```
-
-### Installation
-
-1. **Clone the repository**
-```bash
-git clone <repository-url>
-cd <project-directory>
-```
-
-2. **Install dependencies**
-```bash
-npm install
-```
-
-3. **Configure the backend URL**
-
-   `npm run dev` works with no setup and talks to `http://127.0.0.1:8000`. To use a
-   different backend, or for any deployed build, set the variables described in
-   [Environment Variables](#environment-variables).
-
-4. **Start development server**
-```bash
-npm run dev
-```
-
-5. **Build for production**
-```bash
-VITE_CURL_CRAFT_API_URL=https://api.example.com npm run build     # production
-VITE_CURL_CRAFT_API_URL=https://api.example.com npm run preprod   # preprod (--mode preprod)
-```
-The build fails if `VITE_CURL_CRAFT_API_URL` is missing or points at a loopback host.
-
-6. **Preview production build**
-```bash
-npm run preview
-```
-
----
-
-## Environment Variables
-
-All configuration is read through `src/lib/env.ts`. Vite inlines `VITE_*` values at **build time**, so they
-must be set in the environment that runs the build (Vercel: Project Settings > Environment Variables, scoped
-to the environment being built), not at runtime.
-
-| Variable | Default | Replaces (master) | Notes |
-|----------|---------|-------------------|-------|
-| `VITE_CURL_CRAFT_API_URL` | `http://127.0.0.1:8000` (dev only) | same name | Backend base URL. **Required for `production` and `preprod` builds**: `vite build` fails if it is missing, empty, not an absolute http(s) URL, or a loopback host (`localhost`, `127.0.0.0/8`, `::1`, `0.0.0.0`). The default applies to `npm run dev` only. |
-| `VITE_CURL_CRAFT_API_PARSE_ENDPOINT` | `/api/parse` | same name | Parse a cURL command. |
-| `VITE_CURL_CRAFT_API_GENERATE_ENDPOINT` | `/api/generate-from-parsed` | `VITE_CURL_CRAFT_API_GENERATE_FROM_PARSED_ENDPOINT` | Generate code from parsed data (also used per item by batch generation). Master's name is still honoured as a fallback when this one is unset, so a Vercel project that only sets the old name keeps working; if both are set, this one wins. |
-| `VITE_CURL_CRAFT_API_HEALTH_ENDPOINT` | `/health` | same name, same default | Health check (`GET`), polled on every app load (any route) to wake the sleeping hosted backend and drive the generator status chip. Production sets it in the Vercel project; `.env.development` uses `/api/health` for the local backend. A `2xx` or `4xx` answer counts as awake, so a wrong path never blocks the app; network errors, timeouts and `5xx` keep it waking. |
-| `VITE_CURL_CRAFT_API_FEEDBACK_ENDPOINT` | `/api/feedback` | same name | Submit feedback. |
-| `VITE_CURL_CRAFT_API_BODY_EDIT_ENDPOINT` | `/api/body/edit` | none (new in V3) | Edit a node of the parsed body. |
-| `VITE_CURL_CRAFT_API_BODY_DELETE_ENDPOINT` | `/api/body/delete` | none (new in V3) | Delete a node of the parsed body. |
-| `VITE_CURL_CRAFT_BODY_API_ENABLED` | off (`true` turns it on) | none (new in V3) | Feature flag. Request-body edits and deletes always apply locally in the editor. When on, they are also mirrored to the two `/api/body/*` endpoints above (fire-and-forget; a failure shows a notice but never blocks or rolls back the edit). Leave off unless the backend needs to see body edits. |
-
-Only `VITE_CURL_CRAFT_API_URL` normally needs setting; the endpoint paths already default to the backend's routes.
-
-**Master variables V3 no longer reads** (a leftover value is harmless but has no effect; check the Vercel
-project before deploying V3 to it). `VITE_CURL_CRAFT_API_GENERATE_FROM_PARSED_ENDPOINT` is not in this list: it is still read, as a fallback for the variable above.
-
-| Variable | What happened to it |
-|----------|---------------------|
-| `VITE_CURL_CRAFT_API_PARSE_AND_GENERATE_ENDPOINT` | Ignored. V3 has no one-shot parse-and-generate call. |
-| `VITE_BE_WARMUP_WAIT_MINS` | Ignored. V3's warm-up (`src/contexts/BackendStatusContext.tsx`) polls the health endpoint for up to 90 seconds on every app load, then reports the generator unavailable with a Retry button. |
-| `VITE_BE_WARMUP_MAX_RETRIES` | Ignored. Same warm-up as above; requests themselves also retry network errors and 502/503/504 (`src/lib/api/apiClient.ts`). |
-
-**Per environment**
-
-- `npm run dev` loads the committed `.env.development` (localhost backend).
-- `npm run build` (mode `production`) and `npm run preprod` (mode `preprod`) load `.env.production` /
-  `.env.preprod` if present, plus anything in the process environment. `.env.preprod` and
-  `.env.production.local` are git-ignored; `.env.production` is not, so prefer Vercel settings or a
-  `.env.production.local` for per-deployment values. Never put secrets in any `VITE_*` variable: every value
-  is visible in the shipped JavaScript.
-
----
-
-## 📖 Usage Guide
-
-### 1. Parse a cURL Command
+Requirements: Node.js 20.19 or later (CI uses 22) and npm.
 
 ```bash
-# Navigate to Playground
-http://localhost:5173/playground
-
-# Paste your cURL command, for example:
-curl -X POST "https://api.example.com/users" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer token123" \
-  -d '{"name": "John", "email": "john@example.com"}'
-
-# Click "Parse cURL"
+npm ci           # install exactly what package-lock.json records
+npm run dev      # http://localhost:5173
 ```
 
-### 2. Edit Parsed Data
+`npm run dev` needs no configuration. It calls a backend at `http://127.0.0.1:8000` and loads the
+committed `.env.development`. Run the backend locally, or set `VITE_CURL_CRAFT_API_URL` to another one.
 
-- Auto-navigates to Editor after parsing
-- Click any field to edit inline
-- Use accordion sections to navigate components
-- Add/delete sections and entries as needed
-- Expand/collapse nested body structures
+To build for deployment:
 
-### 3. Generate Code
+```bash
+VITE_CURL_CRAFT_API_URL=https://api.example.com npm run build     # mode: production
+VITE_CURL_CRAFT_API_URL=https://api.example.com npm run preprod   # mode: preprod
+npm run preview                                                   # serve dist/ locally
+```
 
-1. Click **"Generate Code"** button
-2. Select generation type:
-   - **Full Test Class**: Complete test file
-   - **Test Method Only**: Just the method
-3. Configure options:
-   - Class name
-   - Method name
-   - Enable assertions
-   - Set expected status code
-   - Enable logging
-   - Generate POJOs (optional)
-4. Click **"Generate Code"**
-5. View generated code in tabs:
-   - Test Code
-   - POJO Classes (if enabled)
-   - Dependencies (pom.xml)
-6. Copy or download as needed
+`build` and `preprod` refuse to run if `VITE_CURL_CRAFT_API_URL` is missing, empty, not an absolute
+http(s) URL, or a loopback address (`localhost`, `127.0.0.0/8`, `::1`, `0.0.0.0`). That stops a deployed
+bundle from calling the visitor's own machine. The check is in `scripts/envGuard.ts`.
 
-### 4. Export & Save
+## Environment variables
 
-- **Export JSON**: Download modified data
-- **Save Changes**: Trigger save callback (if provided)
-- **Reset**: Revert to original parsed state
+All variables are read in one place, `src/lib/env.ts`. Vite inlines `VITE_*` values at **build time**, so
+set them in the environment that runs the build (on Vercel: Project Settings > Environment Variables,
+for each environment being built), not at runtime.
 
----
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `VITE_CURL_CRAFT_API_URL` | `http://127.0.0.1:8000` in dev only | Backend base URL. Required for `production` and `preprod` builds (see above). |
+| `VITE_CURL_CRAFT_API_PARSE_ENDPOINT` | `/api/parse` | Parse a cURL command. |
+| `VITE_CURL_CRAFT_API_GENERATE_ENDPOINT` | `/api/generate-from-parsed` | Generate code from parsed data (also used per item by batch generation). Falls back to `VITE_CURL_CRAFT_API_GENERATE_FROM_PARSED_ENDPOINT` when this one is unset; if both are set, this one wins. |
+| `VITE_CURL_CRAFT_API_HEALTH_ENDPOINT` | `/health` | Health check (GET) used by the backend status logic. `.env.development` uses `/api/health`, which the backend also serves. Any 2xx or 4xx answer counts as awake; network errors, timeouts and 5xx do not. |
+| `VITE_CURL_CRAFT_API_FEEDBACK_ENDPOINT` | `/api/feedback` | Submit feedback. |
+| `VITE_CURL_CRAFT_API_BODY_EDIT_ENDPOINT` | `/api/body/edit` | Mirror a body edit to the backend. Used only when the flag below is on. |
+| `VITE_CURL_CRAFT_API_BODY_DELETE_ENDPOINT` | `/api/body/delete` | Mirror a body delete to the backend. Used only when the flag below is on. |
+| `VITE_CURL_CRAFT_BODY_API_ENABLED` | off | Set to `true` to turn on body mirroring. Body edits always apply locally first. A failed mirror call shows a notice and never undoes the edit. The backend in `release/v3.1-backend` does not define the two `/api/body/*` routes, so leave this off unless the backend has them. |
 
-## 📁 Project Structure
+Only `VITE_CURL_CRAFT_API_URL` normally needs setting; the paths default to the backend's routes.
+
+**Master-branch variables that V3 does not read:** `VITE_CURL_CRAFT_API_PARSE_AND_GENERATE_ENDPOINT`,
+`VITE_BE_WARMUP_WAIT_MINS` and `VITE_BE_WARMUP_MAX_RETRIES`. A leftover value has no effect. The warm-up
+now polls the health endpoint for up to 90 seconds, and requests retry on their own.
+
+## Scripts
+
+| Command | What it does |
+|---------|--------------|
+| `npm run dev` | Vite dev server on port 5173 |
+| `npm run build` | Type-check, then production build (`--mode production`) |
+| `npm run preprod` | Type-check, then build with `--mode preprod` |
+| `npm run preview` | Serve the built `dist/` |
+| `npm run type-check` | TypeScript, no emit |
+| `npm run lint` | ESLint with zero warnings allowed |
+| `npm run lint:fix` | ESLint with auto-fix |
+| `npm run format` | Prettier on `src/**/*.{ts,tsx,css}` |
+| `npm test` | Vitest, once |
+| `npm run test:watch` | Vitest in watch mode |
+| `npm run test:coverage` | Vitest with v8 coverage; fails below 90% statements, branches, functions or lines |
+| `npm run test:e2e` | Playwright, mocked backend (starts the dev server itself) |
+| `npm run test:e2e:ui` / `:headed` / `:report` | Playwright UI mode, headed browser, last HTML report |
+| `npm run test:e2e:live` | Playwright against the real backend (see [Testing](#testing)) |
+| `npm run perf:build` | Build the perf bundle into `dist-perf/` |
+| `npm run perf:bundle` | Bundle-size budgets only |
+| `npm run perf:web` | Web vitals and stress measurements in Chromium |
+| `npm run perf:profile` | CPU profile of the stress scenarios |
+| `npm run perf:check` | Build, measure and compare against `perf/budgets.json`; exits 1 on a breach |
+
+## Testing
+
+**Unit and component tests (Vitest, `src/__tests__/`).** React Testing Library for components, and MSW v2
+for the HTTP layer. Run `npm test`, or `npm run test:coverage` for the coverage gate.
+
+**Mocked end-to-end (Playwright, `e2e/`).** Runs in Chromium on desktop. Every backend call is mocked in
+`e2e/fixtures.ts`, so no backend is needed. Install the browser once with
+`npx playwright install chromium`, then run `npm run test:e2e`.
+
+**Live end-to-end (Playwright, `e2e-live/`).** Runs the real frontend against the real backend, through a
+small gateway (`e2e-live/support/gateway.mjs`) that can also simulate a sleeping host. It needs a backend
+checkout with its Python dependencies installed:
+
+```bash
+CURLCRAFT_BACKEND_DIR=/path/to/backend \
+CURLCRAFT_BACKEND_PYTHON=/path/to/backend/.venv/bin/python \
+npm run test:e2e:live
+```
+
+Both variables are optional. `CURLCRAFT_BACKEND_DIR` defaults to `../be-unit` or
+`../cURL-to-Code-Convertor-BackEnd`; `CURLCRAFT_BACKEND_PYTHON` defaults to that checkout's `.venv`, then
+`python3`. The backend runs with `ENVIRONMENT=development`, so the production-only settings (rate limiting,
+the production CORS origin rules) are not exercised by this suite.
+
+## Performance budgets
+
+`perf/budgets.json` holds bundle-size and interaction budgets. `perf/baseline.json` holds the measurements
+they were derived from, and `docs/testing/performance-report.md` explains the method and the history.
+
+- `npm run perf:check -- --bundle-only` checks sizes only. It is deterministic and runs in CI.
+- `npm run perf:check` also measures timings in Chromium. Timings on a shared machine vary a lot; run it on
+  an idle machine, and re-run before believing a failure.
+- After an intentional change, `npm run perf:check -- --rebaseline` rewrites both files. Re-apply any
+  hand-set budget afterwards.
+
+## Deployment
+
+The app is deployed to Vercel. The production branch is `preprod`, and the backend is on Render. The order
+of a release, and how to roll back, are in [`docs/RELEASE.md`](docs/RELEASE.md).
+
+Vercel needs `VITE_CURL_CRAFT_API_URL` set in both the **Production** and **Preview** scopes, because the
+build refuses to run without it.
+
+## Project layout
 
 ```
 src/
-├── components/
-│   ├── features/
-│   │   └── curl/
-│   │       ├── CodeGenerationDialog.tsx    # Code generation UI
-│   │       ├── CurlPlayground.tsx          # cURL input interface
-│   │       └── ParsedCurlEditor.tsx        # Visual editor
-│   ├── layout/
-│   │   ├── AppLayout.tsx                   # Main layout wrapper
-│   │   ├── Footer.tsx                      # Footer component
-│   │   └── NavBar.tsx                      # Navigation bar
-│   └── ui/
-│       ├── accordion.tsx                   # Accordion component
-│       ├── button.tsx                      # Button component
-│       ├── card.tsx                        # Card component
-│       ├── checkbox.tsx                    # Checkbox component
-│       ├── dialog.tsx                      # Dialog component
-│       ├── input.tsx                       # Input component
-│       ├── select.tsx                      # Select component
-│       ├── textarea.tsx                    # Textarea component
-│       └── theme-provider.tsx              # Theme context
-│
-├── lib/
-│   ├── api/
-│   │   ├── apiClient.ts                    # Axios instance config
-│   │   └── curl.ts                         # cURL API service
-│   ├── hooks/
-│   │   ├── useCurlParser.ts                # Parsing logic hook
-│   │   └── useParsedCurlEditor.ts          # Editor state hook
-│   └── utils/
-│       ├── curl.ts                         # cURL utilities
-│       └── utils.ts                        # General utilities
-│
-├── pages/
-│   ├── EditorPage.tsx                      # Editor route
-│   ├── Home.tsx                            # Landing page
-│   └── Playground.tsx                      # Playground route
-│
-├── types/
-│   └── curl.ts                             # TypeScript types
-│
-├── App.tsx                                 # Root component
-├── main.tsx                                # Entry point
-└── index.css                               # Global styles
+  App.tsx, main.tsx          Router setup and entry point
+  pages/                     Home, Playground, EditorPage, BatchEditorPage, Feedback, NotFound
+  components/
+    features/curl/           Playground, parsed editor (editor/), code generation (codegen/), dialogs
+    features/import/         Import dialog (cURL, Postman, OpenAPI)
+    features/backend/        Backend status chip and wait notice
+    features/feedback/       Feedback form and dialog
+    layout/                  App layout, navigation bar, footer, route effects
+    ui/                      shadcn/ui primitives and the error boundary
+  contexts/                  Backend status (BackendStatusContext)
+  lib/
+    api/                     apiClient.ts (fetch wrapper, ApiError, retries, timeouts) and curl.ts
+    env.ts                   Every VITE_* variable, read in one place
+    hooks/                   Editor, batch editor, body API and section hooks
+    parsers/                 cURL text, Postman, OpenAPI, import detection
+    utils/                   Redaction, storage, code generation, diff, shortcuts, notifications
+  constants/                 Example commands, method colours, feedback categories, links
+  types/                     Shared TypeScript types
+  __tests__/                 Vitest suites, MSW handlers and fixtures
+e2e/                         Mocked Playwright suites
+e2e-live/                    Live Playwright suites and backend support
+perf/                        Budgets, baseline and measurement scripts
+scripts/                     Build-time env guard and repo checks
+docs/                        Test matrices, performance report, release runbook
 ```
 
----
+## License
 
-## 🔌 API Integration
-
-### Backend Requirements
-
-The frontend expects a REST API with the following endpoint:
-
-#### **POST /api/parse**
-Parse cURL command to structured data
-
-**Request:**
-```json
-{
-  "curl": "curl -X GET https://api.example.com"
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "method": "GET",
-    "url": "https://api.example.com",
-    "base_url": "https://api.example.com",
-    "endpoint": "/",
-    "headers": {},
-    "query_params": {},
-    "data": null,
-    ...
-  }
-}
-```
-
-#### **POST /api/generate-from-parsed**
-Generate REST Assured code from parsed data
-
-**Request:**
-```json
-{
-  "parsed_data": { /* parsed cURL object */ },
-  "config": {
-    "option": "full",
-    "className": "ApiTest",
-    "methodName": "testApiRequest",
-    "assertionRequired": true,
-    "statusCode": "200",
-    "loggingRequired": true,
-    "needPojo": false,
-    "pojoClassName": "RequestBody"
-  }
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "generated_code": "import io.restassured...",
-  "pojo_code": "public class RequestBody {...}",
-  "error": null
-}
-```
-
----
-
-## 🧩 Components Overview
-
-### **CodeGenerationDialog**
-- Multi-step dialog for code generation
-- Configuration management
-- Code preview and export
-- Tab-based output view
-
-### **CurlPlayground**
-- cURL input textarea
-- Parse button with loading state
-- Error display
-- Auto-navigation to editor
-
-### **ParsedCurlEditor**
-- Main editing interface
-- Section-based data organization
-- Inline field editing
-- Bulk operations
-- Code generation trigger
-
-### **useParsedCurlEditor Hook**
-- State management for editor
-- CRUD operations on parsed data
-- Section visibility logic
-- Code generation logic
-- Export/reset functionality
-
-### **useCurlParser Hook**
-- cURL parsing orchestration
-- Error handling
-- Data normalization
-- Filter state management
-
----
-
-## 🎨 Customization
-
-### Theme Customization
-
-Edit `src/index.css` to modify theme colors:
-
-```css
-:root {
-  --primary: 220 90% 56%;        /* Primary brand color */
-  --secondary: 210 14% 89%;      /* Secondary color */
-  --accent: 210 40% 96.1%;       /* Accent color */
-  /* ... more variables */
-}
-```
-
-### Component Styling
-
-All components use Tailwind CSS classes. Modify classes directly in components or extend in `tailwind.config.js`.
-
-### API Configuration
-
-Set `VITE_CURL_CRAFT_API_URL` (see [Environment Variables](#environment-variables)); there is no URL constant to edit in source.
-
----
-
-## 🤝 Contributing
-
-### Development Workflow
-
-1. Create a feature branch
-2. Make changes
-3. Test thoroughly
-4. Submit pull request
-
-### Code Standards
-
-- Use TypeScript for type safety
-- Follow existing component patterns
-- Use Tailwind CSS for styling
-- Keep components focused and reusable
-- Add proper error handling
-- Document complex logic
-
----
-
-## 📄 License
-
-[Add your license here]
-
----
-
-## 🐛 Known Issues
-
-- Large nested objects may impact performance
-- Browser localStorage not used (by design for Claude.ai compatibility)
-- Direct URL access to /editor requires state from /playground
-
----
-
-## 🔮 Roadmap
-
-- [ ] Add undo/redo functionality
-- [ ] Request history management
-- [ ] Multiple code template support (TestNG, JUnit, etc.)
-- [ ] Export as Postman collection
-- [ ] Import from Postman/Swagger
-- [ ] Batch cURL processing
-- [ ] Request execution and testing
-- [ ] Response mocking
-- [ ] API documentation generation
-
----
-
-## 📞 Support
-
-For issues, questions, or contributions, please [open an issue](link-to-issues) or contact the maintainers.
-
----
-
-**Built with ❤️ using Claude, React, TypeScript, and shadcn/ui**
+No license file has been added yet.

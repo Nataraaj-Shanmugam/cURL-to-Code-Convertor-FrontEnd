@@ -1,6 +1,6 @@
 {
   "name": "modernized-frontend",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -23,7 +23,8 @@
     "perf:bundle": "node perf/bundle-size.mjs --check",
     "perf:web": "node perf/measure.mjs all",
     "perf:profile": "node perf/profile.mjs",
-    "perf:check": "node perf/check.mjs"
+    "perf:check": "node perf/check.mjs",
+    "check:docs": "node scripts/check-docs-ci.mjs"
   },
   "dependencies": {
     "@fontsource/dm-sans": "^5.2.8",

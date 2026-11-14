@@ -62,6 +62,11 @@ export default [
     }
   },
   // Perf scripts run in Node and pass functions to the page (page.evaluate), so both sets of globals apply.
+  // Repo scripts (scripts/*.mjs) run in Node only.
+  {
+    files: ["scripts/**/*.mjs"],
+    languageOptions: { globals: globals.node },
+  },
   {
     files: ["perf/**/*.mjs"],
     languageOptions: { globals: { ...globals.node, ...globals.browser } },

@@ -52,3 +52,6 @@ Archieve/
 dist-perf/
 dist-perf-profile/
 perf/results/
+
+# Machine-specific Claude Code settings (absolute paths of one machine; never commit)
+.claude/settings.local.json
