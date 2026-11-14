@@ -224,20 +224,18 @@ test.describe('Generate All', () => {
     await expect(dialog.getByRole('heading', { name: 'Generated Batch Code' })).toHaveCount(0);
   });
 
-  test('[BE-10] Copy redacts every request\'s secrets unless unticked', async ({ page, context }) => {
+  test('[BE-10] Copy redacted (default) scrubs every request\'s secrets; Copy with secrets keeps them (D-3)', async ({ page, context }) => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write']);
     await parseAll(page, [CHROME_BASH, DELETE_ITEM]);
     const dialog = await openGenerateAll(page);
     await runGenerateAll(page);
-    const redact = dialog.getByRole('checkbox', { name: 'Redact secrets when copying' });
-    await expect(redact).toBeChecked();
-    await dialog.getByRole('button', { name: 'Copy' }).click();
+    await expect(dialog.getByRole('tabpanel')).not.toContainText(SECRETS.bearer);
+    await dialog.getByRole('button', { name: 'Copy redacted' }).click();
     const safe = await clipboard(page);
     expect(safe).toContain('public class BatchApiTest');
     expect(safe).not.toContain(SECRETS.bearer);
     expect(safe).not.toContain(SECRETS.cookie);
-    await redact.click();
-    await dialog.getByRole('button', { name: /Copy/ }).click();
+    await dialog.getByRole('button', { name: 'Copy with secrets' }).click();
     await expect.poll(() => clipboard(page)).toContain(SECRETS.bearer);
 
     await dialog.getByRole('button', { name: 'Back to Config' }).click();

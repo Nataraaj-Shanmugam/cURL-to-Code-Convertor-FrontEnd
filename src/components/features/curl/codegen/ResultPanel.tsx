@@ -40,9 +40,16 @@ interface ResultPanelProps {
   result: GeneratedResult;
   /** Exact secret values of the request, for scrubbing generated code (collectSecretValues). */
   secretValues: readonly string[];
+  /** Label of the test-code tab (the batch dialog shows one combined class). */
+  testTabLabel?: string;
 }
 
-export default function ResultPanel({ result, secretValues }: ResultPanelProps) {
+/**
+ * The generated-code result: tabs, masked preview with a reveal toggle, "Copy redacted" (default) and
+ * "Copy with secrets", downloads. Shared by the single and the batch code generation dialogs so both
+ * handle secrets the same way.
+ */
+export default function ResultPanel({ result, secretValues, testTabLabel = "Test Code" }: ResultPanelProps) {
   const files = useMemo(() => resultFiles(result), [result]);
   const [activeTab, setActiveTab] = useState<ResultTab>("test");
   const [revealed, setRevealed] = useState(false);
@@ -54,7 +61,7 @@ export default function ResultPanel({ result, secretValues }: ResultPanelProps) 
   const redact = (text: string, placeholder?: string) =>
     redactText(text, { knownSecrets: secretValues, ...(placeholder ? { placeholder } : {}) });
 
-  const tabs: { id: ResultTab; label: string }[] = [{ id: "test", label: "Test Code" }];
+  const tabs: { id: ResultTab; label: string }[] = [{ id: "test", label: testTabLabel }];
   if (result.pojoCode) tabs.push({ id: "pojo", label: "POJO Classes" });
   if (result.pomXml) tabs.push({ id: "pom", label: result.pomIsFull ? "pom.xml" : "Dependencies (pom.xml)" });
   if (result.testngXml) tabs.push({ id: "testng", label: "testng.xml" });

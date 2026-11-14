@@ -3,13 +3,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Loader2, Copy, CheckCircle2, AlertCircle } from "lucide-react";
+import { Loader2, AlertCircle } from "lucide-react";
 import { apiClient, GENERATE_TIMEOUT_MS, SAFE_RETRIES } from "@/lib/api/apiClient";
 import { ENV } from "@/lib/env";
 import { isInsecureCurl, withRelaxedHttps } from "@/lib/utils/insecureFlag";
-import { collectSecretValues, redactText } from "@/lib/utils/redaction";
+import { collectSecretValues } from "@/lib/utils/redaction";
+import type { GeneratedResult } from "@/lib/utils/codeGeneration";
+import ResultPanel from "./codegen/ResultPanel";
 import {
   defaultStatusForMethod,
   javaIdentifierError,
@@ -22,14 +22,6 @@ interface BatchCodeGenerationDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   items: BatchItem[];
-}
-
-function CodeBlock({ code }: { code: string }) {
-  return (
-    <pre className="text-sm font-mono bg-slate-950 text-slate-50 p-4 rounded-lg overflow-x-auto max-h-[50vh] whitespace-pre-wrap break-all">
-      {code}
-    </pre>
-  );
 }
 
 interface GenerationFailure {
@@ -78,14 +70,11 @@ function BatchCodeGenerationDialog({
   // Only statuses the user typed are stored; the rest follow each request's (possibly edited) method.
   const [statusOverrides, setStatusOverrides] = useState<Record<string, string>>({});
   const [failures, setFailures] = useState<GenerationFailure[]>([]);
-  const [redactOutput, setRedactOutput] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
   const [combinedCode, setCombinedCode] = useState("");
   const [combinedPom, setCombinedPom] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"test" | "pom">("test");
-  const [copied, setCopied] = useState(false);
 
   const statusFor = (item: BatchItem) =>
     statusOverrides[item.id] ?? defaultStatusForMethod(item.parsed.method);
@@ -215,17 +204,26 @@ ${methods.map((m) => "    " + m.replace(/\n/g, "\n    ")).join("\n\n")}
     setStep("result");
   };
 
-  const handleCopy = async () => {
-    const shown = activeTab === "test" ? combinedCode : combinedPom;
-    const code = redactOutput ? redactText(shown, { knownSecrets: secretValues }) : shown;
-    try {
-      await navigator.clipboard.writeText(code);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // ignore
-    }
-  };
+  // The combined class as a result, so it is shown, copied and downloaded exactly like a single
+  // request's (secrets masked on screen, "Copy redacted" by default, "Copy with secrets" on request).
+  const batchResult = useMemo<GeneratedResult>(
+    () => ({
+      option: "method",
+      serviceName: className.trim(),
+      methodName: className.trim(),
+      testCode: combinedCode,
+      pojoCode: "",
+      pomXml: combinedPom,
+      pomIsFull: false,
+      warnings: [],
+      testngXml: "",
+      testngFileName: "testng.xml",
+      testngHint: "",
+    }),
+    // className is read when the result is produced; editing it on the config step must not rename it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [combinedCode, combinedPom]
+  );
 
   const handleClose = () => {
     onOpenChange(false);
@@ -235,7 +233,6 @@ ${methods.map((m) => "    " + m.replace(/\n/g, "\n    ")).join("\n\n")}
     setError(null);
     setFailures([]);
     setProgress(0);
-    setActiveTab("test");
   };
 
   return (
@@ -382,58 +379,7 @@ ${methods.map((m) => "    " + m.replace(/\n/g, "\n    ")).join("\n\n")}
                 </div>
               </div>
             )}
-            <label className="flex items-center gap-2 text-sm mb-3 cursor-pointer">
-              <Checkbox
-                checked={redactOutput}
-                onCheckedChange={(checked) => setRedactOutput(checked === true)}
-                aria-label="Redact secrets when copying"
-              />
-              Redact secrets when copying
-              <span className="text-xs text-muted-foreground">
-                (the code shown below is not masked)
-              </span>
-            </label>
-            <Tabs
-              value={activeTab}
-              onValueChange={(v: string) => setActiveTab(v as "test" | "pom")}
-              className="flex-1 flex flex-col overflow-hidden"
-            >
-              <div className="flex items-center justify-between mb-3">
-                <TabsList>
-                  <TabsTrigger value="test">Combined Test Class</TabsTrigger>
-                  {combinedPom && (
-                    <TabsTrigger value="pom">pom.xml</TabsTrigger>
-                  )}
-                </TabsList>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleCopy}
-                  className="gap-2"
-                >
-                  {copied ? (
-                    <>
-                      <CheckCircle2 className="w-4 h-4 text-green-500" />
-                      Copied
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-4 h-4" />
-                      Copy
-                    </>
-                  )}
-                </Button>
-              </div>
-
-              <TabsContent value="test" className="flex-1 overflow-auto mt-0">
-                <CodeBlock code={combinedCode} />
-              </TabsContent>
-              {combinedPom && (
-                <TabsContent value="pom" className="flex-1 overflow-auto mt-0">
-                  <CodeBlock code={combinedPom} />
-                </TabsContent>
-              )}
-            </Tabs>
+            <ResultPanel result={batchResult} secretValues={secretValues} testTabLabel="Combined Test Class" />
 
             <div className="flex justify-between pt-3 border-t mt-3">
               <Button variant="outline" onClick={() => setStep("config")}>

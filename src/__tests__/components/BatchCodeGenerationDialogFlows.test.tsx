@@ -236,7 +236,7 @@ describe('BatchCodeGenerationDialog request body shape (QF-17)', () => {
   });
 });
 
-describe('BatchCodeGenerationDialog redact on copy (QU-6)', () => {
+describe('BatchCodeGenerationDialog secrets in the result (QU-6, D-3)', () => {
   const writeText = vi.fn().mockResolvedValue(undefined);
   afterEach(() => writeText.mockClear());
 
@@ -250,12 +250,25 @@ describe('BatchCodeGenerationDialog redact on copy (QU-6)', () => {
     return user;
   };
 
-  it('is on by default and masks secrets in the copied text only', async () => {
+  // D-3: the batch result handles secrets exactly like the single-request result (shared ResultPanel).
+  it('masks secrets on screen until revealed, like the single result', async () => {
     const user = await setup();
-    const box = screen.getByRole('checkbox', { name: 'Redact secrets when copying' });
-    expect(box).toBeChecked();
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).not.toHaveTextContent('abc123tokenvalue');
+    expect(dialog).toHaveTextContent('••••••••');
+    expect(screen.getByText('Secrets are masked on screen.')).toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: 'Redact secrets when copying' })).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: /Copy/ }));
+    await user.click(screen.getByRole('button', { name: 'Reveal value of generated code' }));
+    expect(dialog).toHaveTextContent('abc123tokenvalue');
+    expect(screen.getByText('Secrets are visible on screen.')).toBeInTheDocument();
+  });
+
+  it('"Copy redacted" is the default copy and masks secrets in the copied text', async () => {
+    const user = await setup();
+    // Revealing on screen does not change what the default copy puts on the clipboard.
+    await user.click(screen.getByRole('button', { name: 'Reveal value of generated code' }));
+    await user.click(screen.getByRole('button', { name: 'Copy redacted' }));
 
     await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
     const copied = writeText.mock.calls[0]![0] as string;
@@ -264,13 +277,17 @@ describe('BatchCodeGenerationDialog redact on copy (QU-6)', () => {
     expect(await screen.findByText('Copied')).toBeInTheDocument();
   });
 
-  it('copies the code as generated once the user turns it off', async () => {
+  it('copies the code as generated only through "Copy with secrets"', async () => {
     const user = await setup();
-    await user.click(screen.getByRole('checkbox', { name: 'Redact secrets when copying' }));
-
-    await user.click(screen.getByRole('button', { name: /Copy/ }));
+    await user.click(screen.getByRole('button', { name: 'Copy with secrets' }));
 
     await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
     expect(writeText.mock.calls[0]![0]).toContain('abc123tokenvalue');
+  });
+
+  it('offers the same download redaction choice as the single result, off by default', async () => {
+    await setup();
+    expect(screen.getByRole('checkbox', { name: 'Redact secrets in downloaded files' })).not.toBeChecked();
+    expect(screen.getByRole('tab', { name: 'Combined Test Class' })).toHaveAttribute('aria-selected', 'true');
   });
 });
