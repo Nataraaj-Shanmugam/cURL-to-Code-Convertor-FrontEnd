@@ -3,6 +3,8 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { MethodBadge } from "@/components/ui/method-badge";
+import EditorShell from "@/components/layout/EditorShell";
 import { Textarea } from "@/components/ui/textarea";
 import { X, Layers, ArrowLeft, AlertCircle, Loader2, Trash2 } from "lucide-react";
 import { deriveItemPath, isItemEdited, useBatchEditor } from "@/lib/hooks/useBatchEditor";
@@ -15,16 +17,6 @@ import type { BatchParseFailure, ParsedCurlEntry } from "@/types/batch";
 import { MASK, countVisibleRedactions, redactCurlString } from "@/lib/utils/redaction";
 import { MaskedString } from "@/components/features/curl/editor/SecretValue";
 import { redactBatchHistoryState, rememberBatchRequest, resolveBatchRestore } from "@/lib/utils/batchStorage";
-
-const METHOD_COLORS: Record<string, string> = {
-  GET: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
-  POST: "bg-green-500/15 text-green-600 dark:text-green-400",
-  PUT: "bg-yellow-500/15 text-yellow-600 dark:text-yellow-400",
-  PATCH: "bg-orange-500/15 text-orange-600 dark:text-orange-400",
-  DELETE: "bg-red-500/15 text-red-600 dark:text-red-400",
-  HEAD: "bg-purple-500/15 text-purple-600 dark:text-purple-400",
-  OPTIONS: "bg-gray-500/15 text-gray-600 dark:text-gray-400",
-};
 
 /**
  * One command that did not parse: shown with its error, editable, and retryable in place. The raw
@@ -249,6 +241,7 @@ export default function BatchEditorPage() {
   }
 
   return (
+    <EditorShell>
     <div className="flex flex-col md:h-[calc(100vh-8rem)] md:overflow-hidden">
       {failureBanner && <div className="p-2 border-b shrink-0">{failureBanner}</div>}
       <div className="flex flex-col md:flex-row flex-1 min-h-0 md:overflow-hidden gap-0">
@@ -349,13 +342,7 @@ export default function BatchEditorPage() {
                     aria-describedby={edited ? `${item.id}-edited` : undefined}
                     className="flex flex-1 min-w-0 items-center gap-2 px-2 py-2 text-left rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
-                    <span
-                      className={`px-1.5 py-0.5 rounded text-[9px] font-bold font-mono shrink-0 ${
-                        METHOD_COLORS[method] ?? "bg-gray-500/15 text-gray-600"
-                      }`}
-                    >
-                      {method}
-                    </span>{" "}
+                    <MethodBadge method={method} className="shrink-0" />{" "}
                     <span className="text-xs truncate flex-1">{deriveItemPath(item.parsed, index)}</span>
                     {edited && (
                       <span
@@ -387,7 +374,7 @@ export default function BatchEditorPage() {
         </div>
 
         {/* Right panel: one editor per visited request, only the selected one visible */}
-        <div data-testid="batch-editor-panel" className="flex-1 min-w-0 md:overflow-y-auto">
+        <div data-testid="batch-editor-panel" className="flex-1 min-w-0 pt-4 md:overflow-y-auto md:pl-4">
           {items.map((item) =>
             visitedIds.has(item.id) || item.id === selectedId ? (
               <div key={item.id} hidden={item.id !== selectedId}>
@@ -419,5 +406,6 @@ export default function BatchEditorPage() {
 
       <UnsavedChangesDialog open={isBlocked} onStay={stay} onLeave={leave} />
     </div>
+    </EditorShell>
   );
 }

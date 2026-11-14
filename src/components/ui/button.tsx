@@ -14,10 +14,11 @@ const buttonVariants = cva(
         outline: "border border-border bg-card text-foreground font-medium hover:bg-muted hover:text-foreground",
       },
       size: {
-        default: "h-9 px-4 py-2",
-        sm: "h-8 px-3 text-xs",
+        // Below 640px every size is at least 40px tall (touch targets, D-15).
+        default: "h-9 px-4 py-2 max-sm:h-10",
+        sm: "h-8 px-3 text-xs max-sm:h-10",
         lg: "h-11 px-6 text-base",
-        icon: "h-9 w-9",
+        icon: "h-9 w-9 max-sm:h-10 max-sm:w-10",
       },
     },
     defaultVariants: { variant: "default", size: "default" },

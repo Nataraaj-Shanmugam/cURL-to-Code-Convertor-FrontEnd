@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { copyToClipboard, notifySaved } from "@/lib/utils/notify";
-import { usePageHeadingLevel } from "@/components/layout/PageHeading";
+import { usePageHeadingLevel, useSectionHeadingLevel } from "@/components/layout/PageHeading";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   DropdownMenu,
@@ -19,7 +19,7 @@ import {
 import { useParsedCurlEditor, VALID_SECTIONS } from "@/lib/hooks/useParsedCurlEditor";
 import {
   Edit2, Trash2, Save, Download, Code, FolderPlus,
-  Maximize2, Minimize2, RotateCcw, FileText, Copy, Undo2, Redo2, MoreHorizontal, Eye, GitCompare, ShieldAlert,
+  Maximize2, Minimize2, RotateCcw, FileText, Undo2, Redo2, MoreHorizontal, Eye, GitCompare, ShieldAlert,
 } from "lucide-react";
 import { useState, useMemo, memo, useEffect, useLayoutEffect, useCallback, useId, useRef } from "react";
 import CodeGenerationDialog from "./CodeGenerationDialog";
@@ -33,6 +33,7 @@ import { EditorContext, createEditorStore, type EditorCallbacks, type EditorRowS
 import SectionRenderer from "./editor/SectionRenderer";
 import { BodyChildList } from "./editor/BodyFieldNode";
 import RawBodyView from "./editor/RawBodyView";
+import OriginalRequestHeader, { type PersistenceNote } from "./editor/OriginalRequestHeader";
 import { isHugeBody } from "@/lib/utils/bodySize";
 import { countVisibleRedactionsShared } from "@/lib/utils/redactionCount";
 import { useMountedWhileOpen } from "@/lib/hooks/useMountedWhileOpen";
@@ -42,6 +43,8 @@ import { isBlockedByModal, isTextEntryTarget } from "@/lib/utils/shortcuts";
 interface ParsedCurlEditorProps {
   initialData: ParsedCurl;
   originalCurl?: string;
+  /** The saved-copy note (single-request editor): shown in the compact header with its Clear action. */
+  persistence?: PersistenceNote;
   onBack?: () => void;
   onSave?: (data: ParsedCurl) => void;
   /** Called with the current parsed data every time it changes (not on first render). */
@@ -76,6 +79,7 @@ function filterMeaningfulEntries(data: Record<string, unknown>): Record<string, 
 function ParsedCurlEditor({
   initialData,
   originalCurl,
+  persistence,
   onBack,
   onSave,
   onChange,
@@ -83,6 +87,7 @@ function ParsedCurlEditor({
   isActive = true,
 }: ParsedCurlEditorProps) {
   const headingLevel = usePageHeadingLevel();
+  const sectionLevel = useSectionHeadingLevel();
   const {
     parsed,
     originalParsed,
@@ -376,43 +381,20 @@ function ParsedCurlEditor({
 
   return (
     <EditorContext.Provider value={editorCtx}>
-      <div className="p-4 space-y-4 max-w-6xl mx-auto bg-grid min-h-[calc(100vh-12rem)]">
-        {originalCurl && (
-          <Card className="bg-muted/30">
-            <CardHeader className="flex-row items-center justify-between space-y-0">
-              <CardTitle className="text-sm text-muted-foreground">
-                Original cURL Command
-                {originalCurlRedacted && (
-                  <span className="ml-2 font-normal text-xs">(secrets redacted when saved)</span>
-                )}
-              </CardTitle>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="gap-1.5"
-                aria-label={originalHasSecret ? "Copy original cURL command (secrets redacted)" : "Copy original cURL command"}
-                onClick={() =>
-                  void copyToClipboard(
-                    originalHasSecret ? maskedOriginal.replace(new RegExp(MASK, "g"), REDACTED_PLACEHOLDER) : originalCurl,
-                    originalHasSecret ? "Redacted cURL command" : "cURL command",
-                  )
-                }
-              >
-                <Copy className="h-3.5 w-3.5" aria-hidden="true" />
-                {originalHasSecret ? "Copy redacted" : "Copy"}
-              </Button>
-            </CardHeader>
-            <CardContent>
-              <MaskedText
-                label="original cURL command"
-                text={originalCurl}
-                maskedText={maskedOriginal}
-                className="text-xs font-mono whitespace-pre-wrap break-all bg-background p-3 rounded border border-border max-h-32 overflow-auto"
-              />
-            </CardContent>
-          </Card>
-        )}
+      <div className="space-y-4 bg-grid min-h-[calc(100vh-12rem)]">
+        <OriginalRequestHeader
+          originalCurl={originalCurl}
+          originalCurlRedacted={originalCurlRedacted}
+          originalHasSecret={originalHasSecret}
+          maskedOriginal={maskedOriginal}
+          persistence={persistence}
+          onCopy={() =>
+            void copyToClipboard(
+              originalHasSecret ? maskedOriginal.replace(new RegExp(MASK, "g"), REDACTED_PLACEHOLDER) : (originalCurl ?? ""),
+              originalHasSecret ? "Redacted cURL command" : "cURL command",
+            )
+          }
+        />
 
         {redactedCount > 0 && (
           // role="alert" is kept on purpose: the user has to act (re-enter the values) before generating code.
@@ -426,8 +408,7 @@ function ParsedCurlEditor({
               Secret values in this request were redacted when it was saved.{" "}
               <strong>
                 Re-enter {redactedCount} redacted value{redactedCount === 1 ? "" : "s"} to generate code.
-              </strong>{" "}
-              They are the fields marked <strong>Redacted: re-enter value</strong>.
+              </strong>
             </span>
           </Alert>
         )}
@@ -782,15 +763,15 @@ function ParsedCurlEditor({
           </DialogContent>
         </Dialog>
 
-        <Card className="shadow-md">
-          <CardHeader>
+        <Card className="max-sm:rounded-none max-sm:border-x-0 max-sm:bg-transparent max-sm:shadow-none sm:shadow-md">
+          <CardHeader className="max-sm:px-0">
             {/* The page title: an <h1> (the batch route renders its own, so there it is an <h2>). */}
             <CardTitle as={headingLevel} className="text-xl sm:text-2xl text-primary">Edit Parsed Request</CardTitle>
             <p className="text-sm text-muted-foreground">
               Edit values, manage sections, and generate code
             </p>
           </CardHeader>
-          <CardContent>
+          <CardContent className="max-sm:px-0">
             <Accordion
               type="multiple"
               value={openSections}
@@ -817,6 +798,7 @@ function ParsedCurlEditor({
                   : parsed.data) && (
                   <AccordionItem value="data" className="border-l-2 border-l-indigo-500 pl-2">
                     <AccordionTrigger
+                      headingLevel={sectionLevel}
                       actions={
                         showRawBody ? undefined : (
                         <button

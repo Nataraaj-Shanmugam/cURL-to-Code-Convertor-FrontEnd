@@ -1,4 +1,4 @@
-import { memo, useEffect, useId, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useId, useMemo, useState } from "react";
 import { Download, ShieldCheck, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -26,7 +26,6 @@ function ExportJsonDialog({ open, onOpenChange, parsedData }: ExportJsonDialogPr
   const [revealed, setRevealed] = useState<Set<string>>(new Set());
   // Safe by default: the file is redacted unless the user asks for the real values.
   const [redactDownload, setRedactDownload] = useState(true);
-  const redactToggleRef = useRef<HTMLButtonElement>(null);
   const redactId = useId();
   // Fixed while the dialog is open, so the name shown is the name of the file that is downloaded.
   const [stamp, setStamp] = useState(() => new Date());
@@ -70,11 +69,7 @@ function ExportJsonDialog({ open, onOpenChange, parsedData }: ExportJsonDialogPr
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
         className="max-w-2xl max-h-[85vh] overflow-hidden flex flex-col"
-        onOpenAutoFocus={(event) => {
-          // Start on the one decision this dialog asks for, not on the first eye button.
-          event.preventDefault();
-          redactToggleRef.current?.focus();
-        }}
+        initialFocus="title"
       >
         <DialogHeader>
           <DialogTitle>Export JSON</DialogTitle>
@@ -90,7 +85,6 @@ function ExportJsonDialog({ open, onOpenChange, parsedData }: ExportJsonDialogPr
         >
           <Checkbox
             id={redactId}
-            ref={redactToggleRef}
             checked={redactDownload}
             onCheckedChange={(checked) => setRedactDownload(checked === true)}
             aria-label="Redact secrets in the downloaded file"

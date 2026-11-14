@@ -151,7 +151,7 @@ describe('BackendStatusProvider', () => {
     const { seen, status } = renderStatus({ ...FAST, wakeBudgetMs: 60 });
 
     await waitFor(() => expect(status()).toBe('unavailable'));
-    expect(screen.getByRole('button', { name: /Generator unavailable. Retry/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Generator unavailable.*Retry/ })).toBeInTheDocument();
 
     up = true;
     await userEvent.click(screen.getByRole('button', { name: /Retry/ }));

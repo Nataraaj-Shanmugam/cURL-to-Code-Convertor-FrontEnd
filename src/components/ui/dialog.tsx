@@ -37,8 +37,16 @@ DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
  */
 const DialogContentInner = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, onCloseAutoFocus, ...props }, ref) => {
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
+    /**
+     * Where focus lands on open. "title" focuses the heading (announced as the dialog's name) for
+     * dialogs whose first control would be a reveal toggle or a setting rather than the thing to do.
+     * Default: Radix's first focusable element.
+     */
+    initialFocus?: "title";
+  }
+>(({ className, children, onCloseAutoFocus, onOpenAutoFocus, initialFocus, ...props }, ref) => {
+  const contentRef = React.useRef<HTMLDivElement | null>(null);
   const [opener] = React.useState<HTMLElement | null>(() =>
     document.activeElement instanceof HTMLElement && document.activeElement !== document.body
       ? document.activeElement
@@ -46,7 +54,21 @@ const DialogContentInner = React.forwardRef<
   );
   return (
     <DialogPrimitive.Content
-      ref={ref}
+      ref={(node) => {
+        contentRef.current = node;
+        if (typeof ref === "function") ref(node);
+        else if (ref) ref.current = node;
+      }}
+      onOpenAutoFocus={(event) => {
+        onOpenAutoFocus?.(event);
+        if (event.defaultPrevented || initialFocus !== "title") return;
+        const title = contentRef.current?.querySelector<HTMLElement>("h2");
+        if (!title) return;
+        event.preventDefault();
+        title.setAttribute("tabindex", "-1");
+        title.classList.add("outline-none");
+        title.focus();
+      }}
       onCloseAutoFocus={(event) => {
         onCloseAutoFocus?.(event);
         if (event.defaultPrevented) return;
@@ -77,7 +99,7 @@ DialogContentInner.displayName = "DialogContentInner";
 
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
+  React.ComponentPropsWithoutRef<typeof DialogContentInner>
 >((props, ref) => (
   <DialogPortal>
     <DialogOverlay />

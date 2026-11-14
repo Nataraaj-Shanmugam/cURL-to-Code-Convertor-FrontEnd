@@ -129,11 +129,11 @@ describe('editor rendering performance (FE-PERF-1..5)', () => {
     const current = request({ items: Array.from({ length: 450 }, (_, i) => i + 1) });
     render(<DiffViewDialog open onOpenChange={() => {}} originalParsed={original} currentParsed={current} onRevert={() => {}} />);
     const dialog = screen.getByRole('dialog');
-    expect(within(dialog).getAllByRole('button', { name: 'Revert change' })).toHaveLength(200);
+    expect(within(dialog).getAllByRole('button', { name: /^Revert / })).toHaveLength(200);
     expect(dialog).toHaveTextContent('Showing 200 of 450 changes.');
     await user.click(within(dialog).getByRole('button', { name: 'Show 200 more' }));
     await user.click(within(dialog).getByRole('button', { name: 'Show 50 more' }));
-    expect(within(dialog).getAllByRole('button', { name: 'Revert change' })).toHaveLength(450);
+    expect(within(dialog).getAllByRole('button', { name: /^Revert / })).toHaveLength(450);
   });
 });
 

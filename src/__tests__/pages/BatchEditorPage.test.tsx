@@ -56,6 +56,16 @@ const rowNames = () =>
     .getAllByRole('listitem')
     .map((li) => within(li).getAllByRole('button')[0]!.textContent);
 
+/**
+ * The original cURL of the editor that is on screen. It sits behind a collapsed header (D-12), and the
+ * editors of other requests are hidden, so the one accessible toggle belongs to the visible editor.
+ */
+async function shownOriginal(user: ReturnType<typeof userEvent.setup>) {
+  const toggle = screen.getByRole('button', { name: /Original cURL Command/ });
+  if (toggle.getAttribute('aria-expanded') !== 'true') await user.click(toggle);
+  return document.getElementById(toggle.getAttribute('aria-controls')!)?.textContent;
+}
+
 /** Replace the endpoint of the visible editor via its inline field editor, optionally saving the field. */
 async function editEndpoint(user: ReturnType<typeof userEvent.setup>, value: string, commit = true) {
   await user.click(screen.getByRole('button', { name: 'Edit endpoint' }));
@@ -72,12 +82,13 @@ describe('BatchEditorPage', () => {
       expect(screen.getByRole('heading', { name: 'No Requests' })).toBeInTheDocument();
     });
 
-    it('lists every request it was given and selects the first', () => {
+    it('lists every request it was given and selects the first', async () => {
+      const user = userEvent.setup();
       renderPage({ items: ITEMS });
 
       expect(rowNames()).toEqual(['GET /a', 'POST /b', 'DELETE /c']);
       expect(row('GET /a')).toHaveAttribute('aria-current', 'true');
-      expect(screen.getByText('curl -X GET https://api.example.com/a')).toBeVisible();
+      expect(await shownOriginal(user)).toBe('curl -X GET https://api.example.com/a');
     });
 
     it('lists the commands that failed to parse, each with its message', () => {
@@ -127,8 +138,8 @@ describe('BatchEditorPage', () => {
 
       await user.click(row('POST /b'));
 
-      expect(screen.getByText('curl -X POST https://api.example.com/b')).toBeVisible();
-      expect(screen.getByText('curl -X GET https://api.example.com/a')).not.toBeVisible();
+      expect(await shownOriginal(user)).toBe('curl -X POST https://api.example.com/b');
+      expect(screen.getAllByRole('button', { name: /Original cURL Command/ })).toHaveLength(1); // the other editors are hidden
       expect(row('POST /b')).toHaveAttribute('aria-current', 'true');
     });
 
@@ -177,7 +188,7 @@ describe('BatchEditorPage', () => {
 
       expect(rowNames()).toEqual(['POST /b', 'DELETE /c']);
       expect(row('POST /b')).toHaveAttribute('aria-current', 'true');
-      expect(screen.getByText('curl -X POST https://api.example.com/b')).toBeVisible();
+      expect(await shownOriginal(user)).toBe('curl -X POST https://api.example.com/b');
     });
 
     it('after removing an earlier request, edits go to the request being edited, not the next one', async () => {
@@ -202,7 +213,7 @@ describe('BatchEditorPage', () => {
 
       expect(rowNames()).toEqual(['POST /b', 'DELETE /c']);
       expect(screen.queryByText('/a-edited')).not.toBeInTheDocument();
-      expect(screen.getByText('curl -X POST https://api.example.com/b')).toBeVisible();
+      expect(await shownOriginal(user)).toBe('curl -X POST https://api.example.com/b');
     });
 
     it('returns to the empty state after removing the last request', async () => {
@@ -307,7 +318,7 @@ describe('BatchEditorPage', () => {
       await user.selectOptions(select, 'POST /b');
 
       expect(row('POST /b')).toHaveAttribute('aria-current', 'true');
-      expect(screen.getByText('curl -X POST https://api.example.com/b')).toBeVisible();
+      expect(await shownOriginal(user)).toBe('curl -X POST https://api.example.com/b');
     });
 
     it('removes the selected request from the small-screen toolbar too', async () => {

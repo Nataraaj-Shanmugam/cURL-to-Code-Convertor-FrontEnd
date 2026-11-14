@@ -14,7 +14,7 @@ test.afterEach(async () => {
 
 test('[BS-01] a fresh load goes checking → ready against the real backend', async ({ page }) => {
   await page.goto('/playground');
-  const chip = page.getByTestId('backend-status-playground');
+  const chip = page.getByTestId('backend-status-nav');
   await expect(chip).toHaveAttribute('data-status', 'ready');
   await expect(chip).toHaveText('Generator ready');
   await expect(page.getByTestId('backend-status-nav')).toHaveAttribute('data-status', 'ready');
@@ -23,7 +23,7 @@ test('[BS-01] a fresh load goes checking → ready against the real backend', as
 test('[BS-02] asleep → waking: a parse is held, then sent once when the backend wakes', async ({ page, api }) => {
   await setGatewayMode('asleep');
   await page.goto('/playground');
-  const chip = page.getByTestId('backend-status-playground');
+  const chip = page.getByTestId('backend-status-nav');
   await expect(chip).toHaveAttribute('data-status', 'waking');
   await expect(chip).toHaveText('Generator waking up');
 
@@ -54,7 +54,7 @@ test('[BS-04] Cancel stops waiting; nothing is sent', async ({ page, api }) => {
   await expect(page.getByText('The generator is waking up — usually under a minute')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Parse cURL' })).toBeEnabled();
   await setGatewayMode('awake');
-  await expect(page.getByTestId('backend-status-playground')).toHaveAttribute('data-status', 'ready', { timeout: 30_000 });
+  await expect(page.getByTestId('backend-status-nav')).toHaveAttribute('data-status', 'ready', { timeout: 30_000 });
   await page.waitForTimeout(500);
   expect(api.of('/api/parse')).toHaveLength(0);
   await expect(page).toHaveURL(/\/playground$/);
@@ -65,7 +65,7 @@ test('[BS-03] still asleep after the wake budget → unavailable; Retry once it 
   await setGatewayMode('asleep');
   await page.clock.install(); // run the 90 s wake budget out without waiting for it
   await page.goto('/playground');
-  const chip = page.getByTestId('backend-status-playground');
+  const chip = page.getByTestId('backend-status-nav');
   await expect(chip).toHaveAttribute('data-status', 'waking');
   await expect
     .poll(async () => {
@@ -87,7 +87,7 @@ test('[BS-03] still asleep after the wake budget → unavailable; Retry once it 
   await expect(retryParse).toBeVisible();
 
   await setGatewayMode('awake');
-  await page.getByRole('button', { name: /Generator unavailable. Retry connecting/ }).first().click();
+  await page.getByRole('button', { name: /Generator unavailable.*Retry/ }).first().click();
   await expect.poll(async () => {
     await page.clock.runFor(1_000);
     return chip.getAttribute('data-status');

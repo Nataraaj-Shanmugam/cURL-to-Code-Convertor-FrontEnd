@@ -22,6 +22,8 @@ import {
   type FormField,
   type GeneratedResult,
 } from "@/lib/utils/codeGeneration";
+import { RadioGroup } from "@/components/ui/radio-group";
+import RadioCard from "./codegen/RadioCard";
 import AdvancedSection from "./codegen/AdvancedSection";
 import ResultPanel from "./codegen/ResultPanel";
 
@@ -225,51 +227,25 @@ function CodeGenerationDialogInner({ open, onOpenChange, parsedData, isPojoDisab
             <div className="space-y-6 overflow-y-auto flex-1 min-h-0 pr-2">
               {/* Generation Type Selection */}
               <div className="space-y-3">
-                <label className="text-sm font-medium">
+                <p id="generation-type-label" className="text-sm font-medium">
                   Generation Type <span className="text-destructive">*</span>
-                </label>
+                </p>
 
-                <div className="space-y-2">
-                  <label
-                    htmlFor="option-full"
-                    className="flex items-start gap-3 cursor-pointer p-3 rounded-md border hover:bg-accent transition-colors"
-                  >
-                    <input
-                      id="option-full"
-                      type="radio"
-                      name="codeOption"
-                      value="full"
-                      checked={form.option === "full"}
-                      onChange={() => selectOption("full")}
-                      className="mt-1"
-                    />
-                    <div className="flex-1">
-                      <span className="font-medium">Full Test Class</span>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Complete Java class with imports, @BeforeClass setup, and @Test method
-                      </p>
-                    </div>
-                  </label>
-
-                  <label
-                    htmlFor="option-method"
-                    className="flex items-start gap-3 cursor-pointer p-3 rounded-md border hover:bg-accent transition-colors"
-                  >
-                    <input
-                      id="option-method"
-                      type="radio"
-                      name="codeOption"
-                      value="method"
-                      checked={form.option === "method"}
-                      onChange={() => selectOption("method")}
-                      className="mt-1"
-                    />
-                    <div className="flex-1">
-                      <span className="font-medium">Test Method Only</span>
-                      <p className="text-xs text-muted-foreground mt-1">Just the @Test method with required imports</p>
-                    </div>
-                  </label>
-                </div>
+                <RadioGroup
+                  value={form.option}
+                  onValueChange={(next) => selectOption(next as "full" | "method")}
+                  aria-labelledby="generation-type-label"
+                  aria-required="true"
+                  aria-invalid={shownErrors.option ? true : undefined}
+                  aria-describedby={shownErrors.option ? "option-error" : undefined}
+                >
+                  <RadioCard id="option-full" value="full" selected={form.option === "full"} title="Full Test Class">
+                    <p>Complete Java class with imports, @BeforeClass setup, and @Test method</p>
+                  </RadioCard>
+                  <RadioCard id="option-method" value="method" selected={form.option === "method"} title="Test Method Only">
+                    <p>Just the @Test method with required imports</p>
+                  </RadioCard>
+                </RadioGroup>
                 <FieldError id="option-error" message={shownErrors.option} />
               </div>
 

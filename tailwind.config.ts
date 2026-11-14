@@ -53,6 +53,11 @@ export default {
           DEFAULT: 'hsl(var(--popover))',
           foreground: 'hsl(var(--popover-foreground))',
         },
+        code: {
+          DEFAULT: 'hsl(var(--code-bg))',
+          foreground: 'hsl(var(--code-fg))',
+          border: 'hsl(var(--code-border))',
+        },
         success: {
           DEFAULT: 'hsl(var(--success))',
           foreground: 'hsl(var(--success-foreground))',

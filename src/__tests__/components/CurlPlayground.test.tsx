@@ -426,13 +426,14 @@ describe('CurlPlayground', () => {
 
       await clickAddEntry();
       await clickAddEntry();
-      expect(screen.getByText('3 commands')).toBeInTheDocument();
+      // Blank inputs are not commands: the header counts what Parse All will send (D-15).
+      expect(screen.getByText('0 of 3 commands filled')).toBeInTheDocument();
 
       // Remove one entry using the X button
       const removeButtons = screen.getAllByTitle('Remove this cURL');
       await user.click(removeButtons[0]);
 
-      expect(screen.getByText('2 commands')).toBeInTheDocument();
+      expect(screen.getByText('0 of 2 commands filled')).toBeInTheDocument();
     });
 
     it('should not show remove button when only one entry exists', () => {

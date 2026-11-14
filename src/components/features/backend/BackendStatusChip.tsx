@@ -42,17 +42,18 @@ export default function BackendStatusChip({ compact = false, className, "data-te
         onClick={retry}
         data-testid={testId}
         data-status={status}
+        // No aria-label: it would override the visible text (WCAG 2.5.3). The name is the content,
+        // "Generator unavailable Retry"; compact mode, which draws no text, gets the same from sr-only spans.
         title={`${label}. Retry connecting`}
-        aria-label={`${label}. Retry connecting`}
         className={cn(
           base,
           "text-destructive hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         )}
       >
         {dot}
-        {!compact && <span>{label}</span>}
+        <span className={compact ? "sr-only" : undefined}>{label}</span>
         <RotateCw aria-hidden="true" className="h-3 w-3" />
-        {!compact && <span>Retry</span>}
+        <span className={compact ? "sr-only" : undefined}>Retry</span>
       </button>
     );
   }

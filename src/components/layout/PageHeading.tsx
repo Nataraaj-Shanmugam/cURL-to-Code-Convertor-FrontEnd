@@ -12,3 +12,8 @@ export const PageHeadingLevelProvider = PageHeadingLevelContext.Provider;
 export function usePageHeadingLevel() {
   return useContext(PageHeadingLevelContext);
 }
+
+/** The level for section headings under the page title: one below it (h2 under an h1, h3 under an h2). */
+export function useSectionHeadingLevel(): "h2" | "h3" {
+  return usePageHeadingLevel() === "h1" ? "h2" : "h3";
+}

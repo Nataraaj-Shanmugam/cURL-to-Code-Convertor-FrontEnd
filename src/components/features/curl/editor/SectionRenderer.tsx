@@ -7,6 +7,7 @@ import { Plus, Trash2, FileText, Globe, List, Shield, Flag, Settings, Link2, Coo
 import { useEditorContext } from "./EditorContext";
 import EditableField from "./EditableField";
 import { encodePath } from "@/lib/utils/fieldPath";
+import { useSectionHeadingLevel } from "@/components/layout/PageHeading";
 
 // Section styling config — static, never changes
 const sectionStyles: Record<string, { icon: typeof Globe; borderColor: string }> = {
@@ -42,6 +43,7 @@ interface SectionRendererProps {
 function SectionRenderer({ title, sectionKey, data, isTopLevel = false, isFlagsSection = false }: SectionRendererProps) {
   const { hasActiveFlags, getActiveFlags, handleAddEntry, requestConfirm, deleteSingle } =
     useEditorContext();
+  const sectionLevel = useSectionHeadingLevel();
 
   const isEmpty = !data || (Array.isArray(data) ? data.length === 0 : Object.keys(data as object).length === 0);
   const isFlagType = isFlagsSection || sectionKey === "ssl_config";
@@ -55,6 +57,7 @@ function SectionRenderer({ title, sectionKey, data, isTopLevel = false, isFlagsS
   return (
     <AccordionItem value={sectionKey} className={`border-l-2 ${style.borderColor} pl-2`}>
       <AccordionTrigger
+        headingLevel={sectionLevel}
         actions={
           isTopLevel ? undefined : (
             <>

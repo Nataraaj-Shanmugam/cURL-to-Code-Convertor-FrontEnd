@@ -719,7 +719,12 @@ function walkDiff(original: unknown, masked: unknown, path: string[], found: Sec
     for (const k of Object.keys(original)) walkDiff(original[k], masked[k], [...path, k], found);
     return;
   }
-  if (original !== masked && path.length > 0) found.push({ id: JSON.stringify(path), path, label: path.join(".") });
+  if (original !== masked && path.length > 0) found.push({
+      id: JSON.stringify(path),
+      path,
+      // data_raw is the backend's text copy of the body: call it what the user knows it as.
+      label: path[0] === "data_raw" ? ["Raw body", ...path.slice(1)].join(".") : path.join("."),
+    });
 }
 
 /** Every leaf of the request whose value is secret. */

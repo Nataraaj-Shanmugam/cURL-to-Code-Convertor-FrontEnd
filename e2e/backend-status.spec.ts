@@ -27,7 +27,7 @@ test.describe('Backend status and cold start', () => {
 
     // Deep link: the check must start without visiting Home first.
     await page.goto('/playground');
-    const chip = page.getByTestId('backend-status-playground');
+    const chip = page.getByTestId('backend-status-nav');
     await expect(chip).toHaveAttribute('data-status', 'waking');
     await expect(chip).toHaveText('Generator waking up');
     await expect(page.getByTestId('backend-status-nav')).toHaveAttribute('data-status', 'waking');
@@ -53,7 +53,7 @@ test.describe('Backend status and cold start', () => {
     await page.clock.install();
     await page.goto('/playground');
 
-    const chip = page.getByTestId('backend-status-playground');
+    const chip = page.getByTestId('backend-status-nav');
     await expect(chip).toHaveAttribute('data-status', 'waking');
     await expect
       .poll(
@@ -82,7 +82,7 @@ test.describe('Backend status and cold start', () => {
     await expect(retryParse).toBeVisible();
 
     health.up = true;
-    await page.getByRole('button', { name: /Generator unavailable. Retry connecting/ }).first().click();
+    await page.getByRole('button', { name: /Generator unavailable.*Retry/ }).first().click();
     await expect(chip).toHaveAttribute('data-status', 'ready');
     await expect(chip).toHaveText('Generator ready');
 
@@ -95,7 +95,7 @@ test.describe('Backend status and cold start', () => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto('/playground');
 
-    const chip = page.getByTestId('backend-status-playground');
+    const chip = page.getByTestId('backend-status-nav');
     await expect(chip).toHaveAttribute('data-status', 'waking');
     const animation = await chip.locator('span[aria-hidden="true"]').evaluate((el) => getComputedStyle(el).animationName);
     expect(animation).toBe('none');
