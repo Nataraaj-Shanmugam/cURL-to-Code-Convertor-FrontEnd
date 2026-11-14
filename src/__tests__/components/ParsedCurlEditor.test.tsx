@@ -241,18 +241,19 @@ describe('ParsedCurlEditor', () => {
   });
 
   describe('shell details (T68)', () => {
-    it('keeps Clear and Delete in the toolbar from the start, so ticking a checkbox does not move the buttons (QR-20)', async () => {
+    it('shows Clear and Delete only once something is ticked (D-12: no disabled salmon Delete (0))', async () => {
       const user = userEvent.setup();
       render(<ParsedCurlEditor initialData={baseParsed} />);
-      const clear = screen.getByRole('button', { name: 'Clear (0)' });
-      const del = screen.getByRole('button', { name: 'Delete (0)' });
-      expect(clear).toBeDisabled();
-      expect(del).toBeDisabled();
+      expect(screen.queryByRole('button', { name: /^Clear \(/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /^Delete \(/ })).not.toBeInTheDocument();
 
       const checkbox = screen.getAllByRole('checkbox').find((cb) => !(cb as HTMLButtonElement).disabled)!;
       await user.click(checkbox);
       expect(screen.getByRole('button', { name: 'Clear (1)' })).toBeEnabled();
       expect(screen.getByRole('button', { name: 'Delete (1)' })).toBeEnabled();
+
+      await user.click(screen.getByRole('button', { name: 'Clear (1)' }));
+      expect(screen.queryByRole('button', { name: /^Delete \(/ })).not.toBeInTheDocument();
     });
 
     it('shows an entry count on each section, the method on Request Details, and Array/Object chips in the body (QR-11)', () => {
@@ -278,7 +279,7 @@ describe('ParsedCurlEditor', () => {
           originalCurl="curl https://api.example.com/users -H 'Authorization: Bearer tok-12345678'"
         />,
       );
-      await user.click(screen.getByRole('button', { name: /Copy original cURL command \(secrets redacted\)/ }));
+      await user.click(screen.getByRole('button', { name: /Copy redacted original cURL command/ }));
       const copied = await navigator.clipboard.readText();
       expect(copied).toContain('Authorization: Bearer');
       expect(copied).not.toContain('tok-12345678');

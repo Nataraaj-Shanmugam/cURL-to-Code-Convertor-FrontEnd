@@ -560,28 +560,25 @@ function ParsedCurlEditor({
               </DropdownMenu>
             </div>
 
-            {/* Selection actions: always present (disabled until something is selected) so ticking the
-                first checkbox does not shift the buttons beside them. */}
-            <div className="w-px h-6 bg-border mx-1" />
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setSelected(new Set())}
-              disabled={selected.size === 0}
-              className="min-w-[6rem] gap-1.5 text-muted-foreground"
-            >
-              Clear ({selected.size})
-            </Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={deleteSelected}
-              disabled={selected.size === 0}
-              className="min-w-[7rem] gap-1.5"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              Delete ({selected.size})
-            </Button>
+            {/* Selection actions: only once something is ticked. A disabled, salmon "Delete (0)" on screen the
+                whole time read as a warning and took toolbar space for nothing (D-12). */}
+            {selected.size > 0 && (
+              <>
+                <div className="w-px h-6 bg-border mx-1" />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSelected(new Set())}
+                  className="gap-1.5 text-muted-foreground"
+                >
+                  Clear ({selected.size})
+                </Button>
+                <Button variant="destructive" size="sm" onClick={deleteSelected} className="gap-1.5">
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Delete ({selected.size})
+                </Button>
+              </>
+            )}
           </div>
         </div>
 

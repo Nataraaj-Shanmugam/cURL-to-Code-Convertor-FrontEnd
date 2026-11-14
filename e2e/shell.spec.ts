@@ -255,7 +255,7 @@ test.describe('Titles, toolbar and small details (T68)', () => {
     await parseToEditor(page);
     await expect(page.getByRole('button', { name: /^Request Details/ }).getByText('POST')).toBeVisible();
     await expect(page.getByRole('button', { name: /^Request Body/ }).getByLabel(/entries/)).toBeVisible();
-    await page.getByRole('button', { name: /^Copy original cURL command/ }).click();
+    await page.getByRole('button', { name: /^Copy (redacted )?original cURL command/ }).click();
     await expect(page.getByText(/copied to clipboard/)).toBeVisible();
     const copied = await page.evaluate(() => navigator.clipboard.readText());
     expect(copied).toContain('https://api.example.com/users');

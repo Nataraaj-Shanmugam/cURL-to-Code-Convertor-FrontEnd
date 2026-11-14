@@ -64,7 +64,8 @@ export default function OriginalRequestHeader({
               variant="ghost"
               size="sm"
               className="gap-1.5"
-              aria-label={originalHasSecret ? "Copy original cURL command (secrets redacted)" : "Copy original cURL command"}
+              // The name starts with the visible text ("Copy redacted") so voice control and screen readers agree with the eye.
+              aria-label={originalHasSecret ? "Copy redacted original cURL command" : "Copy original cURL command"}
               onClick={onCopy}
             >
               <Copy className="h-3.5 w-3.5" aria-hidden="true" />
