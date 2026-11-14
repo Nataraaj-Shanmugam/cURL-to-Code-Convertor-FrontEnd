@@ -44,7 +44,8 @@ function PreviewCode({ label, code, maskedCode }: { label: string; code: string;
           <RevealToggle label={label} revealed={revealed} onToggle={() => setRevealed((r) => !r)} />
         </div>
       )}
-      <CodeBlock code={hasSecret && !revealed ? maskedCode : code} label={label} copyable={false} wrap preClassName="max-h-60" />
+      {/* "… text": the accordion region around it already carries the bare name (landmark-unique). */}
+      <CodeBlock code={hasSecret && !revealed ? maskedCode : code} label={`${label} text`} copyable={false} wrap preClassName="max-h-60" />
     </div>
   );
 }
