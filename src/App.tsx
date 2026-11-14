@@ -9,6 +9,7 @@ import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { Toaster } from "sonner";
 import { BackendStatusProvider } from "@/contexts/BackendStatusContext";
 import RouteEffects from "@/components/layout/RouteEffects";
+import RateLimitNotice from "@/components/layout/RateLimitNotice";
 import { PageHeadingLevelProvider } from "@/components/layout/PageHeading";
 
 const Playground = lazy(() => import("@/pages/Playground"));
@@ -61,6 +62,7 @@ export default function App() {
       </AppLayout>
       </BackendStatusProvider>
       <Toaster richColors position="top-right" />
+      <RateLimitNotice />
     </ThemeProvider>
     </ErrorBoundary>
   );
