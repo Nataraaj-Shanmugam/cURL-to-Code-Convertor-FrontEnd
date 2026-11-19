@@ -25,13 +25,16 @@ interface AccordionTriggerProps extends React.ComponentPropsWithoutRef<typeof Ac
    * the trigger button, never nested inside it, so they keep their own accessible names.
    */
   actions?: React.ReactNode;
+  /** Heading element wrapping the trigger. Keep it one level below the heading above it (heading-order). */
+  headingLevel?: "h2" | "h3" | "h4";
 }
 
 const AccordionTrigger = React.forwardRef<
   React.ElementRef<typeof AccordionPrimitive.Trigger>,
   AccordionTriggerProps
->(({ className, children, actions, ...props }, ref) => (
-  <AccordionPrimitive.Header className="flex flex-wrap items-center">
+>(({ className, children, actions, headingLevel: Heading = "h3", ...props }, ref) => (
+  <AccordionPrimitive.Header asChild>
+    <Heading className="flex flex-wrap items-center">
     <AccordionPrimitive.Trigger
       ref={ref}
       className={cn(
@@ -48,6 +51,7 @@ const AccordionTrigger = React.forwardRef<
     </AccordionPrimitive.Trigger>
     {/* On a narrow screen the actions drop under the title instead of pushing the page sideways. */}
     {actions && <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2 px-2">{actions}</div>}
+    </Heading>
   </AccordionPrimitive.Header>
 ));
 AccordionTrigger.displayName = "AccordionTrigger";
@@ -65,7 +69,7 @@ const AccordionContent = React.forwardRef<
     )}
     {...props}
   >
-    <div className="p-3 border-t border-border bg-muted/30 rounded-b-md">
+    <div className="p-2 sm:p-3 border-t border-border bg-muted/30 rounded-b-md">
       {children}
     </div>
   </AccordionPrimitive.Content>

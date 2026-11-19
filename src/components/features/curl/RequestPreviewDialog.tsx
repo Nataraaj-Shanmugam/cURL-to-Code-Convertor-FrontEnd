@@ -3,7 +3,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { MethodBadge } from "@/components/ui/method-badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { CodeBlock } from "@/components/ui/code-block";
 import { Copy, CheckCircle2 } from "lucide-react";
 import type { ParsedCurl } from "@/types/curl";
 import { buildFullUrl } from "@/lib/utils/urlBuilder";
@@ -16,16 +18,6 @@ interface RequestPreviewDialogProps {
   onOpenChange: (open: boolean) => void;
   parsedData: ParsedCurl;
 }
-
-const METHOD_COLORS: Record<string, string> = {
-  GET: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
-  POST: "bg-green-500/15 text-green-600 dark:text-green-400",
-  PUT: "bg-yellow-500/15 text-yellow-600 dark:text-yellow-400",
-  PATCH: "bg-orange-500/15 text-orange-600 dark:text-orange-400",
-  DELETE: "bg-red-500/15 text-red-600 dark:text-red-400",
-  HEAD: "bg-purple-500/15 text-purple-600 dark:text-purple-400",
-  OPTIONS: "bg-gray-500/15 text-gray-600 dark:text-gray-400",
-};
 
 /** One `name: value` row whose value is masked until its own reveal toggle is pressed. */
 function SecretRow({ name, separator, path, value }: { name: string; separator: string; path: string; value: unknown }) {
@@ -42,14 +34,6 @@ function SecretRow({ name, separator, path, value }: { name: string; separator: 
   );
 }
 
-function CodeBlock({ code }: { code: string }) {
-  return (
-    <pre className="text-xs font-mono bg-slate-950 text-slate-50 p-4 rounded-md overflow-auto max-h-60 whitespace-pre-wrap break-all">
-      {code}
-    </pre>
-  );
-}
-
 function PreviewCode({ label, code, maskedCode }: { label: string; code: string; maskedCode: string }) {
   const [revealed, setRevealed] = useState(false);
   const hasSecret = code !== maskedCode;
@@ -60,7 +44,8 @@ function PreviewCode({ label, code, maskedCode }: { label: string; code: string;
           <RevealToggle label={label} revealed={revealed} onToggle={() => setRevealed((r) => !r)} />
         </div>
       )}
-      <CodeBlock code={hasSecret && !revealed ? maskedCode : code} />
+      {/* "… text": the accordion region around it already carries the bare name (landmark-unique). */}
+      <CodeBlock code={hasSecret && !revealed ? maskedCode : code} label={`${label} text`} copyable={false} wrap preClassName="max-h-60" />
     </div>
   );
 }
@@ -102,7 +87,7 @@ function RequestPreviewDialog({ open, onOpenChange, parsedData }: RequestPreview
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
+      <DialogContent initialFocus="title" className="max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>Request Preview</DialogTitle>
         </DialogHeader>
@@ -110,13 +95,7 @@ function RequestPreviewDialog({ open, onOpenChange, parsedData }: RequestPreview
         <div className="flex-1 overflow-y-auto space-y-4 pr-1">
           {/* Method + URL bar */}
           <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/40">
-            <span
-              className={`px-2.5 py-1 rounded text-xs font-bold font-mono shrink-0 ${
-                METHOD_COLORS[method] ?? "bg-gray-500/15 text-gray-600"
-              }`}
-            >
-              {method}
-            </span>
+            <MethodBadge method={method} className="shrink-0" />
             {fullUrl ? (
               <MaskedText
                 label="request URL"

@@ -181,7 +181,7 @@ test.describe('Secrets', () => {
     await expect(page.locator('main')).toContainText(SECRETS.password);
     await expect(page.locator('main')).not.toContainText(SECRETS.apiKey); // others stay masked
 
-    await page.getByRole('button', { name: 'Copy original cURL command (secrets redacted)' }).click();
+    await page.getByRole('button', { name: 'Copy redacted original cURL command' }).click();
     const copied = await clipboard(page);
     expect(copied).toContain('https://auth.example.com/v1/login?client=web');
     for (const s of ALL_SECRETS) expect(copied).not.toContain(s);

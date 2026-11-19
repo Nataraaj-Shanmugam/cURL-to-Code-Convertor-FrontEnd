@@ -249,14 +249,14 @@ test.describe('Editor: sections and fields', () => {
     await page.getByRole('checkbox', { name: 'Select origin for deletion' }).click();
     await expect(page.getByRole('button', { name: 'Delete (2)' })).toBeEnabled();
     await page.getByRole('button', { name: 'Clear (2)' }).click();
-    await expect(page.getByRole('button', { name: 'Delete (0)' })).toBeDisabled();
+    await expect(page.getByRole('button', { name: /^Delete \(/ })).toHaveCount(0); // hidden until something is ticked (D-12)
 
     await page.getByRole('checkbox', { name: 'Select accept for deletion' }).click();
     await page.getByRole('checkbox', { name: 'Select origin for deletion' }).click();
     await openSection(page, /^Query Parameters/);
     await page.getByRole('checkbox', { name: 'Select expand for deletion' }).click();
     await page.getByRole('button', { name: 'Delete (3)' }).click();
-    await expect(page.getByRole('button', { name: 'Delete (0)' })).toBeDisabled();
+    await expect(page.getByRole('button', { name: /^Delete \(/ })).toHaveCount(0); // hidden until something is ticked (D-12)
 
     const { sent } = await generateNow(page, api);
     expect(Object.keys(sent.headers!)).toEqual(['accept-language', 'authorization', 'content-type', 'user-agent']);

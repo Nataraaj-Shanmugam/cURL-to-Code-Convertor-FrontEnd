@@ -172,7 +172,7 @@ const OPENAPI_SWAGGER2_JSON = JSON.stringify({
 
 async function openImport(page: Page) {
   await page.goto('/playground');
-  await expect(page.getByTestId('backend-status-playground')).toHaveAttribute('data-status', 'ready');
+  await expect(page.getByTestId('backend-status-nav')).toHaveAttribute('data-status', 'ready');
   await page.getByRole('button', { name: 'Import' }).click();
   const dialog = page.getByRole('dialog', { name: 'Import from Postman / OpenAPI' });
   await expect(dialog).toBeVisible();

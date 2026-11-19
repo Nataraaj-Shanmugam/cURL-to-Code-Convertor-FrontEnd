@@ -1,8 +1,7 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, Suspense, lazy } from "react";
-import { Terminal, ArrowRight, ShieldCheck, Clock } from "lucide-react";
-import { Alert } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
+import { Terminal, ArrowRight, Clock } from "lucide-react";
+import EditorShell from "@/components/layout/EditorShell";
 import { useUnsavedChangesGuard } from "@/lib/hooks/useUnsavedChangesGuard";
 import UnsavedChangesDialog from "@/components/features/curl/UnsavedChangesDialog";
 import {
@@ -23,6 +22,9 @@ const ParsedCurlEditor = lazy(() => import("@/components/features/curl/ParsedCur
 function EditorSkeleton() {
   return (
     <div className="p-6 space-y-4 animate-pulse" aria-busy="true" aria-label="Loading editor…">
+      <h1 className="sr-only" data-route-loading>
+        Loading editor
+      </h1>
       <div className="flex items-center gap-3">
         <div className="h-8 w-40 rounded-md bg-muted" />
         <div className="h-8 w-24 rounded-md bg-muted" />
@@ -159,39 +161,18 @@ export default function EditorPage() {
   }
 
   return (
-    <>
-      {savedCopy !== "none" && (
-        <div className="max-w-6xl mx-auto px-4 pt-4">
-          <Alert
-            variant="info"
-            icon={<ShieldCheck className="w-4 h-4 mt-0.5 shrink-0" aria-hidden="true" />}
-            className="items-center"
-          >
-            <div className="flex items-center justify-between gap-3 flex-wrap">
-              <span>
-                {savedCopy === "saved"
-                  ? "A copy of this request, with secrets redacted, is kept for this browser session so a reload can restore it (you will need to re-enter the secrets)."
-                  : "Saved copy cleared. Reloading this page will not restore this request."}
-              </span>
-              {savedCopy === "saved" && (
-                <Button variant="outline" size="sm" onClick={handleClearSaved}>
-                  Clear saved request
-                </Button>
-              )}
-            </div>
-          </Alert>
-        </div>
-      )}
+    <EditorShell>
       <Suspense fallback={<EditorSkeleton />}>
         <ParsedCurlEditor
           initialData={parsed}
           originalCurl={originalCurl}
+          persistence={savedCopy === "none" ? undefined : { state: savedCopy, onClear: handleClearSaved }}
           onBack={handleBack}
           onChange={noteActivity}
           onDirtyChange={setIsDirty}
         />
       </Suspense>
       <UnsavedChangesDialog open={isBlocked} onStay={handleStay} onLeave={handleLeave} />
-    </>
+    </EditorShell>
   );
 }

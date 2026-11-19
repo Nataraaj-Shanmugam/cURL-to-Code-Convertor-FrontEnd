@@ -7,6 +7,7 @@ import type { ParsedCurl } from "@/types/curl";
 import { computeDiff } from "@/lib/utils/diffEngine";
 import type { DiffEntry } from "@/types/diff";
 import { RotateCcw } from "lucide-react";
+import { CHIP_COLORS } from "@/constants/curl";
 import { MASK, maskParsedCurl, redactFieldValue } from "@/lib/utils/redaction";
 import { MaskedString, MaskedText, RevealToggle } from "./editor/SecretValue";
 
@@ -42,19 +43,19 @@ function typeBadge(type: DiffEntry["type"]) {
   switch (type) {
     case "added":
       return (
-        <Badge className="bg-green-500/15 text-green-700 dark:text-green-400 border-0 text-[10px]">
+        <Badge className={`${CHIP_COLORS.success} border-0 text-[10px]`}>
           added
         </Badge>
       );
     case "removed":
       return (
-        <Badge className="bg-red-500/15 text-red-700 dark:text-red-400 border-0 text-[10px]">
+        <Badge className={`${CHIP_COLORS.danger} border-0 text-[10px]`}>
           removed
         </Badge>
       );
     case "modified":
       return (
-        <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-400 border-0 text-[10px]">
+        <Badge className={`${CHIP_COLORS.warning} border-0 text-[10px]`}>
           modified
         </Badge>
       );
@@ -103,8 +104,8 @@ function DiffRow({ entry, onRevert }: { entry: DiffEntry; onRevert: (path: strin
           variant="ghost"
           size="icon"
           className="h-6 w-6"
-          title="Revert this change"
-          aria-label="Revert change"
+          title={`Revert ${entry.path}`}
+          aria-label={`Revert ${entry.path}`}
           aria-describedby={`${valuesId}-path`}
           onClick={() => onRevert(entry.path)}
         >
@@ -128,18 +129,18 @@ function RawJsonPanes({ originalParsed, currentParsed }: { originalParsed: Parse
     <div className="grid grid-cols-2 gap-3 h-full">
       <div className="space-y-1">
         <p className="text-xs font-medium text-muted-foreground">Original</p>
-        <MaskedText label="original request JSON" text={originalJson} maskedText={maskedOriginalJson} className={RAW_JSON_CLASS} />
+        <MaskedText label="original request JSON" text={originalJson} maskedText={maskedOriginalJson} className={RAW_JSON_CLASS} scrollable />
       </div>
       <div className="space-y-1">
         <p className="text-xs font-medium text-muted-foreground">Current</p>
-        <MaskedText label="current request JSON" text={currentJson} maskedText={maskedCurrentJson} className={RAW_JSON_CLASS} />
+        <MaskedText label="current request JSON" text={currentJson} maskedText={maskedCurrentJson} className={RAW_JSON_CLASS} scrollable />
       </div>
     </div>
   );
 }
 
 const RAW_JSON_CLASS =
-  "text-xs font-mono bg-slate-950 text-slate-50 p-3 rounded-md overflow-auto max-h-[50vh] whitespace-pre-wrap break-all";
+  "text-xs font-mono bg-code text-code-foreground border border-code-border p-3 rounded-md overflow-auto max-h-[50vh] whitespace-pre-wrap break-all";
 
 function DiffViewDialog({
   open,
@@ -172,15 +173,22 @@ function DiffViewDialog({
 
         {/* Summary */}
         <div className="flex items-center gap-3 flex-wrap">
-          <Badge className="bg-green-500/15 text-green-700 dark:text-green-400 border-0">
-            +{additions} addition{additions !== 1 ? "s" : ""}
-          </Badge>
-          <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-400 border-0">
-            ~{modifications} modification{modifications !== 1 ? "s" : ""}
-          </Badge>
-          <Badge className="bg-red-500/15 text-red-700 dark:text-red-400 border-0">
-            -{deletions} deletion{deletions !== 1 ? "s" : ""}
-          </Badge>
+          {/* Zero counts are left out: "+0 additions" is noise next to the one that changed. */}
+          {additions > 0 && (
+            <Badge className={`${CHIP_COLORS.success} border-0`}>
+              {additions} added
+            </Badge>
+          )}
+          {modifications > 0 && (
+            <Badge className={`${CHIP_COLORS.warning} border-0`}>
+              {modifications} modified
+            </Badge>
+          )}
+          {deletions > 0 && (
+            <Badge className={`${CHIP_COLORS.danger} border-0`}>
+              {deletions} removed
+            </Badge>
+          )}
           {diffs.length === 0 && (
             <span className="text-sm text-muted-foreground">No changes detected.</span>
           )}

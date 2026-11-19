@@ -12,6 +12,7 @@ import {
   Copy,
   GitBranch,
   Github,
+  ExternalLink,
   Package,
 } from "lucide-react";
 import { useNavigate } from 'react-router-dom';
@@ -112,6 +113,7 @@ export default function Home() {
                   <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer">
                     <Github className="w-4 h-4" aria-hidden="true" />
                     Documentation
+                    <ExternalLink className="w-3.5 h-3.5 opacity-70" aria-hidden="true" />
                     <span className="sr-only"> (opens GitHub in a new tab)</span>
                   </a>
                 </Button>

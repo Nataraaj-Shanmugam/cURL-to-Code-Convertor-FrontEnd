@@ -16,9 +16,16 @@ const Playground = lazy(() => import("@/pages/Playground"));
 const EditorPage = lazy(() => import("@/pages/EditorPage"));
 const BatchEditorPage = lazy(() => import("@/pages/BatchEditorPage"));
 
+/**
+ * Shown while a route's chunk loads. It carries an (sr-only) <h1> so the page is never without one;
+ * RouteEffects ignores it when moving focus, because the real <h1> replaces it a moment later.
+ */
 function PageLoader() {
   return (
     <div className="flex items-center justify-center py-24">
+      <h1 className="sr-only" data-route-loading>
+        Loading page
+      </h1>
       <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
     </div>
   );

@@ -141,7 +141,7 @@ export const curlInput = (page: Page, n?: number) =>
 /** Playground → Parse cURL → /editor, through the real parser. */
 export async function parseToEditor(page: Page, curl: string) {
   await page.goto('/playground');
-  await expect(page.getByTestId('backend-status-playground')).toHaveAttribute('data-status', 'ready');
+  await expect(page.getByTestId('backend-status-nav')).toHaveAttribute('data-status', 'ready');
   await curlInput(page).fill(curl);
   await page.getByRole('button', { name: /^Parse cURL$/ }).click();
   await expect(page).toHaveURL(/\/editor$/, { timeout: 20_000 });
@@ -151,7 +151,7 @@ export async function parseToEditor(page: Page, curl: string) {
 /** Fill several commands and press Parse All. */
 export async function parseAll(page: Page, curls: string[]) {
   await page.goto('/playground');
-  await expect(page.getByTestId('backend-status-playground')).toHaveAttribute('data-status', 'ready');
+  await expect(page.getByTestId('backend-status-nav')).toHaveAttribute('data-status', 'ready');
   for (let i = 1; i < curls.length; i++) await page.getByRole('button', { name: /Add another cURL/ }).click();
   for (let i = 0; i < curls.length; i++) if (curls[i]) await curlInput(page, i + 1).fill(curls[i]!);
   const filled = curls.filter(Boolean).length;

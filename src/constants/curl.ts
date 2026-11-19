@@ -66,3 +66,15 @@ export const METHOD_COLORS: Record<string, string> = {
 };
 
 export const METHOD_COLOR_FALLBACK = "bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-200";
+
+/**
+ * Status chips (diff summary, import format, "unresolved" ...). Solid tints, not opacity overlays,
+ * so the pair is the same whatever sits behind it; every pair clears 4.5:1 in both themes
+ * (src/__tests__/design/contrast.test.ts).
+ */
+export const CHIP_COLORS = {
+  success: "bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-300",
+  warning: "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300",
+  danger: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300",
+  info: "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300",
+} as const;

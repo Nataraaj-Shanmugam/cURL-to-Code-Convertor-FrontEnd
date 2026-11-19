@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Highlight, themes } from "prism-react-renderer";
 import { CheckCircle2, Copy, Download, DownloadCloud, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -11,25 +10,8 @@ import {
   type GeneratedResult,
   type ResultTab,
 } from "@/lib/utils/codeGeneration";
+import { CodeBlock } from "@/components/ui/code-block";
 import { RevealToggle } from "../editor/SecretValue";
-
-function CodeBlock({ code, language }: { code: string; language: string }) {
-  return (
-    <Highlight code={code} language={language} theme={themes.vsDark}>
-      {({ className, style, tokens, getLineProps, getTokenProps }) => (
-        <pre className={`${className} text-xs font-mono p-6 overflow-auto`} style={style}>
-          {tokens.map((line, i) => (
-            <div key={i} {...getLineProps({ line })}>
-              {line.map((token, key) => (
-                <span key={key} {...getTokenProps({ token })} />
-              ))}
-            </div>
-          ))}
-        </pre>
-      )}
-    </Highlight>
-  );
-}
 
 const TAB_CLASS = (active: boolean) =>
   `px-4 py-2 text-sm font-medium rounded-md transition-all ${
@@ -192,11 +174,18 @@ export default function ResultPanel({ result, secretValues, testTabLabel = "Test
           role="tabpanel"
           id={`tabpanel-${activeTab}`}
           aria-labelledby={`tab-${activeTab}`}
-          className="flex-1 min-h-0 overflow-auto bg-muted/30"
+          className="flex flex-1 min-h-0 flex-col"
         >
           {/* SECURITY: Rendered via prism-react-renderer which uses React children
               (no dangerouslySetInnerHTML), so XSS is not a concern. */}
-          <CodeBlock code={shown} language={language} />
+          <CodeBlock
+            code={shown}
+            language={language}
+            label={`Generated ${tabs.find((t) => t.id === activeTab)?.label ?? "code"}`}
+            copyable={false}
+            className="flex min-h-0 flex-1 flex-col"
+            preClassName="min-h-0 max-h-none flex-1 rounded-none border-0 p-6"
+          />
         </div>
       </div>
     </div>

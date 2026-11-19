@@ -2,6 +2,8 @@ import { ChevronDown, ChevronRight, Info } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { RadioGroup } from "@/components/ui/radio-group";
+import RadioCard from "./RadioCard";
 import { getDataFormatDescription, getDataFormatLabel } from "@/lib/utils/dataFormatDetector";
 import {
   JAVA_VERSIONS,
@@ -145,30 +147,24 @@ export default function AdvancedSection({
               )}
             </legend>
             <p className="text-xs text-muted-foreground">Which formats the API uses; affects POJO annotations and POM dependencies</p>
-            {FORMATS.map((format) => (
-              <label
-                key={format}
-                htmlFor={`data-format-${format}`}
-                className={`flex items-start gap-3 cursor-pointer p-3 rounded-md border transition-colors ${
-                  effectiveFormat === format ? "border-primary bg-primary/5" : "hover:bg-accent"
-                }`}
-              >
-                <input
+            <RadioGroup
+              value={effectiveFormat}
+              onValueChange={(next) => onChange({ dataFormatOverride: next as DataFormat })}
+              aria-label="Data format"
+            >
+              {FORMATS.map((format) => (
+                <RadioCard
+                  key={format}
                   id={`data-format-${format}`}
-                  type="radio"
-                  name="dataFormat"
                   value={format}
-                  checked={effectiveFormat === format}
-                  onChange={() => onChange({ dataFormatOverride: format })}
-                  className="mt-1"
-                />
-                <div className="flex-1">
-                  <span className="text-sm font-medium">{getDataFormatLabel(format)}</span>
-                  <p className="text-xs text-muted-foreground">{getDataFormatDescription(format)}</p>
-                  <p className="text-xs text-muted-foreground">{FORMAT_DEPENDENCIES[format]}</p>
-                </div>
-              </label>
-            ))}
+                  selected={effectiveFormat === format}
+                  title={getDataFormatLabel(format)}
+                >
+                  <p>{getDataFormatDescription(format)}</p>
+                  <p>{FORMAT_DEPENDENCIES[format]}</p>
+                </RadioCard>
+              ))}
+            </RadioGroup>
             {effectiveFormat !== "json" && (
               <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-md flex gap-2">
                 <Info className="w-4 h-4 text-blue-600 mt-0.5 shrink-0" aria-hidden="true" />

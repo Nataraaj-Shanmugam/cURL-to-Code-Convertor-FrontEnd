@@ -11,6 +11,7 @@ import { parseCurlBatch, parseCurlCommand } from "@/lib/utils/parseCurlBatch";
 import type { BatchParseFailure } from "@/types/batch";
 import { useBackendStatus } from "@/contexts/BackendStatusContext";
 import BackendWaitNotice from "@/components/features/backend/BackendWaitNotice";
+import BackendStatusBanner from "@/components/features/backend/BackendStatusBanner";
 import { isBlockedByModal } from "@/lib/utils/shortcuts";
 import { redactCurlString } from "@/lib/utils/redaction";
 import { copyToClipboard } from "@/lib/utils/notify";
@@ -64,6 +65,13 @@ function CurlPlayground() {
       mountedRef.current = false;
       waitControllerRef.current?.abort();
     };
+  }, []);
+
+  // Desktop only: on a phone, focusing the field would raise the keyboard over the page before anyone has read it.
+  const firstInputRef = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    const desktop = window.matchMedia?.("(min-width: 768px) and (pointer: fine)").matches;
+    if (desktop) firstInputRef.current?.focus({ preventScroll: true });
   }, []);
 
   const isMulti = entries.length > 1;
@@ -272,11 +280,17 @@ function CurlPlayground() {
           <div className="flex items-center gap-1.5">
             <Layers className="w-4 h-4 text-muted-foreground" />
             <span className="text-sm font-medium text-muted-foreground">
-              {entries.length} command{entries.length !== 1 ? "s" : ""}
+              {/* Counts what Parse All will send, so the header and the button agree. */}
+              {filledEntries.length === entries.length
+                ? `${entries.length} commands`
+                : `${filledEntries.length} of ${entries.length} commands filled`}
             </span>
           </div>
         )}
       </div>
+
+      {/* Why Parse may wait or fail (waking / unavailable); the held-parse notice below replaces it while waiting. */}
+      <BackendStatusBanner id="backend-status-banner" hidden={waitingForBackend} />
 
       {/* cURL inputs */}
       <div className="space-y-3">
@@ -327,6 +341,7 @@ function CurlPlayground() {
             </div>
             <textarea
               id={`curl-input-${entry.id}`}
+              ref={idx === 0 ? firstInputRef : undefined}
               value={entry.value}
               onChange={(e) => updateEntry(entry.id, e.target.value)}
               placeholder={
@@ -378,6 +393,11 @@ function CurlPlayground() {
         <Button
           onClick={handleParse}
           disabled={loading || !hasAnyContent}
+          aria-describedby={
+            !waitingForBackend && (backend.status === "waking" || backend.status === "unavailable")
+              ? "backend-status-banner"
+              : undefined
+          }
           size="lg"
           className="gap-2"
         >

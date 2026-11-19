@@ -68,17 +68,27 @@ interface MaskedTextProps {
   maskedText: string;
   as?: "pre" | "span";
   className?: string;
+  /** For a block that can scroll: makes it a named, keyboard-focusable region so it can be scrolled without a mouse. */
+  scrollable?: boolean;
 }
 
 /** A block of text with secrets masked and one reveal toggle for the whole block. */
-function MaskedTextImpl({ label, text, maskedText, as = "pre", className }: MaskedTextProps) {
+function MaskedTextImpl({ label, text, maskedText, as = "pre", className, scrollable = false }: MaskedTextProps) {
   const [revealed, setRevealed] = useState(false);
   const id = useId();
   const hasSecret = maskedText !== text;
   const Tag = as;
   return (
     <div className="flex items-start gap-2">
-      <Tag id={id} className={cn("flex-1 min-w-0", className)}>
+      <Tag
+        id={id}
+        className={cn(
+          "flex-1 min-w-0",
+          scrollable && "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          className,
+        )}
+        {...(scrollable ? { tabIndex: 0, role: "region", "aria-label": label } : {})}
+      >
         {hasSecret && !revealed ? <MaskedString text={maskedText} /> : text}
       </Tag>
       {hasSecret && (

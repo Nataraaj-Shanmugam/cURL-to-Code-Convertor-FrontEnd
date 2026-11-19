@@ -1,5 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
 
+/** Another checkout (or a teammate) may already hold 5173: E2E_PORT picks a private port. */
+const PORT = Number(process.env.E2E_PORT ?? 5173);
+
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: true,
@@ -14,7 +17,7 @@ export default defineConfig({
   timeout: 30_000,
 
   use: {
-    baseURL: 'http://localhost:5173',
+    baseURL: `http://localhost:${PORT}`,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
@@ -27,8 +30,8 @@ export default defineConfig({
   ],
 
   webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:5173',
+    command: `npm run dev -- --port ${PORT} --strictPort`,
+    url: `http://localhost:${PORT}`,
     reuseExistingServer: !process.env.CI,
     timeout: 30_000,
   },

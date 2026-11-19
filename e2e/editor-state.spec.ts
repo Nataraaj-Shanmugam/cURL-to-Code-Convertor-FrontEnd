@@ -38,7 +38,7 @@ test.describe('Editor change tracking (JSON-string body)', () => {
     await page.getByRole('button', { name: /Changes/i }).click();
     const dialog = page.getByRole('dialog', { name: 'Review Changes' });
     await expect(dialog.getByRole('row')).toHaveCount(2); // header + one change
-    await expect(dialog.getByRole('cell', { name: 'data.name' })).toBeVisible();
+    await expect(dialog.getByRole('cell', { name: 'data.name', exact: true })).toBeVisible();
     await expect(dialog.getByText('removed', { exact: true })).toBeVisible();
     await expect(dialog.getByText('modified', { exact: true })).toHaveCount(0);
   });

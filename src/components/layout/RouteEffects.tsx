@@ -45,9 +45,12 @@ export default function RouteEffects() {
 
     let done = false;
     const focusHeading = () => {
-      const heading = document.querySelector<HTMLElement>("#main-content h1");
+      const heading = document.querySelector<HTMLElement>("#main-content h1:not([data-route-loading])");
       if (!heading) return;
       finish();
+      // A page that put focus in one of its own fields (the Playground's cURL box) has already chosen.
+      const active = document.activeElement;
+      if (active instanceof HTMLElement && active.closest("#main-content") && active.matches("textarea, input, select")) return;
       heading.setAttribute("tabindex", "-1");
       heading.focus({ preventScroll: true });
     };

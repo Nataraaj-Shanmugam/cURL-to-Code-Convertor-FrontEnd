@@ -2,6 +2,8 @@ import { memo, useState, useCallback, useRef } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { MethodBadge } from "@/components/ui/method-badge";
+import { CHIP_COLORS } from "@/constants/curl";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AlertCircle, Upload, FileText, CheckSquare, Square } from "lucide-react";
@@ -20,34 +22,23 @@ interface ImportDialogProps {
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
 
-const METHOD_COLORS: Record<string, string> = {
-  GET: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
-  POST: "bg-green-500/15 text-green-600 dark:text-green-400",
-  PUT: "bg-yellow-500/15 text-yellow-600 dark:text-yellow-400",
-  PATCH: "bg-orange-500/15 text-orange-600 dark:text-orange-400",
-  DELETE: "bg-red-500/15 text-red-600 dark:text-red-400",
-  HEAD: "bg-purple-500/15 text-purple-600 dark:text-purple-400",
-  OPTIONS: "bg-gray-500/15 text-gray-600 dark:text-gray-400",
-};
-
-
 function formatBadge(format: ImportFormat | null) {
   if (!format || format === "unknown") {
     return (
-      <Badge className="bg-red-500/15 text-red-700 dark:text-red-400 border-0">
+      <Badge className={`${CHIP_COLORS.danger} border-0`}>
         Unknown Format
       </Badge>
     );
   }
   if (format === "postman") {
     return (
-      <Badge className="bg-green-500/15 text-green-700 dark:text-green-400 border-0">
+      <Badge className={`${CHIP_COLORS.success} border-0`}>
         Postman Collection
       </Badge>
     );
   }
   return (
-    <Badge className="bg-blue-500/15 text-blue-700 dark:text-blue-400 border-0">
+    <Badge className={`${CHIP_COLORS.info} border-0`}>
       OpenAPI Spec
     </Badge>
   );
@@ -408,14 +399,7 @@ function ImportDialog({
                         checked={selected.has(req.id)}
                         onCheckedChange={() => toggleSelect(req.id)}
                       />
-                      <span
-                        className={`px-1.5 py-0.5 rounded text-[10px] font-bold font-mono shrink-0 ${
-                          METHOD_COLORS[req.method] ??
-                          "bg-gray-500/15 text-gray-600"
-                        }`}
-                      >
-                        {req.method}
-                      </span>
+                      <MethodBadge method={req.method} className="shrink-0" />
                       <span className="text-sm truncate flex-1">{req.name}</span>
                       <span className="text-xs text-muted-foreground font-mono truncate max-w-[160px]">
                         {req.url}
@@ -423,7 +407,7 @@ function ImportDialog({
                       {(req.unresolvedVariables?.length ?? 0) > 0 && (
                         <Badge
                           title={`Unresolved: ${req.unresolvedVariables!.join(", ")}`}
-                          className="bg-yellow-500/15 text-yellow-700 dark:text-yellow-400 border-0 text-[9px] shrink-0"
+                          className={`${CHIP_COLORS.warning} border-0 text-[10px] shrink-0`}
                         >
                           {req.unresolvedVariables!.length} unresolved
                         </Badge>
@@ -431,7 +415,7 @@ function ImportDialog({
                       {(req.warnings?.length ?? 0) > 0 && (
                         <Badge
                           title={req.warnings!.join("\n")}
-                          className="bg-orange-500/15 text-orange-700 dark:text-orange-400 border-0 text-[9px] shrink-0"
+                          className={`${CHIP_COLORS.warning} border-0 text-[10px] shrink-0`}
                         >
                           note
                         </Badge>

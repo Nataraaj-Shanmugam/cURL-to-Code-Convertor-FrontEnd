@@ -100,7 +100,12 @@ async function editEndpoint(page: Page, value: string, { commit = true } = {}) {
   if (commit) await page.getByRole('button', { name: 'Save endpoint' }).click();
 }
 
-const shownCurl = (page: Page, text: string): Locator => page.getByText(text, { exact: false }).first();
+// The Original cURL header is collapsed by default (D-12): expand it before looking for the text.
+const shownCurl = async (page: Page, text: string): Promise<Locator> => {
+  const toggle = page.getByRole('button', { name: /Original cURL Command/ }).first();
+  if ((await toggle.getAttribute('aria-expanded')) === 'false') await toggle.click();
+  return page.getByText(text, { exact: false }).first();
+};
 
 test.describe('Batch Editor Page', () => {
   test.setTimeout(45_000);
@@ -216,12 +221,12 @@ test.describe('Batch Editor Page', () => {
     await parseAll(page, [CURL_USERS, CURL_ORDERS]);
 
     await expect(sidebarRow(page, 'GET /users')).toHaveAttribute('aria-current', 'true');
-    await expect(shownCurl(page, 'curl -X GET "https://api.example.com/users"')).toBeVisible();
+    await expect(await shownCurl(page, 'curl -X GET "https://api.example.com/users"')).toBeVisible();
 
     await sidebarRow(page, 'POST /orders').click();
 
     await expect(sidebarRow(page, 'POST /orders')).toHaveAttribute('aria-current', 'true');
-    await expect(shownCurl(page, 'curl -X POST "https://api.example.com/orders"')).toBeVisible();
+    await expect(await shownCurl(page, 'curl -X POST "https://api.example.com/orders"')).toBeVisible();
     await expect(page.getByText('curl -X GET "https://api.example.com/users"')).toBeHidden();
   });
 
@@ -271,7 +276,7 @@ test.describe('Batch Editor Page', () => {
 
     await removeRequest(page, 'GET /users');
     await expect(sidebarRow(page, 'POST /orders')).toHaveAttribute('aria-current', 'true');
-    await expect(shownCurl(page, 'curl -X POST "https://api.example.com/orders"')).toBeVisible();
+    await expect(await shownCurl(page, 'curl -X POST "https://api.example.com/orders"')).toBeVisible();
 
     await removeRequest(page, 'POST /orders');
     await expect(page.getByRole('heading', { name: /No Requests/i })).toBeVisible();
@@ -386,7 +391,7 @@ test.describe('Batch Editor Page', () => {
       expect(editorWidth).toBeGreaterThan(330);
 
       await select.selectOption({ label: 'POST /orders' });
-      await expect(shownCurl(page, 'curl -X POST "https://api.example.com/orders"')).toBeVisible();
+      await expect(await shownCurl(page, 'curl -X POST "https://api.example.com/orders"')).toBeVisible();
 
       await page.getByRole('button', { name: 'Remove selected request' }).click();
       await expect(select.locator('option')).toHaveCount(2);

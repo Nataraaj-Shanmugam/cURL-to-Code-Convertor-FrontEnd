@@ -240,10 +240,10 @@ test.describe('Titles, toolbar and small details (T68)', () => {
     const generate = page.getByRole('button', { name: /Generate Code/i });
     const before = await generate.boundingBox();
     await page.locator('button[role="checkbox"]:not([disabled])').first().click();
+    // Clear/Delete appear only once something is selected (D-12), so the toolbar may grow sideways.
     await expect(page.getByRole('button', { name: 'Delete (1)' })).toBeEnabled();
     await page.evaluate(() => window.scrollTo(0, 0)); // the click scrolled the checkbox into view
     const after = await generate.boundingBox();
-    expect(after!.x).toBeCloseTo(before!.x, 0);
     expect(after!.y).toBeCloseTo(before!.y, 0);
   });
 
@@ -255,7 +255,7 @@ test.describe('Titles, toolbar and small details (T68)', () => {
     await parseToEditor(page);
     await expect(page.getByRole('button', { name: /^Request Details/ }).getByText('POST')).toBeVisible();
     await expect(page.getByRole('button', { name: /^Request Body/ }).getByLabel(/entries/)).toBeVisible();
-    await page.getByRole('button', { name: /^Copy original cURL command/ }).click();
+    await page.getByRole('button', { name: /^Copy (redacted )?original cURL command/ }).click();
     await expect(page.getByText(/copied to clipboard/)).toBeVisible();
     const copied = await page.evaluate(() => navigator.clipboard.readText());
     expect(copied).toContain('https://api.example.com/users');

@@ -45,6 +45,11 @@
     /* Text/icon colour for warnings on a light or tinted surface (>= 4.5:1 on background and on warning/10) */
     --warning-text: 32 90% 24%;
 
+    /* The one surface for every code / JSON pane (same in both themes: code stays dark). */
+    --code-bg: 222 40% 8%;
+    --code-fg: 210 40% 96%;
+    --code-border: 222 20% 22%;
+
     --radius: 0.625rem;
 
     --font-sans: 'DM Sans', system-ui, -apple-system, sans-serif;

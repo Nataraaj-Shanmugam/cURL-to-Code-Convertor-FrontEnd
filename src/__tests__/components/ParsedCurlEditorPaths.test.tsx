@@ -55,7 +55,7 @@ describe('ParsedCurlEditor field paths', () => {
 
   it('offers no Add Entry on Request Details (QF-13)', () => {
     render(<ParsedCurlEditor initialData={parsed} />);
-    const header = screen.getByRole('button', { name: /Request Details/ }).closest('h3')!;
+    const header = screen.getByRole('button', { name: /Request Details/ }).closest('h2')!;
     expect(within(header).queryByRole('button', { name: /Add Entry/ })).toBeNull();
   });
 

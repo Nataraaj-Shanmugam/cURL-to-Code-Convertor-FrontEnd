@@ -72,6 +72,8 @@ describe('ParsedCurlEditor: secret masking', () => {
 
   it('masks the original cURL command behind a single toggle', async () => {
     render(<ParsedCurlEditor initialData={parsed} originalCurl={originalCurl} />);
+    // The original sits behind a collapsed header (D-12): open it first.
+    await user.click(screen.getByRole('button', { name: /Original cURL Command/ }));
     const toggle = screen.getByRole('button', { name: 'Reveal value of original cURL command' });
     await user.click(toggle);
     expect(pageText()).toContain(`Authorization: Bearer ${TOKEN}`);
@@ -256,11 +258,9 @@ describe('ExportJsonDialog', () => {
     expect(text).not.toContain(MASK);
   });
 
-  it('opens with focus on the redact choice, not on an eye button', async () => {
+  it('opens with focus on the dialog heading, not on an eye button or a setting (D-13)', async () => {
     renderExport();
-    await waitFor(() =>
-      expect(screen.getByRole('checkbox', { name: 'Redact secrets in the downloaded file' })).toHaveFocus(),
-    );
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Export JSON' })).toHaveFocus());
   });
 
   it('announces masks as "hidden value" instead of bullets', () => {
@@ -364,7 +364,7 @@ describe('DiffViewDialog: secret masking', () => {
     expect(pageText()).toContain(TOKEN);
     expect(pageText()).toContain(NEW_TOKEN);
     expect(pageText()).not.toContain(PASSWORD);
-    const reverts = screen.getAllByRole('button', { name: 'Revert change' });
+    const reverts = screen.getAllByRole('button', { name: /^Revert / });
     expect(reverts.some((b) => b.getAttribute('aria-describedby') && /headers\.Authorization/.test(
       document.getElementById(b.getAttribute('aria-describedby')!)?.textContent ?? '',
     ))).toBe(true);

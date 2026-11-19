@@ -2,7 +2,7 @@ import { memo, useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import { MethodBadge } from "@/components/ui/method-badge";
 import { Loader2, AlertCircle } from "lucide-react";
 import { apiClient, GENERATE_TIMEOUT_MS, SAFE_RETRIES } from "@/lib/api/apiClient";
 import { ENV } from "@/lib/env";
@@ -15,7 +15,7 @@ import {
   javaIdentifierError,
   statusCodeError,
 } from "@/lib/utils/codegenValidation";
-import { deriveMethodName, uniqueName } from "@/lib/hooks/useBatchEditor";
+import { deriveItemPath, deriveMethodName, uniqueName } from "@/lib/hooks/useBatchEditor";
 import type { BatchItem } from "@/types/batch";
 
 interface BatchCodeGenerationDialogProps {
@@ -283,21 +283,37 @@ ${methods.map((m) => "    " + m.replace(/\n/g, "\n    ")).join("\n\n")}
             <div className="space-y-2">
               <p className="text-sm font-medium">Methods and expected status</p>
               <div className="border rounded-md overflow-hidden max-h-64 overflow-y-auto">
-                {items.map((item) => {
+                {/* Column labels (from sm up; below that each input carries its own small label). */}
+                <div
+                  aria-hidden="true"
+                  className="hidden sm:flex items-center gap-x-3 px-3 py-1.5 border-b bg-muted/50 text-xs font-medium text-muted-foreground"
+                >
+                  <span className="flex-1 min-w-[8rem]">Request</span>
+                  <span className="w-48 shrink-0">Test method</span>
+                  <span className="w-24 shrink-0">Expected status</span>
+                </div>
+                {items.map((item, index) => {
                   const errors = rowErrors[item.id];
                   return (
                     <div
                       key={item.id}
                       className="flex flex-wrap items-start gap-x-3 gap-y-1 px-3 py-2 border-b last:border-0"
                     >
-                      <Badge className="shrink-0 text-[10px] font-mono mt-1" variant="secondary">
-                        {item.parsed.method?.toUpperCase() || "GET"}
-                      </Badge>
-                      <span className="text-xs text-muted-foreground truncate flex-1 min-w-[8rem] mt-1.5">
-                        {item.name}
-                      </span>
+                      <div className="flex flex-1 min-w-[8rem] items-center gap-2 mt-1">
+                        <MethodBadge method={item.parsed.method || "GET"} className="shrink-0" />
+                        <span className="text-xs text-muted-foreground truncate">
+                          {deriveItemPath(item.parsed, index)}
+                        </span>
+                      </div>
                       <div className="w-full sm:w-48 shrink-0">
+                        <label
+                          htmlFor={`method-name-${item.id}`}
+                          className="sm:sr-only block text-xs text-muted-foreground mb-0.5"
+                        >
+                          Test method
+                        </label>
                         <Input
+                          id={`method-name-${item.id}`}
                           value={methodNames[item.id] ?? ""}
                           onChange={(e) =>
                             setMethodNames((prev) => ({ ...prev, [item.id]: e.target.value }))
@@ -314,8 +330,15 @@ ${methods.map((m) => "    " + m.replace(/\n/g, "\n    ")).join("\n\n")}
                           </p>
                         )}
                       </div>
-                      <div className="w-24 shrink-0">
+                      <div className="w-full sm:w-24 shrink-0">
+                        <label
+                          htmlFor={`status-${item.id}`}
+                          className="sm:sr-only block text-xs text-muted-foreground mb-0.5"
+                        >
+                          Expected status
+                        </label>
                         <Input
+                          id={`status-${item.id}`}
                           type="number"
                           inputMode="numeric"
                           min={100}

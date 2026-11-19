@@ -39,31 +39,33 @@ function EditableField({ label, value, path }: EditableFieldProps) {
   const displayValue = hidden ? redactFieldValue(keyPath, value, { placeholder: MASK }) : value;
 
   return (
-    <div className="flex items-start gap-3 p-2 hover:bg-accent/30 rounded-md group transition-colors">
+    // A grid so that below 640px the value box takes the full row under the label (checkbox, label and
+    // actions share the first row), and from sm up it sits in the middle column beside the actions.
+    <div className="group grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1 rounded-md p-1 transition-colors hover:bg-accent/30 sm:items-start sm:gap-x-3 sm:p-2">
       <Checkbox
         checked={isSelected}
         onCheckedChange={() => toggleSelect(path)}
-        className="mt-1"
+        className="col-start-1 row-start-1 sm:mt-1"
         disabled={isNonDeletable}
         aria-label={`Select ${label} for deletion`}
       />
 
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-1">
-          <span className="font-semibold text-sm text-foreground">{label}</span>
-          {isNonDeletable && (
-            <span className="text-xs px-1.5 py-0.5 bg-accent text-accent-foreground rounded">
-              Required
-            </span>
-          )}
-          {needsReentry && (
-            <span className="text-xs px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/40">
-              Redacted: re-enter value
-            </span>
-          )}
-          {isSecret && <RevealToggle label={label} revealed={revealed} onToggle={() => setRevealed(r => !r)} />}
-        </div>
+      <div className="col-start-2 row-start-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+        <span className="font-semibold text-sm text-foreground break-words [overflow-wrap:anywhere]">{label}</span>
+        {isNonDeletable && (
+          <span className="text-xs px-1.5 py-0.5 bg-accent text-accent-foreground rounded">
+            Required
+          </span>
+        )}
+        {needsReentry && (
+          <span className="text-xs px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/40">
+            Redacted: re-enter value
+          </span>
+        )}
+        {isSecret && <RevealToggle label={label} revealed={revealed} onToggle={() => setRevealed(r => !r)} />}
+      </div>
 
+      <div className="col-span-3 row-start-2 min-w-0 sm:col-span-1 sm:col-start-2">
         {isEditing ? (
           isComplex ? (
             <Textarea
@@ -93,7 +95,7 @@ function EditableField({ label, value, path }: EditableFieldProps) {
             />
           )
         ) : (
-          <pre className="text-xs font-mono whitespace-pre-wrap break-all bg-muted/50 p-2 rounded border border-border">
+          <pre className="text-xs font-mono whitespace-pre-wrap break-words [overflow-wrap:anywhere] bg-muted/50 p-2 rounded border border-border">
             <MaskedString
               text={typeof displayValue === "object" ? JSON.stringify(displayValue, null, 2) : String(displayValue ?? "N/A")}
             />
@@ -101,7 +103,7 @@ function EditableField({ label, value, path }: EditableFieldProps) {
         )}
       </div>
 
-      <div className={`flex gap-1 ${ROW_ACTIONS_VISIBILITY}`}>
+      <div className={`col-start-3 row-start-1 flex gap-1 sm:row-span-2 ${ROW_ACTIONS_VISIBILITY}`}>
         <Button
           variant="ghost"
           size="icon"
