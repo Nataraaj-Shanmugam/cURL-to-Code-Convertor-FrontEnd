@@ -1,9 +1,9 @@
-import type { ParsedCurl } from "@/types/curl";
+import type { DataFormat, ParsedCurl } from "@/types/curl";
 
 /**
  * Detect data format from parsed cURL data with comprehensive checks
  */
-export function detectDataFormat(parsedData: ParsedCurl): "json" | "xml" | "both" {
+export function detectDataFormat(parsedData: ParsedCurl): DataFormat {
   const headers = parsedData.headers || {};
   const data = parsedData.data;
   const rawData = parsedData.raw_data;
@@ -139,13 +139,8 @@ function isJsonContent(content: string): boolean {
   
   // Check for JSON object or array
   if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-    try {
-      JSON.parse(trimmed);
-      return true;
-    } catch {
-      // If parsing fails, might still be JSON with variables/templates
-      return true;
-    }
+    // Even if it does not parse it may be JSON with variables/templates, so a leading brace is enough.
+    return true;
   }
   
   return false;
@@ -156,7 +151,6 @@ function isJsonContent(content: string): boolean {
  */
 function guessFormatFromContext(parsedData: ParsedCurl): "json" | "xml" {
   const url = parsedData.url?.toLowerCase() || '';
-  // const method = parsedData.method?.toUpperCase() || '';
   
   // URL path indicators
   if (url.includes('/xml') || url.includes('.xml')) {
@@ -190,8 +184,8 @@ function guessFormatFromContext(parsedData: ParsedCurl): "json" | "xml" {
 /**
  * Get user-friendly label for data format
  */
-export function getDataFormatLabel(format: "json" | "xml" | "both"): string {
-  const labels = {
+export function getDataFormatLabel(format: DataFormat): string {
+  const labels: Record<DataFormat, string> = {
     json: "JSON",
     xml: "XML",
     both: "JSON + XML"
@@ -202,73 +196,11 @@ export function getDataFormatLabel(format: "json" | "xml" | "both"): string {
 /**
  * Get description for data format
  */
-export function getDataFormatDescription(format: "json" | "xml" | "both"): string {
-  const descriptions = {
+export function getDataFormatDescription(format: DataFormat): string {
+  const descriptions: Record<DataFormat, string> = {
     json: "Includes Jackson annotations for JSON serialization",
     xml: "Includes JAXB annotations for XML binding",
     both: "Includes both Jackson (JSON) and JAXB (XML) annotations"
   };
   return descriptions[format];
-}
-
-/**
- * Get detailed detection info (useful for debugging/display)
- */
-export function getFormatDetectionInfo(parsedData: ParsedCurl): {
-  detectedFormat: "json" | "xml" | "both";
-  confidence: "high" | "medium" | "low";
-  indicators: string[];
-} {
-  const headers = parsedData.headers || {};
-  const data = parsedData.data;
-  const rawData = parsedData.raw_data;
-  const indicators: string[] = [];
-  let confidence: "high" | "medium" | "low" = "low";
-  
-  // Check Content-Type
-  const contentType = findHeaderValue(headers, 'content-type');
-  if (contentType) {
-    if (isJsonContentType(contentType)) {
-      indicators.push(`Content-Type: ${contentType} (JSON)`);
-      confidence = "high";
-    } else if (isXmlContentType(contentType)) {
-      indicators.push(`Content-Type: ${contentType} (XML)`);
-      confidence = "high";
-    }
-  }
-  
-  // Check body content
-  const bodyContent = typeof data === 'string' ? data : rawData;
-  if (bodyContent && typeof bodyContent === 'string') {
-    const trimmed = bodyContent.trim();
-    if (isXmlContent(trimmed)) {
-      indicators.push("Request body contains XML content");
-      if (confidence !== "high") confidence = "medium";
-    } else if (isJsonContent(trimmed)) {
-      indicators.push("Request body contains JSON content");
-      if (confidence !== "high") confidence = "medium";
-    }
-  }
-  
-  // Check Accept header
-  const accept = findHeaderValue(headers, 'accept');
-  if (accept) {
-    if (isJsonContentType(accept)) {
-      indicators.push(`Accept: ${accept} (JSON)`);
-    } else if (isXmlContentType(accept)) {
-      indicators.push(`Accept: ${accept} (XML)`);
-    }
-  }
-  
-  const detectedFormat = detectDataFormat(parsedData);
-  
-  if (indicators.length === 0) {
-    indicators.push("No explicit format indicators found, using default");
-  }
-  
-  return {
-    detectedFormat,
-    confidence,
-    indicators
-  };
 }

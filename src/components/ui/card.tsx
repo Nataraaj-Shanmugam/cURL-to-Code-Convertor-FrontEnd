@@ -1,14 +1,14 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {}
+export type CardProps = React.HTMLAttributes<HTMLDivElement>;
 
 const Card = React.forwardRef<HTMLDivElement, CardProps>(
   ({ className, ...props }, ref) => (
     <div
       ref={ref}
       className={cn(
-        "rounded-xl border border-border bg-card text-card-foreground shadow-md transition-all duration-300 hover:shadow-lg",
+        "rounded-xl border border-border bg-card text-card-foreground shadow-sm",
         className
       )}
       {...props}
@@ -21,29 +21,27 @@ const CardHeader = React.forwardRef<HTMLDivElement, CardProps>(
   ({ className, ...props }, ref) => (
     <div
       ref={ref}
-      className={cn(
-        "flex flex-col space-y-1.5 p-6 border-b border-border/50 bg-gradient-to-b from-muted/30 to-transparent",
-        className
-      )}
+      className={cn("flex flex-col space-y-1.5 p-4 border-b border-border", className)}
       {...props}
     />
   )
 );
 CardHeader.displayName = "CardHeader";
 
-const CardTitle = React.forwardRef<
-  HTMLParagraphElement,
-  React.HTMLAttributes<HTMLHeadingElement>
->(({ className, ...props }, ref) => (
-  <h3
-    ref={ref}
-    className={cn(
-      "font-bold leading-none tracking-tight text-lg",
-      className
-    )}
-    {...props}
-  />
-));
+export interface CardTitleProps extends React.HTMLAttributes<HTMLHeadingElement> {
+  /** Heading element to render; h3 by default. A page title uses "h1" and overrides the size. */
+  as?: "h1" | "h2" | "h3";
+}
+
+const CardTitle = React.forwardRef<HTMLHeadingElement, CardTitleProps>(
+  ({ className, as: Tag = "h3", ...props }, ref) => (
+    <Tag
+      ref={ref}
+      className={cn("font-semibold leading-none tracking-tight", className)}
+      {...props}
+    />
+  )
+);
 CardTitle.displayName = "CardTitle";
 
 const CardDescription = React.forwardRef<
@@ -52,7 +50,7 @@ const CardDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <p
     ref={ref}
-    className={cn("text-sm text-muted-foreground leading-relaxed", className)}
+    className={cn("text-sm text-muted-foreground", className)}
     {...props}
   />
 ));
@@ -60,11 +58,7 @@ CardDescription.displayName = "CardDescription";
 
 const CardContent = React.forwardRef<HTMLDivElement, CardProps>(
   ({ className, ...props }, ref) => (
-    <div 
-      ref={ref} 
-      className={cn("p-6 pt-4 space-y-3", className)} 
-      {...props} 
-    />
+    <div ref={ref} className={cn("p-4 pt-0 space-y-2", className)} {...props} />
   )
 );
 CardContent.displayName = "CardContent";
@@ -73,10 +67,7 @@ const CardFooter = React.forwardRef<HTMLDivElement, CardProps>(
   ({ className, ...props }, ref) => (
     <div
       ref={ref}
-      className={cn(
-        "flex items-center p-6 pt-0 border-t border-border/30 bg-gradient-to-t from-muted/20 to-transparent",
-        className
-      )}
+      className={cn("flex items-center p-4 pt-0 border-t border-border", className)}
       {...props}
     />
   )

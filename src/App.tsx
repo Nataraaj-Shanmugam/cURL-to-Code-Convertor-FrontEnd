@@ -1,27 +1,76 @@
-// src/App.tsx
-import { Routes, Route } from "react-router-dom";
+import { lazy, Suspense } from "react";
+import { Routes, Route, useLocation } from "react-router-dom";
 import { ThemeProvider } from "@/components/ui/theme-provider";
-import { BackendStatusProvider } from "@/contexts/BackendStatusContext";
 import AppLayout from "@/components/layout/AppLayout";
 import Home from "@/pages/Home";
-import Playground from "@/pages/Playground";
-import EditorPage from "@/pages/EditorPage";
+import NotFound from "@/pages/NotFound";
 import Feedback from "@/pages/Feedback";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
+import { Toaster } from "sonner";
+import { BackendStatusProvider } from "@/contexts/BackendStatusContext";
+import RouteEffects from "@/components/layout/RouteEffects";
+import RateLimitNotice from "@/components/layout/RateLimitNotice";
+import { PageHeadingLevelProvider } from "@/components/layout/PageHeading";
+
+const Playground = lazy(() => import("@/pages/Playground"));
+const EditorPage = lazy(() => import("@/pages/EditorPage"));
+const BatchEditorPage = lazy(() => import("@/pages/BatchEditorPage"));
+
+/**
+ * Shown while a route's chunk loads. It carries an (sr-only) <h1> so the page is never without one;
+ * RouteEffects ignores it when moving focus, because the real <h1> replaces it a moment later.
+ */
+function PageLoader() {
+  return (
+    <div className="flex items-center justify-center py-24">
+      <h1 className="sr-only" data-route-loading>
+        Loading page
+      </h1>
+      <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+    </div>
+  );
+}
+
+/**
+ * The batch editor page is not edited here, so the shell supplies its <h1>. It is visually hidden
+ * because the page already shows its own heading; the page's main title is demoted to <h2>.
+ */
+function BatchEditorRoute() {
+  return (
+    <PageHeadingLevelProvider value="h2">
+      <h1 className="sr-only">Batch editor</h1>
+      <BatchEditorPage />
+    </PageHeadingLevelProvider>
+  );
+}
 
 export default function App() {
+  const location = useLocation();
+
   return (
+    <ErrorBoundary>
     <ThemeProvider attribute="class" defaultTheme="system" storageKey="ui-theme">
+      {/* Inside App (not main.tsx) so it works with either router setup; starts the wake-up check on every route. */}
       <BackendStatusProvider>
-        <AppLayout>
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/playground" element={<Playground />} />
-            <Route path="/editor" element={<EditorPage />} />
-             <Route path="/feedback" element={<Feedback />} /> {/* ADD THIS ROUTE */}
-        
-          </Routes>
-        </AppLayout>
+      <AppLayout>
+        <RouteEffects />
+        <div key={location.pathname} className="animate-page-enter">
+          <Suspense fallback={<PageLoader />}>
+            <Routes location={location}>
+              <Route path="/" element={<Home />} />
+              <Route path="/playground" element={<Playground />} />
+              <Route path="/editor" element={<EditorPage />} />
+              <Route path="/batch-editor" element={<BatchEditorRoute />} />
+              <Route path="/feedback" element={<Feedback />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </Suspense>
+        </div>
+      </AppLayout>
       </BackendStatusProvider>
+      <Toaster richColors position="top-right" />
+      <RateLimitNotice />
     </ThemeProvider>
+    </ErrorBoundary>
   );
 }

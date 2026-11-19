@@ -5,6 +5,21 @@ import reactHooks from "eslint-plugin-react-hooks";
 import tseslint from "typescript-eslint";
 
 export default [
+  // Flat config does not read .eslintignore, so global ignores live here.
+  {
+    ignores: [
+      "node_modules/",
+      "dist/",
+      "dist-perf/",
+      "dist-perf-profile/",
+      "build/",
+      ".vite/",
+      "coverage/",
+      "playwright-report/",
+      "test-results/",
+      "Archieve/",
+    ],
+  },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
@@ -45,5 +60,15 @@ export default [
     settings: { 
       react: { version: "detect" } 
     }
+  },
+  // Perf scripts run in Node and pass functions to the page (page.evaluate), so both sets of globals apply.
+  // Repo scripts (scripts/*.mjs) run in Node only.
+  {
+    files: ["scripts/**/*.mjs"],
+    languageOptions: { globals: globals.node },
+  },
+  {
+    files: ["perf/**/*.mjs"],
+    languageOptions: { globals: { ...globals.node, ...globals.browser } },
   }
 ];

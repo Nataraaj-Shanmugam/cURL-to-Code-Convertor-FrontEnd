@@ -1,516 +1,324 @@
-import { useState, useEffect, useCallback } from "react";
+import { useLayoutEffect, useCallback, useMemo } from "react";
+import type { ParsedCurl } from "@/types/curl";
+import { useEditorState } from "./useEditorState";
+import { useBodyApi } from "./useBodyApi";
+import { useSectionManager, VALID_SECTIONS, getParsedField } from "./useSectionManager";
+import { deepEqual } from "@/lib/utils/deepEqual";
+import {
+  type FieldPath,
+  compareForDeletion,
+  createDraft,
+  decodePath,
+  deleteAtPath,
+  encodePath,
+  getAtPath,
+  hasPath,
+  isSafePath,
+  setAtPath,
+  toBracketPath,
+  toPathId,
+  toSegments,
+} from "@/lib/utils/fieldPath";
 
-// ============================================================================
-// TYPES
-// ============================================================================
+export { VALID_SECTIONS, getParsedField };
 
-export interface EditingState {
-  [key: string]: boolean;
-}
+// ── helpers ──────────────────────────────────────────────────────────────────
 
-export interface EditedValues {
-  [key: string]: any;
-}
+const isMeaningfulValue = (value: unknown): boolean => {
+  if (value === null || value === undefined || value === false || value === 0) return false;
+  if (typeof value === "string" && value.trim() === "") return false;
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    const keys = Object.keys(obj);
+    if (keys.length === 0) return false;
+    return keys.some(k => isMeaningfulValue(obj[k]));
+  }
+  return true;
+};
 
-export interface CollapsedState {
-  [key: string]: boolean;
-}
-
-export interface HistoryEntry {
-  parsed: any;
-  timestamp: number;
-}
-
-export const VALID_SECTIONS = {
-  'query_params': 'Query Parameters',
-  'headers': 'Headers',
-  'cookies': 'Cookies',
-  'form_data': 'Form Data',
-  'auth': 'Authentication',
-  'network_config': 'Network Configuration',
-  'ssl_config': 'SSL/TLS Configuration',
-  'flags': 'Flags'
-} as const;
-
-const EXCLUDED_KEYS = [
-  'method', 'url', 'base_url', 'endpoint', 'path_template',
-  'raw_data', 'all_options', 'meta', 'user_agent', 'referer', 'proxy'
-] as const;
-
-const NON_BODY_METHODS = ['GET', 'DELETE', 'HEAD', 'OPTIONS'] as const;
-
-const MAX_HISTORY = 5;
-
-// ============================================================================
-// HELPER FUNCTIONS (Pure, no side effects)
-// ============================================================================
-
-export const hasValidData = (data: any): boolean => {
-  if (!data || typeof data !== 'object') return false;
+const hasValidData = (data: unknown): boolean => {
+  if (!data) return false;
+  if (typeof data !== "object") return false;
   if (Array.isArray(data)) return data.length > 0;
-
-  const entries = Object.entries(data);
+  const entries = Object.entries(data as Record<string, unknown>);
   if (entries.length === 0) return false;
-
-  return entries.some(([_, value]) => {
-    if (value === null || value === undefined) return false;
-    if (typeof value === 'string' && value.trim() === '') return false;
-    if (typeof value === 'object' && Object.keys(value).length === 0) return false;
-    return true;
-  });
+  return entries.some(([, value]) => isMeaningfulValue(value));
 };
 
-export const hasActiveFlags = (flagsObj: any): boolean => {
-  if (!flagsObj || typeof flagsObj !== 'object') return false;
-  return Object.values(flagsObj).some((val) => val === true);
+const hasActiveFlags = (flagsObj: unknown): boolean => {
+  if (!flagsObj || typeof flagsObj !== "object") return false;
+  return Object.values(flagsObj as Record<string, unknown>).some(val => val === true);
 };
 
-export const getActiveFlags = (flagsObj: any): string[] => {
-  if (!flagsObj || typeof flagsObj !== 'object') return [];
-  return Object.entries(flagsObj)
-    .filter(([_, val]) => val === true)
+const getActiveFlags = (flagsObj: unknown): string[] => {
+  if (!flagsObj || typeof flagsObj !== "object") return [];
+  return Object.entries(flagsObj as Record<string, unknown>)
+    .filter(([, val]) => val === true)
     .map(([key]) => key);
 };
 
-export const shouldExcludeKey = (key: string): boolean => {
-  return EXCLUDED_KEYS.includes(key as any);
-};
+// The body API addresses nodes as `data.items[0].sku`.
+const bodyApiPath = (parsed: ParsedCurl, segments: string[]): string =>
+  `data.${toBracketPath(parsed.data, segments.slice(1))}`;
 
-export const isNonBodyMethod = (method: string): boolean => {
-  return NON_BODY_METHODS.includes(method?.toUpperCase() as any);
-};
+// ── hook ─────────────────────────────────────────────────────────────────────
 
-const getValidSectionsFromData = (data: any): string[] => {
-  const valid: string[] = [];
+export const useParsedCurlEditor = (initialData: ParsedCurl | undefined) => {
+  const editorState = useEditorState(initialData);
+  const {
+    originalParsed,
+    parsed,
+    isDirty: hasCommittedChanges,
+    setParsed,
+    resetParsed,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+    selected,
+    setSelected,
+    editing,
+    setEditing,
+    editedValues,
+    setEditedValues,
+    bodyCollapsed,
+    setBodyCollapsed,
+    bodyCollapsedDefault,
+    setBodyCollapsedDefault,
+    initialBodyCollapsed,
+    allExpanded,
+    setAllExpanded,
+    toggleSelect,
+    handleEditChange,
+    toggleBodyCollapse,
+  } = editorState;
 
-  Object.keys(data).forEach(key => {
-    if (shouldExcludeKey(key)) return;
+  // A value typed into an open field editor but not saved yet also counts as an unsaved change,
+  // so the leave/unload guard does not drop it silently (QF-22).
+  const hasPendingEdits = useMemo(
+    () =>
+      Object.keys(editing).some(
+        id => editing[id] && id in editedValues && !deepEqual(editedValues[id], getAtPath(parsed, decodePath(id))),
+      ),
+    [editing, editedValues, parsed],
+  );
+  const isDirty = hasCommittedChanges || hasPendingEdits;
 
-    const value = data[key];
-    if (value === null || value === undefined) return;
-    if (typeof value === 'string' && value.trim() === '') return;
+  const bodyApi = useBodyApi(() => parsed.data);
+  const { bodyApiLoading, bodyApiError, editBodyNode, deleteBodyNode } = bodyApi;
 
-    if (key === 'path_parameters') {
-      if (Array.isArray(value) && value.length > 0) valid.push(key);
-    } else if (key === 'flags') {
-      if (hasActiveFlags(value)) valid.push(key);
-    } else if (key === 'ssl_config') {
-      if (value && typeof value === 'object' && Object.keys(value).some(k => value[k] === true)) {
-        valid.push(key);
-      }
-    } else if (key === 'data') {
-      if (typeof value === 'object' && value !== null) {
-        if (Array.isArray(value) ? value.length > 0 : Object.keys(value).length > 0) {
-          valid.push(key);
-        }
-      } else if (value) {
-        valid.push(key);
-      }
-    } else if (hasValidData(value)) {
-      valid.push(key);
-    }
-  });
+  const sectionManager = useSectionManager(parsed, setParsed, hasActiveFlags, hasValidData);
+  const {
+    openSections,
+    setOpenSections,
+    showAddDialog,
+    setShowAddDialog,
+    addDialogSection,
+    newKey,
+    setNewKey,
+    newValue,
+    setNewValue,
+    duplicateKey,
+    addEntryError,
+    showNewSectionDialog,
+    setShowNewSectionDialog,
+    newSectionName,
+    setNewSectionName,
+    computeOpenSections,
+    getMissingSections,
+    deleteSection,
+    handleAddEntry,
+    saveNewEntry,
+    handleAddSection,
+    saveNewSection,
+  } = sectionManager;
 
-  return valid;
-};
-
-const deepClone = (obj: any): any => JSON.parse(JSON.stringify(obj));
-
-const updateNestedValue = (obj: any, path: string, value: any): any => {
-  const keys = path.split('.');
-  const result = deepClone(obj);
-  let current = result;
-
-  for (let i = 0; i < keys.length - 1; i++) {
-    const key = keys[i];
-    if (key && (!current[key] || typeof current[key] !== 'object')) {
-      current[key] = {};
-    }
-    if (key) {
-      current = current[key];
-    }
-  }
-
-  const lastKey = keys[keys.length - 1];
-  if (lastKey) {
-    current[lastKey] = value;
-  }
-  return result;
-};
-
-const deleteNestedValue = (obj: any, path: string): any => {
-  const keys = path.split('.');
-  const result = deepClone(obj);
-  let current = result;
-
-  for (let i = 0; i < keys.length - 1; i++) {
-    const key = keys[i];
-    if (key && !current[key]) return result;
-    if (key) {
-      current = current[key];
-    }
-  }
-
-  const lastKey = keys[keys.length - 1];
-  if (lastKey) {
-    delete current[lastKey];
-  }
-  return result;
-};
-
-// ============================================================================
-// MAIN HOOK
-// ============================================================================
-
-export const useParsedCurlEditor = (initialData: any) => {
-  // Core state
-  const [originalParsed] = useState(initialData || {});
-  const [parsed, setParsed] = useState(deepClone(initialData || {}));
-  const [history, setHistory] = useState<HistoryEntry[]>([]);
-  const [historyIndex, setHistoryIndex] = useState(-1);
-
-  // UI state
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [editing, setEditing] = useState<EditingState>({});
-  const [editedValues, setEditedValues] = useState<EditedValues>({});
-  const [openSections, setOpenSections] = useState<string[]>([]);
-  const [bodyCollapsed, setBodyCollapsed] = useState<CollapsedState>({});
-  const [allExpanded, setAllExpanded] = useState(false);
-
-  // Dialog state
-  const [showAddDialog, setShowAddDialog] = useState(false);
-  const [addDialogSection, setAddDialogSection] = useState("");
-  const [newKey, setNewKey] = useState("");
-  const [newValue, setNewValue] = useState("");
-  const [showNewSectionDialog, setShowNewSectionDialog] = useState(false);
-  const [newSectionName, setNewSectionName] = useState("");
-
-  // Initialize history
-  useEffect(() => {
-    if (initialData) {
-      setHistory([{ parsed: deepClone(initialData), timestamp: Date.now() }]);
-      setHistoryIndex(0);
-    }
+  // Initialize open sections on mount, before the first paint: opening them after it moved the
+  // whole editor down (layout shift, FE-PERF-4).
+  useLayoutEffect(() => {
+    setOpenSections(computeOpenSections(parsed));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Initialize open sections
-  useEffect(() => {
-    const defaultSections = getValidSectionsFromData(parsed);
-    const sectionsToOpen = [...defaultSections];
+  // ── actions ────────────────────────────────────────────────────────────────
 
-    const hasRequestData = ['method', 'url', 'base_url', 'endpoint', 'path_template'].some(
-      key => parsed[key] !== undefined && parsed[key] !== null && parsed[key] !== ''
-    );
-
-    if (hasRequestData) sectionsToOpen.unshift('request');
-    if (parsed.user_agent || parsed.referer || parsed.proxy) sectionsToOpen.push('context');
-
-    setOpenSections(sectionsToOpen);
-  }, []);
-
-  // Add to history
-  const addToHistory = useCallback((newParsed: any) => {
-    setHistory(prev => {
-      const newHistory = prev.slice(0, historyIndex + 1);
-      newHistory.push({ parsed: deepClone(newParsed), timestamp: Date.now() });
-      if (newHistory.length > MAX_HISTORY) newHistory.shift();
-      return newHistory;
-    });
-    setHistoryIndex(prev => Math.min(prev + 1, MAX_HISTORY - 1));
-  }, [historyIndex]);
-
-  // Undo
-  const undo = useCallback(() => {
-    if (historyIndex > 0) {
-      const newIndex = historyIndex - 1;
-      const historyEntry = history[newIndex];
-      if (historyEntry) {
-        setHistoryIndex(newIndex);
-        setParsed(deepClone(historyEntry.parsed));
-      }
-    }
-  }, [historyIndex, history]);
-  // Redo
-  const redo = useCallback(() => {
-    if (historyIndex < history.length - 1) {
-      const newIndex = historyIndex + 1;
-      const historyEntry = history[newIndex];
-      if (historyEntry) {
-        setHistoryIndex(newIndex);
-        setParsed(deepClone(historyEntry.parsed));
-      }
-    }
-  }, [historyIndex, history]);
-
-  const canUndo = historyIndex > 0;
-  const canRedo = historyIndex < history.length - 1;
-
-  // Get valid sections
-  const getValidSections = useCallback((): string[] => {
-    return getValidSectionsFromData(parsed);
-  }, [parsed]);
-
-  // Get missing sections
-  const getMissingSections = useCallback(() => {
-    return Object.entries(VALID_SECTIONS).filter(([key]) => {
-      const sectionData = parsed[key];
-
-      if (key === 'flags') return !hasActiveFlags(sectionData);
-      if (key === 'ssl_config') {
-        return !(sectionData && typeof sectionData === 'object' &&
-          Object.keys(sectionData).some(k => sectionData[k] === true));
-      }
-
-      if (!sectionData) return true;
-      if (typeof sectionData === 'object' && !Array.isArray(sectionData)) {
-        return Object.keys(sectionData).length === 0;
-      }
-      if (Array.isArray(sectionData)) return sectionData.length === 0;
-      return false;
-    });
-  }, [parsed]);
-
-  // Reset
   const handleReset = useCallback(() => {
-    if (window.confirm('Are you sure you want to reset all changes?')) {
-      const resetParsed = deepClone(originalParsed);
-      setParsed(resetParsed);
+    // States are immutable (see useEditorState), so the original's subtrees can be shared.
+    const resetState = { ...originalParsed };
+    resetParsed(resetState);
+    setOpenSections(computeOpenSections(resetState));
+    setSelected(new Set());
+    setEditing({});
+    setEditedValues({});
+    setBodyCollapsed({});
+    setBodyCollapsedDefault(initialBodyCollapsed);
+    setAllExpanded(!initialBodyCollapsed);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [originalParsed, resetParsed, computeOpenSections]);
 
-      setHistory([{ parsed: resetParsed, timestamp: Date.now() }]);
-      setHistoryIndex(0);
-
-      const defaultSections = getValidSectionsFromData(resetParsed);
-      const sectionsToOpen = [...defaultSections];
-      const hasRequestData = ['method', 'url', 'base_url', 'endpoint', 'path_template'].some(
-        key => resetParsed[key] !== undefined && resetParsed[key] !== null && resetParsed[key] !== ''
-      );
-      if (hasRequestData) sectionsToOpen.unshift('request');
-      if (resetParsed.user_agent || resetParsed.referer || resetParsed.proxy) {
-        sectionsToOpen.push('context');
+  const toggleEdit = useCallback(
+    async (path: FieldPath, currentValue: unknown) => {
+      const segments = toSegments(path);
+      const id = encodePath(segments);
+      if (!editing[id]) {
+        setEditing({ ...editing, [id]: true });
+        setEditedValues({ ...editedValues, [id]: currentValue });
+        return;
       }
 
-      setOpenSections(sectionsToOpen);
-      setSelected(new Set());
-      setEditing({});
-      setEditedValues({});
-      setBodyCollapsed({});
-    }
-  }, [originalParsed]);
+      const closeEditor = () => {
+        const newEditing = { ...editing };
+        delete newEditing[id];
+        setEditing(newEditing);
+      };
 
-  // Delete section
-  const deleteSection = useCallback((sectionKey: string) => {
-    const sectionName = VALID_SECTIONS[sectionKey as keyof typeof VALID_SECTIONS] || sectionKey;
-    if (window.confirm(`Delete the entire "${sectionName}" section?`)) {
-      const newParsed = { ...parsed };
-      delete newParsed[sectionKey];
-      setParsed(newParsed);
-      addToHistory(newParsed);
-      setOpenSections(prev => prev.filter(s => s !== sectionKey));
-    }
-  }, [parsed, addToHistory]);
-
-  // Toggle select
-  const toggleSelect = useCallback((path: string) => {
-    setSelected(prev => {
-      const newSelected = new Set(prev);
-      if (newSelected.has(path)) {
-        newSelected.delete(path);
-      } else {
-        newSelected.add(path);
+      if (!hasPath(parsed, segments)) {
+        closeEditor();
+        return;
       }
-      return newSelected;
-    });
-  }, []);
-
-  // Toggle edit
-  const toggleEdit = useCallback((path: string, currentValue: any) => {
-    if (editing[path]) {
-      let finalValue = editedValues[path] ?? currentValue;
-      if (typeof finalValue === 'string') {
+      const stored = getAtPath(parsed, segments);
+      let finalValue: unknown = id in editedValues ? editedValues[id] : currentValue;
+      // The input always yields text. Only a field that held a JSON value (number, boolean, null,
+      // object, array) is parsed back; a string stays a string, so "123", "true" or a 20-digit id
+      // keep their type and precision.
+      if (typeof finalValue === "string" && typeof stored !== "string") {
         try {
-          finalValue = JSON.parse(finalValue);
+          finalValue = JSON.parse(finalValue) as unknown;
         } catch {
           // Keep as string
         }
       }
 
-      const newParsed = updateNestedValue(parsed, path, finalValue);
+      if (deepEqual(finalValue, stored)) {
+        closeEditor();
+        return;
+      }
+      const draft = createDraft(parsed);
+      draft.prepare(segments);
+      const newParsed = draft.root;
+      if (!setAtPath(newParsed, segments, finalValue)) {
+        closeEditor();
+        return;
+      }
+
+      // The edit is local and final. The backend call (flag-gated) is advisory, so it starts
+      // after the state update and its failure only surfaces as a notice.
+      if (segments[0] === "data" && segments.length > 1) void editBodyNode(bodyApiPath(parsed, segments), finalValue);
+
       setParsed(newParsed);
-      addToHistory(newParsed);
+      closeEditor();
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [editing, editedValues, parsed, editBodyNode, setParsed],
+  );
 
-      setEditing(prev => {
-        const newEditing = { ...prev };
-        delete newEditing[path];
-        return newEditing;
-      });
-    } else {
-      setEditing(prev => ({ ...prev, [path]: true }));
-      setEditedValues(prev => ({ ...prev, [path]: currentValue }));
-    }
-  }, [editing, editedValues, parsed, addToHistory]);
-
-  // Delete selected
   const deleteSelected = useCallback(() => {
     if (selected.size === 0) return;
-
-    let newParsed = deepClone(parsed);
-    selected.forEach(path => {
-      newParsed = deleteNestedValue(newParsed, path);
-    });
-
-    setParsed(newParsed);
-    addToHistory(newParsed);
+    const draft = createDraft(parsed);
+    const newParsed = draft.root;
+    let changed = false;
+    [...selected]
+      .map(decodePath)
+      .sort(compareForDeletion)
+      .forEach(segments => {
+        draft.prepare(segments);
+        if (deleteAtPath(newParsed, segments)) changed = true;
+      });
+    if (changed) setParsed(newParsed);
     setSelected(new Set());
-  }, [selected, parsed, addToHistory]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected, parsed, setParsed]);
 
-  // Delete single
-  const deleteSingle = useCallback((path: string) => {
-    const newParsed = deleteNestedValue(parsed, path);
-    setParsed(newParsed);
-    addToHistory(newParsed);
-    setSelected(prev => {
-      const newSelected = new Set(prev);
-      newSelected.delete(path);
-      return newSelected;
-    });
-  }, [parsed, addToHistory]);
+  const deleteSingle = useCallback(
+    (path: FieldPath) => {
+      const segments = toSegments(path);
+      const id = encodePath(segments);
+      const draft = createDraft(parsed);
+      draft.prepare(segments);
+      const newParsed = draft.root;
+      if (deleteAtPath(newParsed, segments)) {
+        // Local delete is final; the backend call (flag-gated) is advisory and sent with the
+        // pre-delete body, as before.
+        if (segments[0] === "data" && segments.length > 1) void deleteBodyNode(bodyApiPath(parsed, segments));
+        setParsed(newParsed);
+      }
+      // Splicing an array item shifts its siblings' ids, so open editors and selections under that
+      // array are dropped too; otherwise only those at or under the deleted path.
+      const parentSegments = segments.slice(0, -1);
+      const scope =
+        parentSegments.length > 0 && Array.isArray(getAtPath(parsed, parentSegments))
+          ? encodePath(parentSegments)
+          : id;
+      const inScope = (key: string) => key === scope || key.startsWith(`${scope}.`);
+      setSelected(prev => new Set([...prev].filter(key => !inScope(toPathId(key)))));
+      setEditing(prev => {
+        const next = { ...prev };
+        Object.keys(next).forEach(key => {
+          if (inScope(key)) delete next[key];
+        });
+        return next;
+      });
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [parsed, deleteBodyNode, setParsed],
+  );
 
-  // Handle edit change
-  const handleEditChange = useCallback((path: string, value: any) => {
-    setEditedValues(prev => ({ ...prev, [path]: value }));
-  }, []);
-
-  // Export data
   const exportData = useCallback(() => {
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const dataStr = JSON.stringify(parsed, null, 2);
-    const dataBlob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(dataBlob);
-    const link = document.createElement('a');
+    const blob = new Blob([JSON.stringify(parsed, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
     link.href = url;
-    link.download = `parsed-curl-${timestamp}.json`;
+    link.download = "parsed-curl-edited.json";
     link.click();
     URL.revokeObjectURL(url);
   }, [parsed]);
 
-  // Handle add entry
-  const handleAddEntry = useCallback((section: string) => {
-    setAddDialogSection(section);
-    setNewKey("");
-    setNewValue("");
-    setShowAddDialog(true);
-  }, []);
-
-  // Save new entry
-  const saveNewEntry = useCallback(() => {
-    if (!newKey.trim()) return;
-
-    const newParsed = deepClone(parsed);
-    if (!newParsed[addDialogSection]) {
-      newParsed[addDialogSection] = {};
-    }
-
-    if (addDialogSection === 'flags' || addDialogSection === 'ssl_config') {
-      newParsed[addDialogSection][newKey] = true;
-    } else {
-      newParsed[addDialogSection][newKey] = newValue;
-    }
-
-    setParsed(newParsed);
-    addToHistory(newParsed);
-
-    if (!openSections.includes(addDialogSection)) {
-      setOpenSections(prev => [...prev, addDialogSection]);
-    }
-
-    setShowAddDialog(false);
-    setNewKey("");
-    setNewValue("");
-  }, [newKey, newValue, parsed, addDialogSection, openSections, addToHistory]);
-
-  // Handle add section
-  const handleAddSection = useCallback(() => {
-    const missingSections = getMissingSections();
-    if (missingSections.length === 0) {
-      alert('All standard sections are already present!');
-      return;
-    }
-    setShowNewSectionDialog(true);
-    setNewSectionName("");
-  }, [getMissingSections]);
-
-  // Save new section
-  const saveNewSection = useCallback(() => {
-    if (!newSectionName.trim()) return;
-
-    const newParsed = deepClone(parsed);
-
-    if (newSectionName === 'flags' || newSectionName === 'ssl_config') {
-      newParsed[newSectionName] = {};
-    } else if (newSectionName === 'path_parameters') {
-      newParsed[newSectionName] = [];
-    } else if (newSectionName === 'auth') {
-      newParsed[newSectionName] = '';
-    } else {
-      newParsed[newSectionName] = {};
-    }
-
-    setParsed(newParsed);
-    addToHistory(newParsed);
-
-    if (!openSections.includes(newSectionName)) {
-      setOpenSections(prev => [...prev, newSectionName]);
-    }
-
-    setShowNewSectionDialog(false);
-    setNewSectionName("");
-  }, [newSectionName, parsed, openSections, addToHistory]);
-
-  // Toggle body collapse
-  const toggleBodyCollapse = useCallback((path: string) => {
-    setBodyCollapsed(prev => ({ ...prev, [path]: !prev[path] }));
-  }, []);
-
-  // Expand/collapse all body
+  // Collapse All / Expand All change the default for every node and drop per-node overrides, so
+  // neither walks the body (it can hold hundreds of thousands of nodes).
+  // Collapsing also marks the top-level containers explicitly (a handful of entries).
   const handleBodyExpandCollapseAll = useCallback(() => {
-    if (allExpanded) {
-      const allPaths: string[] = [];
-      const collectPaths = (obj: any, currentPath: string = 'data') => {
-        if (typeof obj === 'object' && obj !== null) {
-          if (Array.isArray(obj)) {
-            obj.forEach((item, idx) => {
-              const path = `${currentPath}[${idx}]`;
-              allPaths.push(path);
-              collectPaths(item, path);
-            });
-          } else {
-            Object.keys(obj).forEach(key => {
-              const path = `${currentPath}.${key}`;
-              allPaths.push(path);
-              collectPaths(obj[key], path);
-            });
-          }
-        }
-      };
-      collectPaths(parsed.data);
-
-      const collapsed: CollapsedState = {};
-      allPaths.forEach(path => { collapsed[path] = true; });
-      setBodyCollapsed(collapsed);
-    } else {
-      setBodyCollapsed({});
+    const collapsing = allExpanded;
+    const data = parsed.data;
+    const topLevel: Record<string, boolean> = {};
+    if (collapsing && typeof data === "object" && data !== null) {
+      Object.entries(data as Record<string, unknown>).forEach(([key, value]) => {
+        if (typeof value === "object" && value !== null) topLevel[encodePath(["data", key])] = true;
+      });
     }
-    setAllExpanded(!allExpanded);
-  }, [allExpanded, parsed.data]);
+    setBodyCollapsed(topLevel);
+    setBodyCollapsedDefault(collapsing);
+    setAllExpanded(prev => !prev);
+  }, [allExpanded, parsed.data, setBodyCollapsed, setBodyCollapsedDefault, setAllExpanded]);
 
-  // Check if POJO should be disabled
-  const isPojoDisabled = useCallback(() => {
-    return isNonBodyMethod(parsed.method);
-  }, [parsed.method]);
+  // Replace the whole body (the raw-JSON view of a very large body). Undoable like any edit.
+  const replaceBody = useCallback(
+    (value: unknown) => {
+      if (deepEqual(value, parsed.data)) return;
+      setParsed({ ...parsed, data: value as ParsedCurl["data"] });
+    },
+    [parsed, setParsed],
+  );
+
+  // Revert a single field to its original value. `path` is an escaped path (as produced by the
+  // diff engine) or its segments.
+  const revertField = useCallback((path: FieldPath) => {
+    const segments = toSegments(path);
+    if (!isSafePath(segments)) return;
+    const draft = createDraft(parsed);
+    draft.prepare(segments);
+    const clone = draft.root;
+    const ok = hasPath(originalParsed, segments)
+      ? setAtPath(clone, segments, getAtPath(originalParsed, segments), originalParsed)
+      : deleteAtPath(clone, segments);
+    if (ok && !deepEqual(clone, parsed)) setParsed(clone);
+  }, [originalParsed, parsed, setParsed]);
 
   return {
     // State
+    originalParsed,
     parsed,
+    isDirty,
     selected,
     editing,
     editedValues,
@@ -518,13 +326,14 @@ export const useParsedCurlEditor = (initialData: any) => {
     addDialogSection,
     newKey,
     newValue,
+    duplicateKey,
+    addEntryError,
     showNewSectionDialog,
     newSectionName,
     openSections,
     bodyCollapsed,
+    bodyCollapsedDefault,
     allExpanded,
-    history,
-    historyIndex,
     canUndo,
     canRedo,
 
@@ -539,6 +348,10 @@ export const useParsedCurlEditor = (initialData: any) => {
 
     // Actions
     handleReset,
+    undo,
+    redo,
+    revertField,
+    replaceBody,
     deleteSection,
     toggleSelect,
     toggleEdit,
@@ -552,15 +365,15 @@ export const useParsedCurlEditor = (initialData: any) => {
     saveNewSection,
     toggleBodyCollapse,
     handleBodyExpandCollapseAll,
-    undo,
-    redo,
 
     // Helpers
     hasValidData,
     hasActiveFlags,
     getActiveFlags,
     getMissingSections,
-    getValidSections,
-    isPojoDisabled,
+
+    // Body API state
+    bodyApiLoading,
+    bodyApiError,
   };
 };

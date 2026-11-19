@@ -1,30 +1,38 @@
+import { Code2 } from "lucide-react";
+import { Link } from "react-router-dom";
+import { GITHUB_URL, PORTFOLIO_URL } from "@/constants/links";
+
+const linkClass = "inline-flex items-center py-2 max-sm:py-3 hover:text-foreground transition-colors underline-offset-4 hover:underline";
+
+function ExternalLink({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer" className={linkClass}>
+      {children}
+      <span className="sr-only"> (opens in a new tab)</span>
+    </a>
+  );
+}
+
 export default function Footer() {
   const currentYear = new Date().getFullYear();
 
   return (
-    <footer className="relative border-t border-border/50 py-6 mt-auto">
-      {/* Gradient line at top */}
-      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent"></div>
-      
-      <div className="container mx-auto px-4">
-      
-          <div className="w-full flex justify-center">
-            <span>© {currentYear} CurlCraft Assured</span>
-            <span className="hidden md:inline">·</span>
-            <span className="hidden md:inline">All rights reserved</span>
-          </div>
-
-        {/* Tech Stack Tags */}
-        {/* <div className="flex flex-wrap items-center justify-center gap-2 mt-4">
-          {['React', 'TypeScript', 'Tailwind CSS', 'REST Assured'].map((tech) => (
-            <span
-              key={tech}
-              className="px-3 py-1 text-xs font-medium rounded-full bg-muted/50 text-muted-foreground hover:bg-primary/10 hover:text-primary transition-all duration-200 cursor-default"
-            >
-              {tech}
-            </span>
-          ))}
-        </div> */}
+    <footer className="border-t border-border py-6 mt-8">
+      <div className="container mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
+        <div className="flex items-center gap-2">
+          <Code2 className="w-4 h-4 text-primary" aria-hidden="true" />
+          <span>&copy; {currentYear} cURLCraft Assured</span>
+        </div>
+        <nav aria-label="Footer" className="flex flex-wrap items-center justify-center gap-x-4">
+          <Link to="/playground" className={linkClass}>
+            Playground
+          </Link>
+          <Link to="/feedback" className={linkClass}>
+            Feedback
+          </Link>
+          <ExternalLink href={GITHUB_URL}>GitHub</ExternalLink>
+          <ExternalLink href={PORTFOLIO_URL}>nataraaj.dev</ExternalLink>
+        </nav>
       </div>
     </footer>
   );

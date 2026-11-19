@@ -1,8 +1,0 @@
-# .eslintignore
-node_modules
-dist
-build
-.vite
-coverage
-vite.config.ts
-*.config.js

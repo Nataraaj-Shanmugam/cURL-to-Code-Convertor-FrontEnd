@@ -1,0 +1,56 @@
+{
+  "swagger": "2.0",
+  "info": { "title": "Store", "version": "1.0" },
+  "host": "store.acme.test",
+  "basePath": "/v1",
+  "schemes": ["https", "http"],
+  "consumes": ["application/json"],
+  "securityDefinitions": {
+    "api_key": { "type": "apiKey", "name": "api_key", "in": "query" },
+    "store_auth": { "type": "oauth2", "flow": "implicit", "authorizationUrl": "https://auth.acme.test/o", "scopes": { "write:items": "write" } }
+  },
+  "paths": {
+    "/items": {
+      "post": {
+        "summary": "Create item",
+        "consumes": ["application/json"],
+        "security": [{ "store_auth": ["write:items"] }],
+        "parameters": [
+          { "in": "body", "name": "body", "required": true, "schema": { "$ref": "#/definitions/Item" } }
+        ]
+      }
+    },
+    "/items/{itemId}/image": {
+      "parameters": [{ "name": "itemId", "in": "path", "required": true, "type": "integer", "format": "int64" }],
+      "post": {
+        "summary": "Upload image",
+        "consumes": ["multipart/form-data"],
+        "security": [{ "api_key": [] }],
+        "parameters": [
+          { "name": "note", "in": "formData", "type": "string", "x-example": "front" },
+          { "name": "file", "in": "formData", "type": "file" }
+        ]
+      }
+    },
+    "/items/search": {
+      "get": {
+        "summary": "Search",
+        "parameters": [{ "$ref": "#/parameters/Limit" }]
+      }
+    }
+  },
+  "parameters": {
+    "Limit": { "name": "limit", "in": "query", "type": "integer", "default": 25 }
+  },
+  "definitions": {
+    "Item": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "example": "Lamp" },
+        "price": { "type": "number", "example": 19.5 },
+        "dims": { "$ref": "#/definitions/Dims" }
+      }
+    },
+    "Dims": { "type": "object", "properties": { "w": { "type": "integer" }, "h": { "type": "integer" } } }
+  }
+}

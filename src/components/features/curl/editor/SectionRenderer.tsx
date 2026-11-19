@@ -1,423 +1,165 @@
-// src/components/features/curl/editor/SectionRenderer.tsx
+import { memo } from "react";
 import { AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { EditableField } from "./EditableField";
-import { BodyField } from "./BodyField";
-import { VALID_SECTIONS } from "@/lib/hooks/useParsedCurlEditor";
+import { MethodBadge } from "@/components/ui/method-badge";
+import { Plus, Trash2, FileText, Globe, List, Shield, Flag, Settings, Link2, Cookie } from "lucide-react";
+import { useEditorContext } from "./EditorContext";
+import EditableField from "./EditableField";
+import { encodePath } from "@/lib/utils/fieldPath";
+import { useSectionHeadingLevel } from "@/components/layout/PageHeading";
 
-import { X, AlertCircle, Info, Plus, Trash2, Globe, Layers, Search, Shield, Database, Key, Settings, Lock, FileJson } from "lucide-react";
-
+// Section styling config — static, never changes
+const sectionStyles: Record<string, { icon: typeof Globe; borderColor: string }> = {
+  request: { icon: Globe, borderColor: "border-l-primary" },
+  headers: { icon: FileText, borderColor: "border-l-blue-500" },
+  query_params: { icon: List, borderColor: "border-l-amber-500" },
+  cookies: { icon: Cookie, borderColor: "border-l-orange-500" },
+  auth: { icon: Shield, borderColor: "border-l-emerald-500" },
+  auth_config: { icon: Shield, borderColor: "border-l-emerald-500" },
+  flags: { icon: Flag, borderColor: "border-l-violet-500" },
+  misc_flags: { icon: Flag, borderColor: "border-l-violet-400" },
+  ssl_config: { icon: Shield, borderColor: "border-l-rose-500" },
+  proxy_config: { icon: Globe, borderColor: "border-l-yellow-500" },
+  network_config: { icon: Settings, borderColor: "border-l-teal-500" },
+  transfer_config: { icon: Settings, borderColor: "border-l-sky-500" },
+  protocol_config: { icon: Settings, borderColor: "border-l-lime-500" },
+  output_config: { icon: FileText, borderColor: "border-l-fuchsia-500" },
+  ftp_config: { icon: Globe, borderColor: "border-l-pink-500" },
+  mail_config: { icon: FileText, borderColor: "border-l-red-500" },
+  path_parameters: { icon: Link2, borderColor: "border-l-cyan-500" },
+  context: { icon: Settings, borderColor: "border-l-slate-500" },
+  data: { icon: FileText, borderColor: "border-l-indigo-500" },
+};
 
 interface SectionRendererProps {
-    parsed: any;
-    selected: Set<string>;
-    editing: { [key: string]: boolean };
-    editedValues: { [key: string]: any };
-    openSections: string[];
-    bodyCollapsed: { [key: string]: boolean };
-    allExpanded: boolean;
-    stats: {
-        headers: number;
-        params: number;
-        hasAuth: boolean;
-        hasBody: boolean;
-    };
-    onToggleSelect: (path: string) => void;
-    onToggleEdit: (path: string, value: any) => void;
-    onDeleteSingle: (path: string) => void;
-    onEditChange: (path: string, value: any) => void;
-    onDeleteSection: (key: string) => void;
-    onAddEntry: (key: string) => void;
-    onBodyExpandCollapseAll: () => void;
-    onToggleBodyCollapse: (path: string) => void;
-    hasActiveFlags: (flags: any) => boolean;
-    getActiveFlags: (flags: any) => string[];
+  title: string;
+  sectionKey: string;
+  data: unknown;
+  isTopLevel?: boolean;
+  isFlagsSection?: boolean;
 }
 
+function SectionRenderer({ title, sectionKey, data, isTopLevel = false, isFlagsSection = false }: SectionRendererProps) {
+  const { hasActiveFlags, getActiveFlags, handleAddEntry, requestConfirm, deleteSingle } =
+    useEditorContext();
+  const sectionLevel = useSectionHeadingLevel();
 
-const getSectionIcon = (key: string) => {
-    const iconMap: Record<string, any> = {
-        request: Globe,
-        headers: Layers,
-        query_parameters: Search,
-        auth: Shield,
-        data: Database,
-        cookies: Key,
-        flags: Settings,
-        ssl_config: Lock,
-        path_parameters: FileJson,
-    };
-    return iconMap[key] || Info;
-};
+  const isEmpty = !data || (Array.isArray(data) ? data.length === 0 : Object.keys(data as object).length === 0);
+  const isFlagType = isFlagsSection || sectionKey === "ssl_config";
+  const hasNoFlags = isFlagType && (!data || (!hasActiveFlags(data) && Object.keys((data as object) || {}).length === 0));
 
-const getSectionColor = (key: string) => {
-    const colorMap: Record<string, string> = {
-        request: "from-cyan-500 to-teal-600",
-        headers: "from-teal-500 to-emerald-600",
-        query_parameters: "from-cyan-600 to-sky-700",
-        auth: "from-emerald-500 to-green-600",
-        data: "from-orange-500 to-amber-600",
-        cookies: "from-amber-500 to-yellow-600",
-        flags: "from-slate-500 to-slate-600",
-        ssl_config: "from-red-500 to-rose-600",
-    };
-    return colorMap[key] || "from-slate-500 to-slate-600";
-};
+  const style = sectionStyles[sectionKey] || { icon: FileText, borderColor: "border-l-muted-foreground" };
+  const SectionIcon = style.icon;
+  const entryCount = isEmpty ? 0 : Array.isArray(data) ? data.length : Object.keys(data as object).length;
+  const method = sectionKey === "request" ? (data as { method?: unknown } | null)?.method : undefined;
 
-const getMethodColor = (method: string) => {
-    const colors: Record<string, string> = {
-        GET: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
-        POST: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400",
-        PUT: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
-        DELETE: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-        PATCH: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
-    };
-    return colors[method?.toUpperCase()] || "bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400";
-};
-
-const getSectionCount = (data: any): number => {
-    if (!data) return 0;
-    if (Array.isArray(data)) return data.length;
-    if (typeof data === "object")
-        return Object.keys(data).filter((k) => data[k] !== null && data[k] !== undefined).length;
-    return 1;
-};
-
-const getSectionDisplayName = (key: string): string => {
-    if (VALID_SECTIONS[key as keyof typeof VALID_SECTIONS]) {
-        return VALID_SECTIONS[key as keyof typeof VALID_SECTIONS];
-    }
-    return key.split("_").map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
-};
-
-export function SectionRenderer(props: SectionRendererProps) {
-    const {
-        parsed,
-        selected,
-        editing,
-        editedValues,
-        stats,
-        onToggleSelect,
-        onToggleEdit,
-        onDeleteSingle,
-        onEditChange,
-        onDeleteSection,
-        onAddEntry,
-        hasActiveFlags,
-        getActiveFlags,
-    } = props;
-
-    const renderEditableField = (label: string, value: any, path: string) => {
-        const isEditing = editing[path] ?? false;
-        const currentValue = isEditing ? editedValues[path] : value;
-        const isNonDeletable = ["method", "url", "base_url", "endpoint"].includes(label);
-        return (
-            <EditableField
-                key={path}
-                label={label}
-                value={value}
-                path={path}
-                isEditing={isEditing}
-                currentValue={currentValue}
-                isSelected={selected.has(path)}
-                isNonDeletable={isNonDeletable}
-                onToggleSelect={onToggleSelect}
-                onToggleEdit={onToggleEdit}
-                onEditChange={onEditChange}
-                onDelete={onDeleteSingle}
-            />
-        );
-    };
-
-    const renderSection = (
-        title: string,
-        data: any,
-        basePath: string,
-        isTopLevel = false,
-        isFlagsSection = false
-    ) => {
-        const isEmpty =
-            !data ||
-            (Array.isArray(data) ? data.length === 0 : Object.keys(data).length === 0);
-
-        const isFlagType = isFlagsSection || basePath === "ssl_config";
-        const hasNoFlags =
-            isFlagType &&
-            (!data || (!hasActiveFlags(data) && Object.keys(data || {}).length === 0));
-        const SectionIcon = getSectionIcon(basePath);
-        const sectionColor = getSectionColor(basePath);
-        const count = getSectionCount(data);
-
-        return (
-            <AccordionItem
-                value={basePath}
-                key={basePath}
-                className="border-2 rounded-xl mb-3 overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200"
-            >
-                <AccordionTrigger className="hover:no-underline px-4 py-3 hover:bg-accent/30">
-                    <div className="flex items-center justify-between w-full pr-2">
-                        <div className="flex items-center gap-3">
-                            <div
-                                className={`w-10 h-10 rounded-lg bg-gradient-to-br ${sectionColor} flex items-center justify-center shadow-md`}
-                            >
-                                <SectionIcon className="w-5 h-5 text-white" />
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <span className="font-semibold text-base">{title}</span>
-                                {count > 0 && (
-                                    <Badge variant="secondary" className="px-2 py-0 text-xs">
-                                        {count}
-                                    </Badge>
-                                )}
-                                {basePath === "request" && parsed.method && (
-                                    <Badge
-                                        className={`${getMethodColor(parsed.method)} px-3 py-0.5 text-xs font-bold`}
-                                    >
-                                        {parsed.method.toUpperCase()}
-                                    </Badge>
-                                )}
-                            </div>
-                        </div>
-                        <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-8 px-3 text-xs hover:bg-primary hover:text-primary-foreground transition-colors"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    onAddEntry(basePath);
-                                }}
-                            >
-                                <Plus className="h-3 w-3 mr-1" />
-                                {isFlagType ? "Add Flag" : "Add Entry"}
-                            </Button>
-                            {!isTopLevel && (
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="h-8 px-3 text-xs hover:bg-red-500 hover:text-white transition-colors"
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        onDeleteSection(basePath);
-                                    }}
-                                >
-                                    <Trash2 className="h-3 w-3 mr-1" />
-                                    Delete Section
-                                </Button>
-                            )}
-                        </div>
-                    </div>
-                </AccordionTrigger>
-                <AccordionContent className="px-4 pb-4">
-                    {isFlagType ? (
-                        hasNoFlags ? (
-                            <div className="flex items-center gap-2 p-4 rounded-lg bg-muted/30 border-2 border-dashed">
-                                <AlertCircle className="w-4 h-4 text-muted-foreground" />
-                                <p className="text-sm text-muted-foreground italic">
-                                    No flags set. Click "Add Flag" to add one.
-                                </p>
-                            </div>
-                        ) : (
-                            <div className="flex flex-wrap gap-2">
-                                {(isFlagsSection
-                                    ? getActiveFlags(data)
-                                    : Object.keys(data || {}).filter((k) => data[k])
-                                ).map((flag: string) => (
-                                    <div
-                                        key={flag}
-                                        className="flex items-center gap-2 px-3 py-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-lg text-sm font-medium shadow-sm hover:shadow-md transition-shadow group"
-                                    >
-                                        <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                                        <span className="font-mono">{flag}</span>
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="h-5 w-5 ml-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500 hover:text-white"
-                                            onClick={() => onDeleteSingle(`${basePath}.${flag}`)}
-                                        >
-                                            <X className="h-3 w-3" />
-                                        </Button>
-                                    </div>
-                                ))}
-                            </div>
-                        )
-                    ) : isEmpty ? (
-                        <div className="flex items-center gap-2 p-4 rounded-lg bg-muted/30 border-2 border-dashed">
-                            <Info className="w-4 h-4 text-muted-foreground" />
-                            <p className="text-sm text-muted-foreground italic">
-                                No entries yet. Click "Add Entry" to add one.
-                            </p>
-                        </div>
-                    ) : (
-                        <div className="space-y-2">
-                            {Array.isArray(data)
-                                ? data.map((item, idx) =>
-                                    renderEditableField(`Item ${idx}`, item, `${basePath}.${idx}`)
-                                )
-                                : Object.entries(data)
-                                    .filter(([, value]) => value !== null && value !== undefined)
-                                    .map(([key, value]) => {
-                                        const fieldPath = isTopLevel ? key : `${basePath}.${key}`;
-                                        return renderEditableField(key, value, fieldPath);
-                                    })}
-                        </div>
-                    )}
-                </AccordionContent>
-            </AccordionItem>
-        );
-    };
-
-    // Get sections to render
-    const sectionsToRender = getSectionsToRender(parsed, props.openSections);
-
-    return (
-        <>
-            {sectionsToRender.map((section) => (
-                <div key={section.key} id={`section-${section.key}`}>
-                    {renderSection(
-                        section.title,
-                        section.data,
-                        section.key,
-                        section.key === "request",
-                        section.isFlags
-                    )}
+  return (
+    <AccordionItem value={sectionKey} className={`border-l-2 ${style.borderColor} pl-2`}>
+      <AccordionTrigger
+        headingLevel={sectionLevel}
+        actions={
+          isTopLevel ? undefined : (
+            <>
+              {/* Top-level groups (Request Details, Client Context) are not keys of the request,
+                  so they offer neither Add Entry nor Delete Section. */}
+              <button
+                type="button"
+                className="h-7 px-3 inline-flex items-center justify-center rounded-md text-xs font-medium hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                onClick={() => handleAddEntry(sectionKey)}
+                aria-label={`${isFlagType ? "Add Flag" : "Add Entry"} to ${title}`}
+              >
+                <Plus className="h-3 w-3 mr-1" aria-hidden="true" />
+                {isFlagType ? "Add Flag" : "Add Entry"}
+              </button>
+              <button
+                type="button"
+                className="h-7 px-3 inline-flex items-center justify-center rounded-md text-xs font-medium text-destructive hover:text-destructive hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                onClick={() => requestConfirm({ type: "deleteSection", key: sectionKey })}
+                aria-label={`Delete Section ${title}`}
+              >
+                <Trash2 className="h-3 w-3 mr-1" aria-hidden="true" />
+                Delete Section
+              </button>
+            </>
+          )
+        }
+      >
+        <span className="flex items-center gap-2">
+          <SectionIcon className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
+          {title}
+          {/* Decorative count: kept out of the trigger's accessible name (QU-3). */}
+          <Badge variant="secondary" aria-hidden="true" aria-label={`${entryCount} ${entryCount === 1 ? "entry" : "entries"}`}>
+            {entryCount}
+          </Badge>
+          {typeof method === "string" && method && <MethodBadge method={method} />}
+        </span>
+      </AccordionTrigger>
+      <AccordionContent>
+        {isFlagType ? (
+          hasNoFlags ? (
+            <p className="text-sm text-muted-foreground italic">No flags set.</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {(isFlagsSection
+                ? getActiveFlags(data)
+                : Object.keys((data as Record<string, unknown>) || {}).filter(
+                    k => (data as Record<string, unknown>)[k],
+                  )
+              ).map(flag => (
+                <div
+                  key={flag}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-accent text-accent-foreground rounded-full text-sm"
+                >
+                  <span className="w-2 h-2 rounded-full bg-primary" aria-hidden="true" />
+                  <span className="font-mono">{flag}</span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-4 w-4 ml-1"
+                    onClick={() => deleteSingle([sectionKey, flag])}
+                    aria-label={`Delete flag ${flag}`}
+                  >
+                    <Trash2 className="h-3 w-3 text-destructive" />
+                  </Button>
                 </div>
-            ))}
-
-            {/* Render Request Body separately if exists */}
-            {stats.hasBody && (
-                <BodyField
-                    data={parsed.data}
-                    bodyCollapsed={props.bodyCollapsed}
-                    allExpanded={props.allExpanded}
-                    selected={selected}
-                    editing={editing}
-                    editedValues={editedValues}
-                    onToggleBodyCollapse={props.onToggleBodyCollapse}
-                    onToggleEdit={onToggleEdit}
-                    onDeleteSingle={onDeleteSingle}
-                    onEditChange={onEditChange}
-                    onExpandCollapseAll={props.onBodyExpandCollapseAll}
-                />
-            )}
-
-            {/* Client Context section */}
-            {(parsed.user_agent?.trim() || parsed.referer?.trim() || parsed.proxy) && (
-                <div id="section-context">
-                    {renderSection(
-                        "Client Context",
-                        {
-                            ...(parsed.user_agent?.trim() && { user_agent: parsed.user_agent }),
-                            ...(parsed.referer?.trim() && { referer: parsed.referer }),
-                            ...(parsed.proxy && { proxy: parsed.proxy }),
-                        },
-                        "context"
-                    )}
-                </div>
-            )}
-        </>
-    );
+              ))}
+            </div>
+          )
+        ) : isEmpty ? (
+          <p className="text-sm text-muted-foreground italic">No entries yet.</p>
+        ) : (
+          <div className="space-y-1">
+            {Array.isArray(data)
+              ? (data as unknown[]).map((item, idx) => (
+                  <EditableField
+                    key={idx}
+                    label={`Item ${idx}`}
+                    value={item}
+                    path={encodePath([sectionKey, String(idx)])}
+                  />
+                ))
+              : Object.entries(data as Record<string, unknown>)
+                  .filter(([, value]) => value !== null && value !== undefined)
+                  .map(([key, value]) => {
+                    const fieldPath = encodePath(isTopLevel ? [key] : [sectionKey, key]);
+                    return (
+                      <EditableField
+                        key={fieldPath}
+                        label={key}
+                        value={value}
+                        path={fieldPath}
+                      />
+                    );
+                  })}
+          </div>
+        )}
+      </AccordionContent>
+    </AccordionItem>
+  );
 }
 
-function getSectionsToRender(parsed: any, openSections: string[]) {
-    const sections: Array<{
-        key: string;
-        title: string;
-        data: any;
-        isFlags?: boolean;
-    }> = [];
+export default memo(SectionRenderer);
 
-    const fixedSections = ["method", "url", "base_url", "endpoint"];
-    const requestData: any = {};
-    fixedSections.forEach((key) => {
-        const value = parsed[key];
-        if (value !== undefined && value !== null && value !== "") {
-            requestData[key] = value;
-        }
-    });
-
-    if (Object.keys(requestData).length > 0) {
-        sections.push({
-            key: "request",
-            title: "Request Details",
-            data: requestData,
-        });
-    }
-
-    Object.keys(parsed).forEach((key) => {
-        if (
-            fixedSections.includes(key) ||
-            key === "data" ||
-            key === "raw_data" ||
-            key === "all_options" ||
-            key === "meta" ||
-            key === "path_template"
-        ) {
-            return;
-        }
-
-        const value = parsed[key];
-
-        if ((value === null || value === undefined) && !openSections.includes(key)) {
-            return;
-        }
-
-        if (["user_agent", "referer", "proxy"].includes(key)) {
-            return;
-        }
-
-        if (key === "flags") {
-            sections.push({
-                key,
-                title: getSectionDisplayName(key),
-                data: value || {},
-                isFlags: true,
-            });
-            return;
-        }
-
-        if (key === "ssl_config") {
-            sections.push({
-                key,
-                title: getSectionDisplayName(key),
-                data: value || {},
-                isFlags: false,
-            });
-            return;
-        }
-
-        if (key === "path_parameters") {
-            if ((Array.isArray(value) && value.length > 0) || openSections.includes(key)) {
-                sections.push({
-                    key,
-                    title: getSectionDisplayName(key),
-                    data: value || [],
-                });
-            }
-            return;
-        }
-
-        if (typeof value === "object") {
-            const isEmpty = Array.isArray(value)
-                ? value.length === 0
-                : Object.keys(value || {}).length === 0;
-
-            if (!isEmpty || openSections.includes(key)) {
-                sections.push({
-                    key,
-                    title: getSectionDisplayName(key),
-                    data: value || {},
-                });
-            }
-        } else if (value || openSections.includes(key)) {
-            sections.push({
-                key,
-                title: getSectionDisplayName(key),
-                data: value,
-            });
-        }
-    });
-
-    return sections;
-}
+// Re-export sectionStyles so ParsedCurlEditor can use it if needed
+export { sectionStyles };

@@ -1,0 +1,12 @@
+{
+  "info": {
+    "name": "Generated collection",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Ping",
+      "request": { "method": "GET", "header": [], "url": { "raw": "https://ping.test/ping", "protocol": "https", "host": ["ping", "test"], "path": ["ping"] } }
+    }
+  ]
+}
