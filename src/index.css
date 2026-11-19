@@ -1,125 +1,101 @@
+/* Google Fonts are now loaded via <link> in index.html to avoid render-blocking CSS @import */
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 /* ===========================
-   🎨 Enhanced Theme Variables - CYAN/TEAL SYSTEM
+   Theme Variables
 =========================== */
 @layer base {
   :root {
-    /* Backgrounds - Light Mode */
-    --background: 0 0% 100%;
-    --foreground: 222.2 47.4% 11.2%;
+    --background: 0 0% 99%;
+    --foreground: 210 20% 12%;
 
-    /* Muted Colors */
-    --muted: 210 20% 96%;
-    --muted-foreground: 215 16% 47%;
+    --muted: 210 14% 96%;
+    --muted-foreground: 210 12% 38%;
 
-    /* Card */
     --card: 0 0% 100%;
-    --card-foreground: 222.2 47.4% 11.2%;
+    --card-foreground: 210 20% 12%;
 
-    /* Borders & Inputs */
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-    --ring: 180 66% 49%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 210 20% 12%;
 
-    /* Primary - Cyan/Teal (CHANGED FROM PURPLE) */
-    --primary: 180 66% 49%;
+    --border: 210 13% 91%;
+    --input: 210 10% 58%;
+    --ring: 162 93% 28%;
+
+    --primary: 162 93% 25%;
     --primary-foreground: 0 0% 100%;
 
-    /* Secondary */
-    --secondary: 210 20% 96%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 210 14% 96%;
+    --secondary-foreground: 210 20% 12%;
 
-    /* Accent */
-    --accent: 210 20% 96%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 162 50% 94%;
+    --accent-foreground: 162 93% 22%;
 
-    /* Destructive */
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 98%;
+    --destructive: 0 72% 42%;
+    --destructive-foreground: 0 0% 100%;
 
-    /* Success */
-    --success: 142 76% 36%;
-    --success-foreground: 0 0% 98%;
+    --success: 142 76% 26%;
+    --success-foreground: 0 0% 100%;
 
-    /* Warning */
     --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 98%;
+    --warning-foreground: 210 20% 12%;
+    /* Text/icon colour for warnings on a light or tinted surface (>= 4.5:1 on background and on warning/10) */
+    --warning-text: 32 90% 24%;
 
-    /* Popover */
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 47.4% 11.2%;
+    /* The one surface for every code / JSON pane (same in both themes: code stays dark). */
+    --code-bg: 222 40% 8%;
+    --code-fg: 210 40% 96%;
+    --code-border: 222 20% 22%;
 
-    /* Radius */
-    --radius: 0.75rem;
+    --radius: 0.625rem;
 
-    /* Shadows */
-    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-    --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
-    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-    --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+    --font-sans: 'DM Sans', system-ui, -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Code', 'Fira Code', monospace;
   }
 
   .dark {
-    /* Backgrounds - Dark Mode */
-    --background: 222 47% 11%;
-    --foreground: 210 40% 98%;
+    --background: 220 18% 5%;
+    --foreground: 210 14% 96%;
 
-    /* Muted Colors */
-    --muted: 217 33% 17%;
-    --muted-foreground: 215 20% 65%;
+    --muted: 220 14% 10%;
+    --muted-foreground: 210 9% 65%;
 
-    /* Card */
-    --card: 222 47% 13%;
-    --card-foreground: 210 40% 98%;
+    --card: 220 16% 8%;
+    --card-foreground: 210 14% 96%;
 
-    /* Borders & Inputs */
-    --border: 217 33% 21%;
-    --input: 217 33% 21%;
-    --ring: 180 71% 60%;
+    --popover: 220 16% 8%;
+    --popover-foreground: 210 14% 96%;
 
-    /* Primary - Lighter Cyan for Dark Mode (CHANGED FROM PURPLE) */
-    --primary: 180 71% 60%;
-    --primary-foreground: 222 47% 11%;
+    --border: 220 12% 18%;
+    --input: 220 10% 45%;
+    --ring: 162 80% 42%;
 
-    /* Secondary */
-    --secondary: 217 33% 17%;
-    --secondary-foreground: 210 40% 98%;
+    --primary: 162 80% 42%;
+    --primary-foreground: 220 18% 5%;
 
-    /* Accent */
-    --accent: 217 33% 21%;
-    --accent-foreground: 210 40% 98%;
+    --secondary: 220 14% 14%;
+    --secondary-foreground: 210 14% 96%;
 
-    /* Destructive */
-    --destructive: 0 62% 50%;
-    --destructive-foreground: 210 40% 98%;
+    --accent: 162 35% 14%;
+    --accent-foreground: 162 80% 65%;
 
-    /* Success */
-    --success: 142 71% 45%;
-    --success-foreground: 210 40% 98%;
+    --destructive: 0 84% 62%;
+    --destructive-foreground: 220 18% 5%;
 
-    /* Warning */
+    --success: 142 70% 45%;
+    --success-foreground: 220 18% 5%;
+
     --warning: 38 92% 50%;
-    --warning-foreground: 210 40% 98%;
-
-    /* Popover */
-    --popover: 222 47% 13%;
-    --popover-foreground: 210 40% 98%;
-
-    /* Shadows - Enhanced for Dark Mode */
-    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
-    --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.5), 0 1px 2px -1px rgb(0 0 0 / 0.4);
-    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.5), 0 2px 4px -2px rgb(0 0 0 / 0.4);
-    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.6), 0 4px 6px -4px rgb(0 0 0 / 0.5);
-    --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.7), 0 8px 10px -6px rgb(0 0 0 / 0.6);
+    --warning-foreground: 220 18% 5%;
+    --warning-text: 38 92% 66%;
   }
 }
 
 /* ===========================
-   🎯 Enhanced Base Styles
+   Base Styles
 =========================== */
 @layer base {
   * {
@@ -127,286 +103,111 @@
   }
 
   body {
-    @apply bg-background text-foreground min-h-screen font-sans antialiased;
-    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    transition: background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), 
-                color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    @apply bg-background text-foreground min-h-screen antialiased;
+    font-family: var(--font-sans);
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+
+  /* Route changes move focus to the page <h1> (see RouteEffects); it is not a control, so no ring. */
+  h1[tabindex="-1"]:focus {
+    outline: none;
   }
 
   ::selection {
-    @apply bg-primary/20 text-primary;
+    @apply bg-primary/20 text-foreground;
   }
 
-  /* Enhanced Typography */
   h1, h2, h3, h4, h5, h6 {
-    @apply font-bold text-foreground tracking-tight;
-    line-height: 1.2;
+    @apply font-semibold text-foreground tracking-tight;
+    font-family: var(--font-mono);
   }
 
   h1 {
-    @apply text-4xl sm:text-5xl md:text-6xl;
-    letter-spacing: -0.02em;
+    @apply text-3xl sm:text-4xl md:text-5xl;
   }
 
   h2 {
-    @apply text-3xl sm:text-4xl;
-    letter-spacing: -0.01em;
-  }
-
-  h3 {
     @apply text-2xl sm:text-3xl;
   }
 
-  p {
-    @apply leading-7 text-muted-foreground;
+  h3 {
+    @apply text-xl sm:text-2xl;
   }
 
-  /* Enhanced Scrollbar */
+  p {
+    @apply leading-relaxed text-muted-foreground;
+  }
+
+  code, pre, .font-mono {
+    font-family: var(--font-mono) !important;
+  }
+
+  /* Scrollbar Styling */
   ::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
+    width: 6px;
+    height: 6px;
   }
 
   ::-webkit-scrollbar-track {
-    @apply bg-muted/50;
-    border-radius: 10px;
+    @apply bg-transparent;
   }
 
   ::-webkit-scrollbar-thumb {
-    @apply bg-muted-foreground/30;
-    border-radius: 10px;
-    border: 2px solid transparent;
-    background-clip: padding-box;
-    transition: background-color 0.2s ease;
+    @apply bg-muted-foreground/20 rounded-full;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-muted-foreground/50;
-  }
-
-  /* Firefox Scrollbar */
-  * {
-    scrollbar-width: thin;
-    scrollbar-color: hsl(var(--muted-foreground) / 0.3) hsl(var(--muted) / 0.5);
+    @apply bg-muted-foreground/40;
   }
 }
 
 /* ===========================
-   ✨ Enhanced Animations - CYAN THEMED
+   Animation Keyframes
 =========================== */
-@layer utilities {
-  @keyframes shimmer {
-    0% {
-      background-position: -1000px 0;
-    }
-    100% {
-      background-position: 1000px 0;
-    }
-  }
+@keyframes page-enter {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: none; }
+}
 
-  @keyframes float {
-    0%, 100% {
-      transform: translateY(0px);
-    }
-    50% {
-      transform: translateY(-10px);
-    }
-  }
+@keyframes hero-left {
+  from { opacity: 0; transform: translateX(-24px); }
+  to   { opacity: 1; transform: none; }
+}
 
-  @keyframes pulse-glow {
-    0%, 100% {
-      opacity: 1;
-      transform: scale(1);
-    }
-    50% {
-      opacity: 0.8;
-      transform: scale(1.05);
-    }
-  }
+@keyframes hero-right {
+  from { opacity: 0; transform: translateX(24px); }
+  to   { opacity: 1; transform: none; }
+}
 
-  @keyframes slide-in-from-top {
-    from {
-      opacity: 0;
-      transform: translateY(-20px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
-  @keyframes slide-in-from-bottom {
-    from {
-      opacity: 0;
-      transform: translateY(20px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
-  @keyframes fade-in {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
-  }
-
-  @keyframes scale-in {
-    from {
-      opacity: 0;
-      transform: scale(0.95);
-    }
-    to {
-      opacity: 1;
-      transform: scale(1);
-    }
-  }
-
-  .animate-shimmer {
-    animation: shimmer 2s infinite linear;
-    background: linear-gradient(
-      to right,
-      transparent 0%,
-      hsl(180 66% 49% / 0.1) 50%,
-      transparent 100%
-    );
-    background-size: 1000px 100%;
-  }
-
-  .animate-float {
-    animation: float 3s ease-in-out infinite;
-  }
-
-  .animate-pulse-glow {
-    animation: pulse-glow 2s ease-in-out infinite;
-  }
-
-  .animate-slide-in-top {
-    animation: slide-in-from-top 0.5s ease-out;
-  }
-
-  .animate-slide-in-bottom {
-    animation: slide-in-from-bottom 0.5s ease-out;
-  }
-
-  .animate-fade-in {
-    animation: fade-in 0.5s ease-out;
-  }
-
-  .animate-scale-in {
-    animation: scale-in 0.3s ease-out;
-  }
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: none; }
 }
 
 /* ===========================
-   🎨 Custom Utilities - CYAN/TEAL THEMED
+   Custom Utilities
 =========================== */
 @layer utilities {
-  /* Glass Morphism */
-  .glass {
-    background: hsl(var(--card) / 0.8);
-    backdrop-filter: blur(12px) saturate(180%);
-    -webkit-backdrop-filter: blur(12px) saturate(180%);
-    border: 1px solid hsl(var(--border) / 0.5);
+  .animate-page-enter {
+    animation: page-enter 0.25s ease-out both;
   }
 
-  .glass-strong {
-    background: hsl(var(--card) / 0.95);
-    backdrop-filter: blur(20px) saturate(200%);
-    -webkit-backdrop-filter: blur(20px) saturate(200%);
-    border: 1px solid hsl(var(--border) / 0.8);
+  .animate-hero-left {
+    animation: hero-left 0.6s ease-out both;
   }
 
-  /* Gradient Text - CYAN/TEAL (NO PURPLE) */
-  .gradient-text {
-    @apply bg-clip-text text-transparent;
-    background-image: linear-gradient(
-      135deg,
-      hsl(180, 66%, 49%),
-      hsl(180, 71%, 45%)
-    );
+  .animate-hero-right {
+    animation: hero-right 0.6s 0.2s ease-out both;
   }
 
-  .gradient-text-vibrant {
-    @apply bg-clip-text text-transparent;
-    background-image: linear-gradient(
-      135deg,
-      hsl(180, 66%, 49%),
-      hsl(180, 71%, 45%),
-      hsl(160, 84%, 39%)
-    );
+  .animate-fade-up {
+    animation: fade-up 0.4s ease-out both;
   }
 
-  /* Gradient Backgrounds */
-  .gradient-bg {
-    background: linear-gradient(
-      135deg,
-      hsl(var(--primary) / 0.08),
-      hsl(var(--primary) / 0.03)
-    );
-  }
-
-  .gradient-bg-hover {
-    position: relative;
-    overflow: hidden;
-  }
-
-.gradient-bg-hover::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(
-      135deg,
-      hsl(180 66% 49% / 0.12),
-      hsl(180 71% 45% / 0.05)
-    );
-    opacity: 0;
-    transition: opacity 0.3s ease;
-  }
-
-  .gradient-bg-hover:hover::before {
-    opacity: 1;
-  }
-
-  /* Elevated Shadows */
-  .shadow-elevated {
-    box-shadow: var(--shadow-lg);
-    transition: box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-                transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-
-  .shadow-elevated:hover {
-    box-shadow: var(--shadow-xl);
-    transform: translateY(-2px);
-  }
-
-  /* Interactive Card */
-  .card-interactive {
-    @apply transition-all duration-300 ease-out;
-    @apply hover:shadow-lg hover:-translate-y-1;
-    @apply border border-border bg-card;
-    border-radius: var(--radius);
-  }
-
-  /* Smooth Transitions */
-  .transition-smooth {
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-
-  .transition-fast {
-    transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-
-  /* Text Balance */
   .text-balance {
     text-wrap: balance;
   }
 
-  /* Hide Scrollbar */
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
@@ -416,126 +217,44 @@
     scrollbar-width: none;
   }
 
-  /* Container */
   .container {
     @apply mx-auto px-4 sm:px-6 lg:px-8;
     max-width: 1280px;
   }
 
-  /* Focus Ring Enhanced */
-  .focus-ring {
-    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background;
+  .bg-grid {
+    background-image: radial-gradient(circle, hsl(var(--border)) 1px, transparent 1px);
+    background-size: 24px 24px;
   }
 
-  /* Hover Glow Effect - CYAN */
-  .hover-glow {
+  .bg-noise {
     position: relative;
-    transition: all 0.3s ease;
   }
-
- .hover-glow::after {
-    content: '';
+  .bg-noise::before {
+    content: "";
     position: absolute;
-    inset: -2px;
-    background: linear-gradient(
-      135deg,
-      hsl(180 66% 49% / 0.4),
-      hsl(160 84% 39% / 0.1)
-    );
-    border-radius: inherit;
-    opacity: 0;
-    filter: blur(10px);
-    z-index: -1;
-    transition: opacity 0.3s ease;
-  }
-
-  .hover-glow:hover::after {
-    opacity: 1;
-  }
-
-  /* Button Shine Effect */
-  .button-shine {
-    position: relative;
-    overflow: hidden;
-  }
-
-  .button-shine::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(
-      90deg,
-      transparent,
-      rgba(255, 255, 255, 0.2),
-      transparent
-    );
-    transition: left 0.5s ease;
-  }
-
-  .button-shine:hover::before {
-    left: 100%;
-  }
-
-  /* Bordered Box with Gradient - CYAN */
-  .border-gradient {
-    position: relative;
-    border: 2px solid transparent;
-    background: hsl(var(--card));
-    background-clip: padding-box;
-  }
-
-  .border-gradient::before {
-    content: '';
-    position: absolute;
-    inset: -2px;
-    background: linear-gradient(
-      135deg,
-      hsl(180, 66%, 49%),
-      hsl(180, 71%, 45%)
-    );
-    border-radius: inherit;
-    z-index: -1;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    opacity: 0.03;
+    pointer-events: none;
+    z-index: 0;
   }
 }
 
 /* ===========================
-   📱 Responsive Enhancements
+   Reduced motion
+   Users who ask for less motion get none of the page, hero, fade-up, accordion or spinner motion;
+   state changes still happen, just instantly (animation fill modes keep end states visible).
 =========================== */
-@layer utilities {
-  /* Enhanced responsive padding */
-  .section-padding {
-    @apply py-12 md:py-16 lg:py-24;
-  }
-
-  .section-padding-sm {
-    @apply py-8 md:py-12 lg:py-16;
-  }
-
-  /* Enhanced responsive margins */
-  .section-margin {
-    @apply my-12 md:my-16 lg:my-24;
-  }
-}
-
-/* ===========================
-   🎭 Dark Mode Specific Enhancements
-=========================== */
-@layer base {
-  .dark {
-    /* Enhanced contrast for dark mode */
-    color-scheme: dark;
-  }
-
-  .dark .shadow-elevated {
-    box-shadow: 0 10px 30px -5px rgb(0 0 0 / 0.8), 
-                0 4px 10px -4px rgb(0 0 0 / 0.6);
-  }
-
-  .dark .shadow-elevated:hover {
-    box-shadow: 0 20px 40px -5px rgb(0 0 0 / 0.9), 
-                0 8px 16px -6px rgb(0 0 0 / 0.7);
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
   }
 }

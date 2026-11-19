@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   Code2,
   Edit3,
@@ -11,59 +10,50 @@ import {
   Eye,
   Settings,
   Copy,
+  GitBranch,
   Github,
+  ExternalLink,
+  Package,
 } from "lucide-react";
-import { useBackendStatus } from "@/contexts/BackendStatusContext";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from 'react-router-dom';
+import { Button } from "@/components/ui/button";
+import { FadeInSection } from "@/components/ui/fade-in-section";
+import { GITHUB_URL } from "@/constants/links";
 
 export default function Home() {
-  const [showLogo, setShowLogo] = useState(true);
-  const { backendStatus, downtime, attempt, maxRetries, waitTimeSeconds, isBackendReady } = useBackendStatus();
   const navigate = useNavigate();
-
-  const handleGetStarted = () => {
-    if (!isBackendReady) {
-      if (backendStatus === "down") {
-        alert("Playground is unavailable. Backend is down. Try after some time.");
-      } else {
-        alert(`Backend is warming up... Please wait (Attempt ${attempt}/${maxRetries}).`);
-      }
-      return;
-    }
-    navigate("/playground");
-  };
-
-  const formatDowntime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
 
   const features = [
     {
       icon: Code2,
       title: "Smart cURL Parsing",
       description: "Paste any cURL command and instantly parse it into structured, editable components with full support for headers, body, auth, and more.",
-      color: "from-cyan-500 to-teal-500"
     },
     {
       icon: Edit3,
       title: "Visual Editor",
       description: "Edit every aspect of your request through an intuitive accordion-based interface. Modify headers, query params, request body, and configurations inline.",
-      color: "from-teal-500 to-emerald-500"
     },
     {
       icon: Zap,
       title: "Code Generation",
       description: "Generate production-ready REST Assured test code with custom class names, assertions, logging, and automatic POJO creation from your request body.",
-      color: "from-blue-500 to-cyan-500"
     },
     {
       icon: FileJson,
       title: "Advanced Body Editor",
       description: "Navigate complex nested JSON structures with expandable/collapsible views, path visualization, and inline editing for all data types.",
-      color: "from-emerald-500 to-green-500"
-    }
+    },
+    {
+      icon: GitBranch,
+      title: "POJO Generation",
+      description: "Automatically create Java POJOs from your request body with Lombok annotations, ready to use in your generated test classes.",
+    },
+    {
+      icon: Package,
+      title: "Maven Dependencies",
+      description: "Get a complete pom.xml with all required REST Assured, Jackson, and Lombok dependencies — copy and paste into your project.",
+    },
   ];
 
   const steps = [
@@ -82,311 +72,174 @@ export default function Home() {
     "Full test class or method-only generation",
     "Automatic POJO creation with Lombok",
     "Complete Maven dependencies (pom.xml)",
-    "Hyper powered curl parser",
+    "Light & dark theme support",
     "Export to JSON for backup"
   ];
 
-  const githubUrl = 'https://github.com/Nataraaj-Shanmugam/cURL-to-Code-Convertor-FrontEnd';
+  const handleGetStarted = () => navigate('/playground');
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-cyan-50/30 dark:from-slate-950 dark:via-slate-900 dark:to-slate-900">
-      {!isBackendReady && (
-  <div className={`relative overflow-hidden border-b-2 ${
-    backendStatus === "down"
-      ? "bg-gradient-to-r from-red-50 via-red-50 to-red-100 dark:from-red-950/40 dark:via-red-950/40 dark:to-red-900/40 border-red-200/50 dark:border-red-800/50"
-      : "bg-gradient-to-r from-orange-50 via-amber-50 to-yellow-50 dark:from-orange-950/40 dark:via-amber-950/40 dark:to-yellow-950/40 border-orange-200/50 dark:border-orange-800/50"
-  }`}>
-    {/* Animated background waves */}
-    <div className="absolute inset-0 opacity-30">
-      <div className={`absolute inset-0 animate-pulse ${
-        backendStatus === "down"
-          ? "bg-gradient-to-r from-red-400/20 via-red-400/20 to-red-500/20"
-          : "bg-gradient-to-r from-orange-400/20 via-amber-400/20 to-yellow-400/20"
-      }`} />
-      <div className="absolute h-full w-full">
-        <div className={`absolute left-0 top-0 h-full w-1/3 bg-gradient-to-r to-transparent animate-[slide_3s_ease-in-out_infinite] ${
-          backendStatus === "down" ? "from-red-500/10" : "from-orange-500/10"
-        }`} />
-        <div className={`absolute right-0 top-0 h-full w-1/3 bg-gradient-to-l to-transparent animate-[slide_3s_ease-in-out_infinite_reverse] ${
-          backendStatus === "down" ? "from-red-500/10" : "from-yellow-500/10"
-        }`} />
-      </div>
-    </div>
-
-    <div className="container mx-auto px-4 py-6 relative z-10">
-      <div className="text-center">
-        {/* Status indicator with glow effect */}
-        <div className="inline-flex items-center gap-3 justify-center mb-4">
-          <div className="relative">
-            <span className={`absolute inset-0 rounded-full blur-md ${
-              backendStatus === "down" ? "bg-red-500" : "bg-orange-500 animate-pulse"
-            }`} />
-            <span className={`relative block h-3 w-3 rounded-full ${
-              backendStatus === "down" ? "bg-red-500" : "bg-orange-500"
-            }`} />
-          </div>
-          
-          <span className={`text-2xl font-bold tracking-tight ${
-            backendStatus === "down"
-              ? "text-red-700 dark:text-red-400"
-              : "bg-gradient-to-r from-orange-700 via-amber-700 to-yellow-700 dark:from-orange-400 dark:via-amber-400 dark:to-yellow-400 bg-clip-text text-transparent"
-          }`}>
-            {backendStatus === "down"
-              ? "Backend Temporarily Offline"
-              : "🚀 Backend Warming Up"}
-          </span>
-        </div>
-
-        {backendStatus !== "down" && (
-          <div className="mt-4 max-w-3xl mx-auto">
-            {/* Time display - simple format */}
-            <div className="flex items-center justify-between text-base text-slate-600 dark:text-slate-400 mb-4">
-              {/* <span>
-                Elapsed:{" "}
-                <span className="font-semibold text-orange-600 dark:text-orange-400">
-                  {formatDowntime(Math.min(downtime, waitTimeSeconds))}
-                </span>
-              </span> */}
-              <span>
-                Remaining:{" "}
-                <span className="font-semibold text-yellow-600 dark:text-yellow-400">
-                  {formatDowntime(Math.max(0, waitTimeSeconds - downtime))}
-                </span>
-              </span>
-            </div>
-
-            {/* Enhanced progress bar with shimmer effect */}
-            <div className="relative">
-              <div className="h-3 w-full bg-slate-200/80 dark:bg-slate-700/80 rounded-full overflow-hidden shadow-inner backdrop-blur-sm">
-                <div
-                  className="h-full bg-gradient-to-r from-orange-500 via-amber-500 to-yellow-500 relative transition-all duration-700 ease-out shadow-lg"
-                  style={{
-                    width: `${Math.min((downtime / waitTimeSeconds) * 100, 100)}%`,
-                  }}
-                >
-                  {/* Shimmer effect */}
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-[shimmer_2s_infinite]" />
-                </div>
-              </div>
-            </div>
-
-            {/* Attempt counter with badge style */}
-            <div className="mt-4 flex items-center justify-center gap-2">
-              <span className="text-sm text-slate-600 dark:text-slate-400">Retry Attempt</span>
-              <div className="inline-flex items-center gap-1.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white text-sm font-bold px-4 py-1.5 rounded-full shadow-lg">
-                <span className="tabular-nums">{Math.min(attempt, maxRetries)}</span>
-                <span className="opacity-70">/</span>
-                <span className="tabular-nums">{maxRetries}</span>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {backendStatus === "down" && (
-          <p className="text-m text-red-600 dark:text-red-400 mt-3">
-            Please check back in a few minutes
-          </p>
-        )}
-      </div>
-    </div>
-
-    {/* Add keyframes in your global CSS or style tag */}
-    <style>{`
-      @keyframes slide {
-        0%, 100% { transform: translateX(-100%); }
-        50% { transform: translateX(200%); }
-      }
-      @keyframes shimmer {
-        0% { transform: translateX(-100%); }
-        100% { transform: translateX(200%); }
-      }
-    `}</style>
-  </div>
-)}
-
+    <div className="min-h-screen">
       {/* Hero Section */}
-      <section className="container mx-auto px-4 py-20 md:py-28 relative overflow-hidden">
-        {/* Animated background elements - Updated to cyan/teal */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-20 left-10 w-72 h-72 bg-cyan-500/8 rounded-full blur-3xl animate-pulse" style={{ animation: 'pulse 4s ease-in-out infinite' }}></div>
-          <div className="absolute bottom-20 right-10 w-96 h-96 bg-teal-500/8 rounded-full blur-3xl animate-pulse" style={{ animation: 'pulse 6s ease-in-out infinite', animationDelay: '1s' }}></div>
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-gradient-to-r from-cyan-500/3 to-teal-500/5 rounded-full blur-3xl"></div>
-        </div>
+      <section className="relative overflow-hidden bg-noise">
+        <div className="absolute inset-0 bg-grid opacity-50 dark:opacity-30"></div>
+        {/* Gradient mesh blob */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[400px] bg-primary/10 rounded-full blur-[120px] pointer-events-none" />
+        <div className="relative container mx-auto px-4 py-20 md:py-28">
+          <div className="grid md:grid-cols-2 gap-12 items-center max-w-6xl mx-auto">
+            {/* Left: Text */}
+            <div className="space-y-6 animate-hero-left">
+              <div className="w-14 h-14 bg-primary rounded-2xl flex items-center justify-center shadow-lg shadow-primary/25">
+                <Code2 className="w-7 h-7 text-primary-foreground" strokeWidth={2.5} />
+              </div>
 
-        <div className="flex flex-col items-center text-center space-y-8 max-w-5xl mx-auto relative z-10">
-          {/* Logo - Updated to cyan/teal gradient */}
-          {showLogo && (
-            <div className="relative">
-              <div className="relative w-28 h-28 mb-6">
-                <div className="absolute inset-0 bg-gradient-to-br from-cyan-500 via-teal-500 to-emerald-500 rounded-3xl blur-2xl opacity-50 animate-pulse"></div>
-                <div className="relative w-28 h-28 bg-gradient-to-br from-cyan-600 via-teal-600 to-emerald-600 rounded-3xl flex items-center justify-center shadow-2xl hover:scale-110 transition-all duration-500 cursor-pointer hover:rotate-6 group">
-                  <Code2 className="w-14 h-14 text-white group-hover:scale-110 transition-transform" strokeWidth={2.5} />
-                  <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              <div className="space-y-4">
+                <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight font-mono">
+                  <span className="text-foreground">cURLCraft</span>{" "}
+                  <span className="text-primary">Assured</span>
+                </h1>
+
+                <p className="text-lg md:text-xl text-muted-foreground max-w-lg font-sans">
+                  Transform cURL commands into production-ready REST Assured tests with an intelligent visual editor
+                </p>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                <Button onClick={handleGetStarted} size="lg" className="gap-2 text-base group">
+                  Get Started
+                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                </Button>
+                <Button asChild variant="outline" size="lg" className="gap-2 text-base">
+                  <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer">
+                    <Github className="w-4 h-4" aria-hidden="true" />
+                    Documentation
+                    <ExternalLink className="w-3.5 h-3.5 opacity-70" aria-hidden="true" />
+                    <span className="sr-only"> (opens GitHub in a new tab)</span>
+                  </a>
+                </Button>
+              </div>
+            </div>
+
+            {/* Right: Terminal preview */}
+            <div className="hidden md:block animate-hero-right">
+              <div className="rounded-xl border border-border bg-card shadow-2xl shadow-primary/5 overflow-hidden">
+                <div className="flex items-center gap-2 px-4 py-2.5 bg-muted/60 border-b border-border">
+                  <div className="flex gap-1.5">
+                    <span className="w-3 h-3 rounded-full bg-red-400/70" />
+                    <span className="w-3 h-3 rounded-full bg-yellow-400/70" />
+                    <span className="w-3 h-3 rounded-full bg-green-400/70" />
+                  </div>
+                  <span className="text-xs text-muted-foreground font-mono ml-2">terminal</span>
+                </div>
+                <div className="p-5 font-mono text-sm leading-relaxed text-muted-foreground">
+                  <p><span className="text-primary">$</span> curl -X POST \</p>
+                  <p className="pl-4">"https://api.example.com/users" \</p>
+                  <p className="pl-4">-H <span className="text-accent-foreground">"Content-Type: application/json"</span> \</p>
+                  <p className="pl-4">-H <span className="text-accent-foreground">"Authorization: Bearer token"</span> \</p>
+                  <p className="pl-4">-d <span className="text-accent-foreground">'{`{"name": "John"}`}'</span></p>
+                  <p className="mt-3 text-xs text-muted-foreground">→ Generates REST Assured test code instantly</p>
                 </div>
               </div>
             </div>
-          )}
-
-          {!showLogo && (
-            <button
-              onClick={() => setShowLogo(true)}
-              className="text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 transition-colors underline"
-            >
-              Show logo
-            </button>
-          )}
-
-          <div className="space-y-4">
-            <h1 className="text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight">
-              <span className="bg-clip-text text-transparent bg-gradient-to-r from-cyan-600 via-teal-600 to-emerald-600 dark:from-cyan-400 dark:via-teal-400 dark:to-emerald-400">
-                CurlCraft Assured
-              </span>
-            </h1>
-
-            <p className="text-xl md:text-2xl text-slate-600 dark:text-slate-400 max-w-3xl leading-relaxed">
-              Transform cURL commands into production-ready{" "}
-              <span className="text-cyan-600 dark:text-cyan-400 font-semibold bg-cyan-500/10 px-2 py-0.5 rounded">
-                REST Assured+TestNG
-              </span>{" "}
-              tests with an intelligent visual editor
-            </p>
-          </div>
-
-          {/* CTA Buttons */}
-          <div className="flex flex-col sm:flex-row gap-4 justify-center pt-6">
-            <button
-              onClick={handleGetStarted}
-              disabled={!isBackendReady}
-              className={`group relative inline-flex items-center justify-center rounded-xl text-base font-semibold h-14 px-10 shadow-lg transition-all duration-300 overflow-hidden
-                ${!isBackendReady
-                  ? "bg-gray-400 text-gray-700 cursor-not-allowed opacity-60"
-                  : "bg-cyan-600 text-white hover:shadow-2xl hover:scale-105"
-                }`}
-            >
-              {isBackendReady && (
-                <div className="absolute inset-0 bg-gradient-to-r from-cyan-600 via-teal-600 to-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity" />
-              )}
-
-              <span className="relative z-10 flex items-center">
-                {!isBackendReady
-                  ? backendStatus === "down"
-                    ? "Playground Unavailable"
-                    : "Backend Warming Up"
-                  : "Get Started"}
-              </span>
-
-              {isBackendReady && (
-                <ArrowRight className="relative z-10 ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
-              )}
-            </button>
-
-            <a
-              href={githubUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center justify-center rounded-xl text-base font-semibold border-2 border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 hover:border-cyan-500/50 h-14 px-10 shadow-md hover:shadow-lg transition-all duration-300 hover:scale-105"
-            >
-              <Github className="mr-2 w-5 h-5" />
-              Documentation
-            </a>
           </div>
         </div>
       </section>
 
       {/* Features Grid */}
-      <section className="container mx-auto px-4 py-20">
-        <div className="text-center mb-16">
-          <h2 className="text-4xl md:text-5xl font-bold mb-4 text-slate-900 dark:text-white">
-            Powerful Capabilities
-          </h2>
-          <p className="text-slate-600 dark:text-slate-400 text-lg max-w-2xl mx-auto">
-            Everything you need to convert cURL to REST Assured seamlessly
-          </p>
-        </div>
+      <FadeInSection>
+        <section className="container mx-auto px-4 py-16">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold mb-3">
+              Powerful Features
+            </h2>
+            <p className="text-muted-foreground text-lg font-sans">
+              Everything you need to convert cURL to REST Assured
+            </p>
+          </div>
 
-        <div className="grid md:grid-cols-2 gap-8 max-w-6xl mx-auto">
-          {features.map((feature, index) => {
-            const Icon = feature.icon;
-            return (
-              <div key={index} className="group">
-                <div className="h-full rounded-2xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-lg hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 overflow-hidden relative">
-                  <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-
-                  <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
-                    <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/20 via-teal-500/20 to-emerald-500/20 blur-xl"></div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-4xl mx-auto">
+            {features.map((feature, index) => {
+              const Icon = feature.icon;
+              return (
+                <div
+                  key={index}
+                  className="group rounded-xl border bg-card p-6 hover:border-primary/40 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 flex flex-col gap-4 animate-fade-up"
+                  style={{ animationDelay: `${index * 70}ms` }}
+                >
+                  <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                    <Icon className="w-5 h-5 text-primary" />
                   </div>
-
-                  <div className="p-8 relative z-10">
-                    <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${feature.color} flex items-center justify-center mb-5 shadow-lg group-hover:scale-110 group-hover:rotate-3 transition-all duration-500`}>
-                      <Icon className="w-7 h-7 text-white" />
-                    </div>
-                    <h3 className="text-2xl font-bold mb-3 text-slate-900 dark:text-white group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors">{feature.title}</h3>
-                    <p className="text-slate-600 dark:text-slate-400 leading-relaxed">{feature.description}</p>
+                  <div>
+                    <h3 className="text-sm font-semibold mb-1.5 font-mono text-foreground">{feature.title}</h3>
+                    <p className="text-muted-foreground text-xs font-sans leading-relaxed">{feature.description}</p>
                   </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
-      </section>
+              );
+            })}
+          </div>
+        </section>
+      </FadeInSection>
 
-      {/* How It Works Section */}
-      <section className="container mx-auto px-4 py-20">
-        <div className="rounded-3xl border-2 border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm p-10 md:p-16 shadow-xl">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold mb-4 text-slate-900 dark:text-white">
+      {/* How It Works */}
+      <FadeInSection>
+      <section className="container mx-auto px-4 py-16">
+        <div className="bg-muted/40 rounded-2xl p-8 md:p-12">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold mb-3">
               How It Works
             </h2>
-            <p className="text-slate-600 dark:text-slate-400 text-lg">
+            <p className="text-muted-foreground text-lg font-sans">
               Four simple steps to generate your test code
             </p>
           </div>
 
-          <div className="grid md:grid-cols-4 gap-8 max-w-7xl mx-auto">
+          <div className="grid md:grid-cols-4 gap-0 max-w-6xl mx-auto">
             {steps.map((step, index) => {
               const Icon = step.icon;
               return (
-                <div key={index} className="relative group">
-                  <div className="h-full text-center rounded-2xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-md hover:shadow-xl transition-all duration-300 hover:-translate-y-2">
-                    <div className="p-8">
-                      <div className="w-18 h-18 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-cyan-500/5 flex items-center justify-center mx-auto mb-5 group-hover:scale-110 transition-transform duration-300">
-                        <Icon className="w-9 h-9 text-cyan-600 dark:text-cyan-400" />
-                      </div>
-                      <div className="absolute -top-4 left-1/2 -translate-x-1/2 w-10 h-10 rounded-full bg-gradient-to-br from-cyan-600 via-teal-600 to-emerald-600 text-white flex items-center justify-center font-bold text-lg shadow-lg">
-                        {index + 1}
-                      </div>
-                      <h3 className="font-bold mb-2 text-lg text-slate-900 dark:text-white">{step.text}</h3>
-                      <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">{step.detail}</p>
-                    </div>
+                <div key={index} className="relative flex flex-col items-center px-4">
+                  {/* Step number + icon circle */}
+                  <div className="relative z-10 w-14 h-14 rounded-full bg-primary/10 border-2 border-primary/30 flex items-center justify-center mb-4">
+                    <Icon className="w-6 h-6 text-primary" />
+                    <span className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold text-[10px] font-mono shadow-sm">
+                      {index + 1}
+                    </span>
                   </div>
+                  {/* Connecting line */}
                   {index < steps.length - 1 && (
-                    <div className="hidden md:block absolute top-1/2 -right-4 w-8 h-0.5 bg-gradient-to-r from-cyan-500/50 to-transparent z-10"></div>
+                    <div className="hidden md:block absolute top-7 left-[calc(50%+28px)] w-[calc(100%-56px)] right-0">
+                      <div className="h-px bg-border w-full" />
+                      <ArrowRight className="absolute -right-2 -top-1.5 w-3 h-3 text-muted-foreground" />
+                    </div>
                   )}
+                  {/* Text */}
+                  <h3 className="font-semibold mb-1 text-sm font-mono text-center">{step.text}</h3>
+                  <p className="text-xs text-muted-foreground font-sans text-center">{step.detail}</p>
                 </div>
               );
             })}
           </div>
         </div>
       </section>
+      </FadeInSection>
 
-      {/* Capabilities Section */}
-      <section className="container mx-auto px-4 py-20">
-        <div className="max-w-5xl mx-auto">
-          <div className="rounded-2xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-xl overflow-hidden">
-            <div className="bg-gradient-to-r from-cyan-500/10 via-teal-500/10 to-emerald-500/10 p-10">
+      {/* Capabilities */}
+      <FadeInSection>
+      <section className="container mx-auto px-4 py-16">
+        <div className="max-w-4xl mx-auto">
+          <div className="rounded-xl border bg-card text-card-foreground shadow-sm">
+            <div className="p-8">
               <div className="flex items-center gap-3 mb-6">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-500 to-teal-500 flex items-center justify-center shadow-lg">
-                  <Sparkles className="w-6 h-6 text-white" />
-                </div>
-                <h2 className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white">
+                <Sparkles className="w-6 h-6 text-primary" />
+                <h2 className="text-2xl md:text-3xl font-bold">
                   What You Can Do
                 </h2>
               </div>
-              <div className="grid md:grid-cols-2 gap-5">
+              <div className="grid md:grid-cols-2 gap-3">
                 {capabilities.map((capability, index) => (
-                  <div key={index} className="flex items-start gap-3 group">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-500 flex-shrink-0 mt-0.5 group-hover:scale-125 transition-transform duration-200" />
-                    <span className="text-sm md:text-base leading-relaxed text-slate-700 dark:text-slate-300">{capability}</span>
+                  <div key={index} className="flex items-start gap-3">
+                    <CheckCircle2 className="w-4 h-4 text-primary flex-shrink-0 mt-1" />
+                    <span className="text-sm text-muted-foreground font-sans">{capability}</span>
                   </div>
                 ))}
               </div>
@@ -394,46 +247,29 @@ export default function Home() {
           </div>
         </div>
       </section>
+      </FadeInSection>
 
       {/* CTA Section */}
-      <section className="container mx-auto px-4 py-20 pb-28">
-        <div className="max-w-4xl mx-auto">
-          <div className="rounded-3xl border-2 border-cyan-500/20 bg-gradient-to-br from-cyan-500/10 via-teal-500/10 to-emerald-500/10 shadow-2xl overflow-hidden relative">
-            <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 to-teal-500/5 animate-pulse"></div>
-
-            <div className="p-12 md:p-16 text-center relative z-10">
-              <h2 className="text-4xl md:text-5xl font-bold mb-5 text-slate-900 dark:text-white">
+      <FadeInSection>
+      <section className="container mx-auto px-4 py-16 pb-24">
+        <div className="max-w-3xl mx-auto">
+          <div className="rounded-xl border-2 border-primary/20 bg-accent/30 text-card-foreground">
+            <div className="p-10 text-center">
+              <h2 className="text-3xl md:text-4xl font-bold mb-3">
                 Ready to Transform Your Testing Workflow?
               </h2>
-              <p className="text-lg text-slate-600 dark:text-slate-400 mb-10 max-w-2xl mx-auto leading-relaxed">
-                Start converting your cURL commands to REST Assured+TestNG tests in seconds. No signup required, completely free.
+              <p className="text-lg text-muted-foreground mb-8 font-sans">
+                Start converting your cURL commands to REST Assured tests in seconds
               </p>
-              <button
-                onClick={handleGetStarted}
-                disabled={!isBackendReady}
-                className={`group inline-flex items-center justify-center gap-2 rounded-2xl px-8 py-4 text-base font-semibold transition-all duration-200
-                  ${!isBackendReady
-                    ? "cursor-not-allowed bg-gray-400 text-gray-700"
-                    : "bg-cyan-600 text-white hover:bg-cyan-700 hover:shadow-lg"
-                  }`}
-              >
-                {!isBackendReady ? (
-                  backendStatus === "down" ? (
-                    "Playground Unavailable"
-                  ) : (
-                    <>
-                      <span>Backend Warming Up</span>
-                      <span className="text-sm font-normal opacity-80">(please wait)</span>
-                    </>
-                  )
-                ) : (
-                  "Get Started"
-                )}
-              </button>
+              <Button onClick={handleGetStarted} size="lg" className="gap-2 text-base group">
+                Open Playground
+                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              </Button>
             </div>
           </div>
         </div>
       </section>
+      </FadeInSection>
     </div>
   );
 }

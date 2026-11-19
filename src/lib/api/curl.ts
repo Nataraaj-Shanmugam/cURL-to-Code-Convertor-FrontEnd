@@ -1,68 +1,27 @@
-import { apiClient } from "./apiClient";
-import type {
-  ParseCurlResponse,
-  CodeGenerationConfig,
-  CodeGenerationResponse,
-  ParsedCurl,
-} from "@/types/curl";
+import { apiClient, GENERATE_TIMEOUT_MS, SAFE_RETRIES } from "@/lib/api/apiClient";
+import { ENV } from "@/lib/env";
+import type { CodeGenerationConfig, CodeGenerationResponse, ParsedCurl } from "@/types/curl";
 
 export interface GenerateFromParsedRequest {
   parsed_data: ParsedCurl;
   config: CodeGenerationConfig;
 }
 
-export interface ParseAndGenerateRequest {
-  curl: string;
-  config: CodeGenerationConfig;
+/** The message of a backend error, whether it came back as a string or as { code, message }. */
+export function generationErrorMessage(error: CodeGenerationResponse["error"]): string {
+  if (!error) return "Unknown error";
+  return typeof error === "object" ? error.message || "Unknown error" : error;
 }
 
 export const curlApi = {
   /**
-   * Parse a cURL command string into structured data
-   * Maps to: POST /api/parse
+   * Generate code using already-parsed data.
+   * Maps to: POST /api/generate-from-parsed (endpoint from VITE_CURL_CRAFT_API_GENERATE_ENDPOINT, or production's
+   * VITE_CURL_CRAFT_API_GENERATE_FROM_PARSED_ENDPOINT). Body shape is production's: { parsed_data, config }.
    */
-  parse: async (curlCommand: string): Promise<ParseCurlResponse> => {
-    const { data } = await apiClient.post<ParseCurlResponse>( import.meta.env.VITE_CURL_CRAFT_API_PARSE_ENDPOINT, {
-      curl: curlCommand,
-    });
-    return data;
-  },
-
-  /**
-   * One shot: parse cURL and generate code
-   * Maps to: POST /api/parse-and-generate
-   */
-  parseAndGenerate: async (
-    curlCommand: string,
-    config: CodeGenerationConfig
-  ): Promise<CodeGenerationResponse> => {
-    const { data } = await apiClient.post<CodeGenerationResponse>(
-       import.meta.env.VITE_CURL_CRAFT_API_PARSE_AND_GENERATE_ENDPOINT,
-      {
-        curl: curlCommand,
-        config,
-      } satisfies ParseAndGenerateRequest
-    );
-    return data;
-  },
-
-  /**
-   * Generate code using already-parsed data
-   * Maps to: POST /api/generate-from-parsed
-   * 
-   * Now supports POM.xml generation when config.generatePom is true
-   */
-  generateFromParsed: async (
-    parsedData: ParsedCurl,
-    config: CodeGenerationConfig
-  ): Promise<CodeGenerationResponse> => {
-    const { data } = await apiClient.post<CodeGenerationResponse>(
-      import.meta.env.VITE_CURL_CRAFT_API_GENERATE_FROM_PARSED_ENDPOINT,
-      {
-        parsed_data: parsedData,
-        config,
-      } satisfies GenerateFromParsedRequest
-    );
-    return data;
+  generateFromParsed: async (parsedData: ParsedCurl, config: CodeGenerationConfig): Promise<CodeGenerationResponse> => {
+    const body: GenerateFromParsedRequest = { parsed_data: parsedData, config };
+    const { data } = await apiClient.post(ENV.GENERATE_ENDPOINT, body, { timeout: GENERATE_TIMEOUT_MS, retries: SAFE_RETRIES });
+    return data as CodeGenerationResponse;
   },
 };

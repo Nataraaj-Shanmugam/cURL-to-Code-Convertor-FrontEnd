@@ -1,61 +1,71 @@
+import { memo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Badge } from "@/components/ui/badge";
-import { Edit2, Save, Trash2 } from "lucide-react";
+import { Edit2, Trash2, Save } from "lucide-react";
+import { useEditorContext, useFieldState } from "./EditorContext";
+import { ROW_ACTIONS_VISIBILITY } from "./rowActions";
+import { MaskedString, RevealToggle } from "./SecretValue";
+import { MASK, countRedactions, isSecretField, redactFieldValue } from "@/lib/utils/redaction";
+import { decodePath, toDisplayPath } from "@/lib/utils/fieldPath";
 
 interface EditableFieldProps {
   label: string;
-  value: any;
+  value: unknown;
+  /** Escaped path id (see fieldPath.ts), e.g. `query_params.filter\.name`. */
   path: string;
-  isEditing: boolean;
-  currentValue: any;
-  isSelected: boolean;
-  isNonDeletable: boolean;
-  onToggleSelect: (path: string) => void;
-  onToggleEdit: (path: string, value: any) => void;
-  onEditChange: (path: string, value: any) => void;
-  onDelete: (path: string) => void;
+  /** basePath used to build `fieldPath` when isTopLevel */
+  basePath?: string;
+  isTopLevel?: boolean;
 }
 
-export function EditableField({
-  label,
-  value,
-  path,
-  isEditing,
-  currentValue,
-  isSelected,
-  isNonDeletable,
-  onToggleSelect,
-  onToggleEdit,
-  onEditChange,
-  onDelete
-}: EditableFieldProps) {
-  const isComplex = typeof value === 'object' && value !== null;
+function EditableField({ label, value, path }: EditableFieldProps) {
+  const { toggleSelect, toggleEdit, handleEditChange, deleteSingle } = useEditorContext();
+  const { isEditing, editedValue, isSelected } = useFieldState(path);
+
+  const currentValue = isEditing ? editedValue : value;
+  const isComplex = typeof value === "object" && value !== null;
+  const isNonDeletable = ["method", "url", "base_url", "endpoint"].includes(label);
+
+  // Secrets are masked until the user reveals them. A value restored from a saved session arrives
+  // already redacted: it is flagged so the user re-enters it instead of generating code with a placeholder.
+  const [revealed, setRevealed] = useState(false);
+  // Redaction rules match on the plain `section.key` form.
+  const keyPath = toDisplayPath(decodePath(path));
+  const isSecret = isSecretField(keyPath, value);
+  const needsReentry = countRedactions(value) > 0;
+  const hidden = isSecret && !revealed;
+  const displayValue = hidden ? redactFieldValue(keyPath, value, { placeholder: MASK }) : value;
 
   return (
-    <div className="flex items-start gap-3 p-3 hover:bg-accent/50 rounded-xl group transition-all duration-200 border-2 border-transparent hover:border-primary/20">
+    // A grid so that below 640px the value box takes the full row under the label (checkbox, label and
+    // actions share the first row), and from sm up it sits in the middle column beside the actions.
+    <div className="group grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1 rounded-md p-1 transition-colors hover:bg-accent/30 sm:items-start sm:gap-x-3 sm:p-2">
       <Checkbox
         checked={isSelected}
-        onCheckedChange={() => onToggleSelect(path)}
-        className="mt-1.5"
+        onCheckedChange={() => toggleSelect(path)}
+        className="col-start-1 row-start-1 sm:mt-1"
         disabled={isNonDeletable}
+        aria-label={`Select ${label} for deletion`}
       />
 
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-2">
-          <span className="font-semibold text-sm text-foreground">{label}</span>
-          {isNonDeletable && (
-            <Badge
-              variant="outline"
-              className="text-xs px-2 py-0 border-blue-300 text-blue-700 dark:border-blue-700 dark:text-blue-400"
-            >
-              Required
-            </Badge>
-          )}
-        </div>
+      <div className="col-start-2 row-start-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+        <span className="font-semibold text-sm text-foreground break-words [overflow-wrap:anywhere]">{label}</span>
+        {isNonDeletable && (
+          <span className="text-xs px-1.5 py-0.5 bg-accent text-accent-foreground rounded">
+            Required
+          </span>
+        )}
+        {needsReentry && (
+          <span className="text-xs px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/40">
+            Redacted: re-enter value
+          </span>
+        )}
+        {isSecret && <RevealToggle label={label} revealed={revealed} onToggle={() => setRevealed(r => !r)} />}
+      </div>
 
+      <div className="col-span-3 row-start-2 min-w-0 sm:col-span-1 sm:col-start-2">
         {isEditing ? (
           isComplex ? (
             <Textarea
@@ -64,53 +74,63 @@ export function EditableField({
                   ? currentValue
                   : JSON.stringify(currentValue, null, 2)
               }
-              onChange={(e) => {
+              onChange={e => {
                 try {
-                  onEditChange(path, JSON.parse(e.target.value));
+                  handleEditChange(path, JSON.parse(e.target.value) as unknown);
                 } catch {
-                  onEditChange(path, e.target.value);
+                  handleEditChange(path, e.target.value);
                 }
               }}
-              className="font-mono text-xs min-h-[120px] resize-y border-2 focus:border-primary rounded-lg"
+              className="font-mono text-xs min-h-[100px] resize-y"
             />
           ) : (
             <Input
               value={String(currentValue ?? "")}
-              onChange={(e) => onEditChange(path, e.target.value)}
-              className="font-mono text-xs border-2 focus:border-primary"
+              onChange={e => handleEditChange(path, e.target.value)}
+              type={hidden ? "password" : "text"}
+              autoComplete="off"
+              onFocus={needsReentry ? e => e.target.select() : undefined}
+              aria-label={`Value of ${label}`}
+              className="font-mono text-xs"
             />
           )
         ) : (
-          <pre className="text-xs font-mono whitespace-pre-wrap break-all bg-muted/50 p-3 rounded-lg border-2 border-border shadow-sm">
-            {typeof value === "object"
-              ? JSON.stringify(value, null, 2)
-              : String(value ?? "N/A")}
+          <pre className="text-xs font-mono whitespace-pre-wrap break-words [overflow-wrap:anywhere] bg-muted/50 p-2 rounded border border-border">
+            <MaskedString
+              text={typeof displayValue === "object" ? JSON.stringify(displayValue, null, 2) : String(displayValue ?? "N/A")}
+            />
           </pre>
         )}
       </div>
 
-      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className={`col-start-3 row-start-1 flex gap-1 sm:row-span-2 ${ROW_ACTIONS_VISIBILITY}`}>
         <Button
           variant="ghost"
           size="icon"
-          className="h-9 w-9 hover:bg-primary hover:text-primary-foreground"
-          onClick={() => onToggleEdit(path, value)}
-          title={isEditing ? "Save" : "Edit"}
+          className="h-8 w-8"
+          onClick={() => {
+            // A multi-line editor can't be masked, so editing a secret object means seeing it.
+            if (!isEditing && isSecret && isComplex) setRevealed(true);
+            toggleEdit(path, value);
+          }}
+          aria-label={isEditing ? `Save ${label}` : `Edit ${label}`}
         >
-          {isEditing ? <Save className="h-4 w-4" /> : <Edit2 className="h-4 w-4" />}
+          {isEditing ? <Save className="h-3 w-3" /> : <Edit2 className="h-3 w-3" />}
         </Button>
         {!isNonDeletable && (
           <Button
             variant="ghost"
             size="icon"
-            className="h-9 w-9 hover:bg-red-500 hover:text-white"
-            onClick={() => onDelete(path)}
-            title="Delete"
+            className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+            onClick={() => deleteSingle(path)}
+            aria-label={`Delete ${label}`}
           >
-            <Trash2 className="h-4 w-4" />
+            <Trash2 className="h-3 w-3" />
           </Button>
         )}
       </div>
     </div>
   );
 }
+
+export default memo(EditableField);

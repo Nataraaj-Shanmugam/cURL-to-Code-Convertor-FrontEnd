@@ -1,0 +1,66 @@
+import '@testing-library/jest-dom/vitest';
+import { cleanup } from '@testing-library/react';
+import { afterEach, beforeAll, afterAll } from 'vitest';
+import { server } from './mocks/server';
+import { apiClientConfig, resetBackendAwareness, resetRateLimit } from '@/lib/api/apiClient';
+
+// Keep the client's retry backoff to a few milliseconds so retried failures don't slow the suite.
+apiClientConfig.retryBaseDelayMs = 1;
+apiClientConfig.retryMaxDelayMs = 5;
+apiClientConfig.maxRetryAfterMs = 50;
+
+// Mock window.matchMedia (required by next-themes)
+Object.defineProperty(window, 'matchMedia', {
+  writable: true,
+  value: (query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: () => {},
+    removeListener: () => {},
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    dispatchEvent: () => false,
+  }),
+});
+
+// Mock IntersectionObserver (required by framer-motion whileInView)
+class MockIntersectionObserver {
+  readonly root: Element | null = null;
+  readonly rootMargin: string = '';
+  readonly thresholds: ReadonlyArray<number> = [];
+  constructor(private callback: IntersectionObserverCallback) {}
+  observe() { /* trigger visible immediately */ this.callback([{ isIntersecting: true } as IntersectionObserverEntry], this as unknown as IntersectionObserver); }
+  unobserve() {}
+  disconnect() {}
+  takeRecords(): IntersectionObserverEntry[] { return []; }
+}
+Object.defineProperty(window, 'IntersectionObserver', { writable: true, value: MockIntersectionObserver });
+Object.defineProperty(globalThis, 'IntersectionObserver', { writable: true, value: MockIntersectionObserver });
+
+// Mock ResizeObserver (Radix Checkbox measures itself when it sits inside a <form>)
+if (!('ResizeObserver' in globalThis)) {
+  class MockResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+  Object.defineProperty(globalThis, 'ResizeObserver', { writable: true, value: MockResizeObserver });
+}
+
+// jsdom has no pointer capture; sonner's toast calls it on pointerdown, which surfaced as an unhandled
+// error (and a non-zero exit) whenever a test clicked a toast.
+for (const method of ['setPointerCapture', 'releasePointerCapture', 'hasPointerCapture'] as const) {
+  if (!(method in Element.prototype)) {
+    Object.defineProperty(Element.prototype, method, { writable: true, configurable: true, value: () => false });
+  }
+}
+
+beforeAll(() => server.listen({ onUnhandledRequest: 'warn' }));
+afterEach(() => {
+  cleanup();
+  server.resetHandlers();
+  resetBackendAwareness();
+  resetRateLimit();
+});
+afterAll(() => server.close());

@@ -4,17 +4,23 @@ node_modules
 .pnp.js
 
 # Testing
-coverage
+coverage/
+playwright-report/
+test-results/
 
 # Production
-dist
+dist/
 build
 
 # Misc
 .DS_Store
 .env
+.env.local
+.env.development.local
+.env.test.local
+.env.production
+.env.production.local
 .env.preprod
-.env.development
 
 # Debug
 npm-debug.log*
@@ -34,7 +40,18 @@ pnpm-debug.log*
 .vite
 
 *.zip
-package-lock.json
 
+# Agent worktrees (embedded repos; must never be committed as gitlinks)
+.claude/worktrees/
 
-.env*
+# Local-only artefacts (demo video to be hosted elsewhere; old components archive)
+curlCraftAssuredDemo.mp4
+Archieve/
+
+# Perf builds and run output (baseline.json / budgets.json are tracked)
+dist-perf/
+dist-perf-profile/
+perf/results/
+
+# Machine-specific Claude Code settings (absolute paths of one machine; never commit)
+.claude/settings.local.json

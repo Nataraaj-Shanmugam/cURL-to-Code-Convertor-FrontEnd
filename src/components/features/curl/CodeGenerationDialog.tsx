@@ -1,1145 +1,466 @@
-// src/components/features/curl/CodeGenerationDialog.tsx
-import { useEffect, useState } from "react";
-import { detectDataFormat, getDataFormatLabel, getDataFormatDescription } from "@/lib/utils/dataFormatDetector";
-import { Info } from "lucide-react";
+import { useState, useRef, useEffect, useMemo, memo } from "react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { AlertCircle, MessageSquare, ShieldAlert } from "lucide-react";
+import { curlApi, generationErrorMessage } from "@/lib/api/curl";
+import type { ParsedCurl } from "@/types/curl";
+import FeedbackDialog from "@/components/features/feedback/FeedbackDialog";
+import { collectSecretValues, countVisibleRedactions } from "@/lib/utils/redaction";
+import { detectDataFormat } from "@/lib/utils/dataFormatDetector";
 import {
-  Copy,
-  CheckCircle2,
-  Download,
-  DownloadCloud,
-  Code2,
-  FileCode,
-  Settings2,
-  ChevronRight,
-  Sparkles,
-  FileText,
-  Package,
-} from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { curlApi } from "@/lib/api/curl";
-import type { ParsedCurl, CodeGenerationConfig, PomGenerationConfig, PomProjectInfo } from "@/types/curl";
+  ADVANCED_FIELDS,
+  DEFAULT_FORM,
+  buildGenerateConfig,
+  isNonBodyMethod,
+  readGenerateResponse,
+  requestSignature,
+  validateForm,
+  type CodeGenForm,
+  type FormField,
+  type GeneratedResult,
+} from "@/lib/utils/codeGeneration";
+import { RadioGroup } from "@/components/ui/radio-group";
+import RadioCard from "./codegen/RadioCard";
+import AdvancedSection from "./codegen/AdvancedSection";
+import ResultPanel from "./codegen/ResultPanel";
 
 interface CodeGenerationDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   parsedData: ParsedCurl;
+  /** Overrides the default rule (no POJOs for GET/DELETE/HEAD/OPTIONS). */
   isPojoDisabled?: boolean;
 }
 
-
-const defaultPomProjectInfo: PomProjectInfo = {
-  groupId: "com.example",
-  artifactId: "rest-assured-tests",
-  version: "1.0-SNAPSHOT",
-  name: "REST Assured Test Project",
-  description: "Automated REST API tests using REST Assured",
+/** DOM id of each field, so a failed submit can move focus to the first one that needs fixing. */
+const FIELD_IDS: Record<FormField, string> = {
+  option: "option-full",
+  className: "class-name",
+  methodName: "method-name",
+  pojoClassName: "pojo-class-name",
+  statusCode: "status-code",
+  maxResponseTimeMs: "max-response-time",
+  groupId: "pom-group-id",
+  artifactId: "pom-artifact-id",
+  version: "pom-version",
 };
 
-const defaultPomConfig: PomGenerationConfig = {
-  pomType: "full",
-  projectInfo: defaultPomProjectInfo,
-  includeJunit: false,
-  includeAllure: false,
-  includeExtent: false,
-  includeExcel: false,
-  includeFaker: false,
-  includeLogging: true,
-  includeCommonsIo: false,
-  javaVersion: "11",
-};
+function FieldError({ id, message }: { id: string; message?: string }) {
+  if (!message) return null;
+  return (
+    <p id={id} className="text-xs text-destructive mt-1">
+      {message}
+    </p>
+  );
+}
 
-export default function CodeGenerationDialog({
-  open,
-  onOpenChange,
-  parsedData,
-  isPojoDisabled = false,
-}: CodeGenerationDialogProps) {
-  const [detectedFormat, setDetectedFormat] = useState<"json" | "xml" | "both">("json");
-  const [isFormatAutoDetected, setIsFormatAutoDetected] = useState(false);
-  const [currentStep, setCurrentStep] = useState<"type" | "config" | "result">("type");
-  const [configTab, setConfigTab] = useState<"basic" | "pom">("basic");
-  useEffect(() => {
-    if (open && parsedData) {
-      const detected = detectDataFormat(parsedData);
-      setDetectedFormat(detected);
-      setIsFormatAutoDetected(true);
+function CodeGenerationDialogInner({ open, onOpenChange, parsedData, isPojoDisabled }: CodeGenerationDialogProps) {
+  const [form, setForm] = useState<CodeGenForm>(DEFAULT_FORM);
+  const [touched, setTouched] = useState<ReadonlySet<FormField>>(new Set());
+  const [attempted, setAttempted] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [focusField, setFocusField] = useState<FormField | null>(null);
 
-      // Set in config
-      setCodeConfig(prev => ({
-        ...prev,
-        dataFormat: detected
-      }));
-    }
-  }, [open, parsedData]);
-
-  const [codeConfig, setCodeConfig] = useState<Partial<CodeGenerationConfig>>({
-    option: undefined,
-    serviceName: "ServiceName",
-    methodName: "apiNameTest",
-    assertionRequired: true,
-    statusCode: "200",
-    loggingRequired: true,
-    needPojo: false,
-    useFluentApi: false,
-    includeRetry: false,
-    testGroups: ["smoke"],
-    testPriority: 1,
-    testDescription: "Generated REST-Assured test",
-    assertResponseTime: false,
-    maxResponseTimeMs: 2000,
-    generatePom: false,
-    pomConfig: undefined,
-    dataFormat: "json",
-  });
-
-  const [pomConfig, setPomConfig] = useState<PomGenerationConfig>(defaultPomConfig);
-  const [generatedCode, setGeneratedCode] = useState<string>("");
-  const [pojoCode, setPojoCode] = useState<string>("");
-  const [pomDependencies, setPomDependencies] = useState<string>("");
+  const [currentStep, setCurrentStep] = useState<"config" | "result">("config");
+  const [result, setResult] = useState<GeneratedResult | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [activeTab, setActiveTab] = useState<"test" | "pojo" | "pom">("test");
+  const [error, setError] = useState("");
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
 
+  const errorRef = useRef<HTMLDivElement>(null);
+  const resultHeadingRef = useRef<HTMLSpanElement>(null);
+  // Every generate/cancel/close/request-change bumps this; a response only counts if it still matches.
+  const requestId = useRef(0);
 
+  const secretValues = useMemo(() => collectSecretValues(parsedData), [parsedData]);
+  const redactedCount = countVisibleRedactions(parsedData);
+  const pojoDisabled = isPojoDisabled ?? isNonBodyMethod(parsedData.method);
+  const detectedFormat = useMemo(() => detectDataFormat(parsedData), [parsedData]);
+  const effectiveFormat = form.dataFormatOverride ?? detectedFormat;
 
-  const handlePomConfigChange = <K extends keyof PomGenerationConfig>(key: K, value: PomGenerationConfig[K]) => {
-    setPomConfig((prev) => ({
-      ...prev,
-      [key]: value,
-    }));
+  // Errors are derived from the fields in use right now, never stored (a hidden field cannot block Generate).
+  const errors = validateForm(form, { pojoDisabled });
+  const shownErrors = Object.fromEntries(
+    Object.entries(errors).filter(([field]) => attempted || touched.has(field as FormField)),
+  ) as Partial<Record<FormField, string>>;
+  const errorCount = Object.keys(errors).length;
+
+  const patchForm = (patch: Partial<CodeGenForm>, touchedField?: FormField) => {
+    setForm((prev) => ({ ...prev, ...patch }));
+    if (touchedField) setTouched((prev) => new Set(prev).add(touchedField));
+    setError("");
   };
 
-  const handleProjectInfoChange = <K extends keyof PomProjectInfo>(key: K, value: PomProjectInfo[K]) => {
-    setPomConfig((prev) => ({
-      ...prev,
-      projectInfo: {
-        ...prev.projectInfo!,
-        [key]: value,
-      },
-    }));
-  };
+  // The result belongs to the request it was generated from. When the request is edited, drop the result
+  // and any call still in flight; the config the user chose stays.
+  const signature = useMemo(() => requestSignature(parsedData), [parsedData]);
+  const lastSignature = useRef(signature);
+  useEffect(() => {
+    if (lastSignature.current === signature) return;
+    lastSignature.current = signature;
+    requestId.current++;
+    setIsGenerating(false);
+    setResult(null);
+    setCurrentStep("config");
+    setError("");
+  }, [signature]);
+
+  useEffect(() => () => void requestId.current++, []);
+
+  // Move focus to the result area when generation completes so screen readers announce it
+  useEffect(() => {
+    if (currentStep === "result") resultHeadingRef.current?.focus();
+  }, [currentStep]);
+
+  // A failed generate is shown at the footer; make sure it is on screen.
+  useEffect(() => {
+    if (error) errorRef.current?.scrollIntoView?.({ block: "nearest" });
+  }, [error]);
+
+  // After a failed submit, move focus to the first field that needs fixing (its section is opened first).
+  useEffect(() => {
+    if (!focusField) return;
+    const el = document.getElementById(FIELD_IDS[focusField]);
+    el?.scrollIntoView?.({ block: "center" });
+    el?.focus();
+    setFocusField(null);
+  }, [focusField, advancedOpen]);
 
   const handleGenerateCodeWithConfig = async () => {
-    if (!codeConfig.option) {
-      alert("Please select a code generation option");
+    setError("");
+    const firstError = Object.keys(errors)[0] as FormField | undefined;
+    if (firstError) {
+      setAttempted(true);
+      if (ADVANCED_FIELDS.some((f) => errors[f])) setAdvancedOpen(true);
+      setFocusField(firstError);
       return;
     }
 
-    if (
-      codeConfig.serviceName == undefined ||
-      !codeConfig.serviceName.trim() ||
-      codeConfig.methodName == undefined ||
-      !codeConfig.methodName.trim()
-    ) {
-      alert("Class name and method name are required");
-      return;
-    }
-
-    if (codeConfig.generatePom && pomConfig.pomType === "full") {
-      const projectInfo = pomConfig.projectInfo;
-      if (!projectInfo?.groupId || !projectInfo?.artifactId || !projectInfo?.version) {
-        alert("Group ID, Artifact ID, and Version are required for full POM generation.");
-        return;
-      }
-    }
-
+    const id = ++requestId.current;
     setIsGenerating(true);
-
     try {
-      const finalConfig: CodeGenerationConfig = {
-        option: codeConfig.option!,
-        serviceName: codeConfig.serviceName!,
-        methodName: codeConfig.methodName!,
-        assertionRequired: codeConfig.assertionRequired!,
-        statusCode: codeConfig.statusCode,
-        loggingRequired: codeConfig.loggingRequired!,
-        needPojo: codeConfig.needPojo!,
-        useFluentApi: codeConfig.useFluentApi!,
-        includeRetry: codeConfig.includeRetry!,
-        testGroups: codeConfig.testGroups,
-        testPriority: codeConfig.testPriority,
-        testDescription: codeConfig.testDescription,
-        assertResponseTime: codeConfig.assertResponseTime!,
-        maxResponseTimeMs: codeConfig.maxResponseTimeMs,
-        generatePom: codeConfig.generatePom!,
-        dataFormat: codeConfig.dataFormat || "json",
-        pomConfig: codeConfig.generatePom
-          ? {
-            ...pomConfig,
-            pomType: codeConfig.option === "method" ? "dependencies_only" : pomConfig.pomType,
-          }
-          : undefined,
-      };
-
-      const result = await curlApi.generateFromParsed(parsedData, finalConfig);
-
-      if (result.success) {
-        setGeneratedCode(result.generated_code || "");
-        setPojoCode(result.pojo_code || "");
-        setPomDependencies(result.pomXml || "");
-        setActiveTab("test");
+      const config = buildGenerateConfig(form, { dataFormat: effectiveFormat, pojoDisabled });
+      const response = await curlApi.generateFromParsed(parsedData, config);
+      if (id !== requestId.current) return; // cancelled, closed or superseded: ignore the late result
+      if (response.success) {
+        setResult(readGenerateResponse(response, config));
         setCurrentStep("result");
       } else {
-        alert("Failed to generate code: " + result.error);
+        setError("Failed to generate code: " + generationErrorMessage(response.error));
       }
-    } catch (error) {
-      console.error("Error generating code:", error);
-      alert("Failed to generate code. Please try again.");
+    } catch (err: unknown) {
+      if (id !== requestId.current) return;
+      setError(err instanceof Error ? err.message : "Failed to generate code. Please try again.");
     } finally {
-      setIsGenerating(false);
+      if (id === requestId.current) setIsGenerating(false);
     }
   };
 
-  const handleCopyCode = async () => {
-    const codeToCopy = activeTab === "test" ? generatedCode : activeTab === "pojo" ? pojoCode : pomDependencies;
-
-    try {
-      await navigator.clipboard.writeText(codeToCopy);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (error) {
-      console.error("Failed to copy code:", error);
-    }
-  };
-
-  const handleDownloadCode = () => {
-    let codeToDownload = "";
-    let fileName = "";
-
-    switch (activeTab) {
-      case "test":
-        codeToDownload = generatedCode;
-        console.log(`Name of the Test file - ${codeConfig.serviceName}`)
-        fileName = `${codeConfig.serviceName}_Test.java`;
-        break;
-      case "pojo":
-        codeToDownload = pojoCode;
-        console.log(`Name of the model file - ${codeConfig.serviceName}`)
-        fileName = `${codeConfig.serviceName}_Model.java`;
-        break;
-      case "pom":
-        codeToDownload = pomDependencies;
-        fileName = "pom.xml";
-        break;
-    }
-
-    const blob = new Blob([codeToDownload], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = fileName;
-    a.style.display = "none";
-    document.body.appendChild(a);
-    a.click();
-
-    setTimeout(() => {
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    }, 100);
-  };
-
-  const handleDownloadAll = () => {
-    const files: { name: string; content: string }[] = [];
-
-    if (generatedCode) {
-        console.log(`Name of the Test file - ${codeConfig.serviceName}`)
-      files.push({
-        name: `${codeConfig.serviceName}_Test.java`,
-        content: generatedCode,
-      });
-    }
-
-    if (pojoCode) {
-        console.log(`Name of the model file - ${codeConfig.serviceName}`)
-      files.push({
-        name: `${codeConfig.serviceName}_Model.java`,
-        content: pojoCode,
-      });
-    }
-
-    if (pomDependencies && codeConfig.generatePom && pomConfig.pomType === "full") {
-      files.push({
-        name: "pom.xml",
-        content: pomDependencies,
-      });
-    }
-
-    files.forEach((file, index) => {
-      setTimeout(() => {
-        const blob = new Blob([file.content], { type: "text/plain" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = file.name;
-        a.style.display = "none";
-        document.body.appendChild(a);
-        a.click();
-
-        setTimeout(() => {
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
-        }, 100);
-      }, index * 200);
-    });
+  /** Stop waiting for the response. The request itself finishes in the background; its result is dropped. */
+  const cancelGeneration = () => {
+    requestId.current++;
+    setIsGenerating(false);
   };
 
   const handleBack = () => {
-    if (currentStep === "config") {
-      setCurrentStep("type");
-      setConfigTab("basic");
-    } else if (currentStep === "result") {
-      setCurrentStep("config");
-      setConfigTab("pom");
-    }
-    setCopied(false);
-  };
-
-  const handleNextTab = () => {
-    if (configTab === "basic") {
-      if (!codeConfig.serviceName?.trim() || !codeConfig.methodName?.trim()) {
-        alert("Class name and method name are required");
-        return;
-      }
-      setConfigTab("pom");
-    }
-  };
-
-  const canProceedToNext = () => {
-    if (configTab === "basic") {
-      if (codeConfig.option === "full") {
-        return !!(codeConfig.serviceName?.trim() && codeConfig.methodName?.trim());
-      }
-      return !!codeConfig.methodName?.trim();
-    }
-    return true;
-  };
-
-  const handleNextToConfig = () => {
-    if (!codeConfig.option) {
-      alert("Please select a generation type");
-      return;
-    }
     setCurrentStep("config");
-    setConfigTab("basic");
+    setError("");
   };
 
+  /**
+   * Closing keeps the config and any generated result (they are dropped only if the request is edited), so Esc or a
+   * stray click never throws work away. A call still in flight is cancelled.
+   */
   const handleClose = () => {
-    setCurrentStep("type");
-    setConfigTab("basic");
-    setCodeConfig({
-      option: undefined,
-      serviceName: "ServiceName",
-      methodName: "apiNameTest",
-      assertionRequired: true,
-      statusCode: "200",
-      loggingRequired: true,
-      needPojo: false,
-      useFluentApi: true,
-      includeRetry: false,
-      testGroups: ["smoke"],
-      testPriority: 1,
-      testDescription: "Generated REST-Assured test",
-      assertResponseTime: true,
-      maxResponseTimeMs: 2000,
-      generatePom: false,
-      pomConfig: undefined,
-      dataFormat: "json",
-    });
-    setPomConfig(defaultPomConfig);
-    setGeneratedCode("");
-    setPojoCode("");
-    setPomDependencies("");
-    setCopied(false);
-    setActiveTab("test");
+    if (isGenerating) cancelGeneration();
     onOpenChange(false);
   };
 
-  const canDownload = () => {
-    if (activeTab === "pojo" && pojoCode) return true;
-    if (activeTab === "pom" && pomDependencies) return true;
-    if (activeTab === "test" && generatedCode) return true;
-    return false;
-  };
-
-  const hasMultipleFiles = () => {
-    let count = 0;
-    if (generatedCode) count++;
-    if (pojoCode) count++;
-    if (pomDependencies) count++;
-    return count > 1;
-  };
-
-  const getEstimatedLOC = () => {
-    let lines = 50;
-    if (codeConfig.option === "full") lines += 20;
-    if (codeConfig.needPojo) lines += 30;
-    if (codeConfig.includeRetry) lines += 15;
-    if (codeConfig.generatePom) lines += 50;
-    return lines;
-  };
-
-  const getFileCount = () => {
-    let count = 1;
-    if (codeConfig.needPojo) count++;
-    if (codeConfig.generatePom) count++;
-    return count;
-  };
+  const selectOption = (option: "full" | "method") => patchForm({ option });
+  const fieldClass = (field: FormField) => `font-mono ${shownErrors[field] ? "border-destructive" : ""}`;
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
-        <DialogHeader>
-          <div className="flex items-center justify-between">
-            <DialogTitle className="text-2xl flex items-center gap-3">
-              <Sparkles className="w-6 h-6 text-primary" />
-              Code Generation Wizard
-            </DialogTitle>
-
-            {/* Progress Indicator */}
-            <div className="flex items-center gap-2">
-              <div
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium ${currentStep === "type" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-                  }`}
-              >
-                <div className="w-1.5 h-1.5 rounded-full bg-current"></div>
-                Type
-              </div>
-              <ChevronRight className="w-4 h-4 text-muted-foreground" />
-              <div
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium ${currentStep === "config" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-                  }`}
-              >
-                <div className="w-1.5 h-1.5 rounded-full bg-current"></div>
-                Configure
-              </div>
-              <ChevronRight className="w-4 h-4 text-muted-foreground" />
-              <div
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium ${currentStep === "result" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-                  }`}
-              >
-                <div className="w-1.5 h-1.5 rounded-full bg-current"></div>
-                Preview
-              </div>
-            </div>
-          </div>
+    <Dialog open={open} onOpenChange={(next) => !next && handleClose()}>
+      <DialogContent className="max-w-lg md:max-w-3xl lg:max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogHeader className="shrink-0">
+          <DialogTitle>
+            {currentStep === "config" ? (
+              "Code Generation Configuration"
+            ) : (
+              // tabIndex -1 allows programmatic focus without entering the tab order
+              <span ref={resultHeadingRef} tabIndex={-1} className="outline-none">
+                Generated Code
+              </span>
+            )}
+          </DialogTitle>
         </DialogHeader>
 
-        {/* STEP 1: Choose Type */}
-        {currentStep === "type" && (
-          <div className="space-y-6 overflow-y-auto flex-1 pr-2">
-            <div className="text-center space-y-2 mb-8">
-              <h3 className="text-lg font-semibold">Choose Your Generation Type</h3>
-              <p className="text-sm text-muted-foreground">Select the type of code you want to generate</p>
-            </div>
+        {/* Screen-reader live region */}
+        <div aria-live="polite" aria-atomic="true" className="sr-only">
+          {isGenerating
+            ? "Generating code, please wait…"
+            : currentStep === "result"
+              ? "Code generation complete. Review the generated code below."
+              : error
+                ? `Error: ${error}`
+                : ""}
+        </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
-              {/* Full Test Class Card */}
-              <label
-                className={`relative cursor-pointer group ${codeConfig.option === "full" ? "scale-105" : ""} transition-transform duration-200`}
-              >
-                <input
-                  type="radio"
-                  name="codeOption"
-                  value="full"
-                  checked={codeConfig.option === "full"}
-                  onChange={(e) => setCodeConfig({ ...codeConfig, option: e.target.value as "full" | "method" })}
-                  className="sr-only"
-                />
-                <div
-                  className={`h-full p-6 rounded-2xl border-2 transition-all duration-200 ${codeConfig.option === "full"
-                      ? "border-primary bg-primary/5 shadow-lg ring-4 ring-primary/20"
-                      : "border-border hover:border-primary/50 hover:bg-accent/30 hover:shadow-md"
-                    }`}
-                >
-                  <div className="flex flex-col gap-4 h-full">
-                    <div className="flex items-start justify-between">
-                      <div className="p-3 bg-gradient-to-br from-cyan-500 to-teal-600 rounded-xl">
-                        <Code2 className="w-8 h-8 text-white" />
-                      </div>
-                      {codeConfig.option === "full" && <CheckCircle2 className="w-6 h-6 text-primary" />}
-                    </div>
-
-                    <div className="flex-1">
-                      <h4 className="text-lg font-bold mb-2">Full Test Class</h4>
-                      <p className="text-sm text-muted-foreground leading-relaxed mb-4">
-                        Complete production-ready test class with imports, setup methods, and annotations
-                      </p>
-
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <CheckCircle2 className="w-4 h-4 text-green-600" />
-                          All imports included
-                        </div>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <CheckCircle2 className="w-4 h-4 text-green-600" />
-                          @BeforeClass setup
-                        </div>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <CheckCircle2 className="w-4 h-4 text-green-600" />
-                          @Test annotations
-                        </div>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <CheckCircle2 className="w-4 h-4 text-green-600" />
-                          Ready to run
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="pt-4 border-t">
-                      <Badge variant="secondary" className="text-xs">
-                        ~70-100 lines
-                      </Badge>
-                    </div>
-                  </div>
-                </div>
-              </label>
-
-              {/* Method Only Card */}
-              <label
-                className={`relative cursor-pointer group ${codeConfig.option === "method" ? "scale-105" : ""} transition-transform duration-200`}
-              >
-                <input
-                  type="radio"
-                  name="codeOption"
-                  value="method"
-                  checked={codeConfig.option === "method"}
-                  onChange={(e) => setCodeConfig({ ...codeConfig, option: e.target.value as "full" | "method" })}
-                  className="sr-only"
-                />
-                <div
-                  className={`h-full p-6 rounded-2xl border-2 transition-all duration-200 ${codeConfig.option === "method"
-                      ? "border-primary bg-primary/5 shadow-lg ring-4 ring-primary/20"
-                      : "border-border hover:border-primary/50 hover:bg-accent/30 hover:shadow-md"
-                    }`}
-                >
-                  <div className="flex flex-col gap-4 h-full">
-                    <div className="flex items-start justify-between">
-                      <div className="p-3 bg-gradient-to-br from-orange-500 to-amber-600 rounded-xl">
-                        <FileCode className="w-8 h-8 text-white" />
-                      </div>
-                      {codeConfig.option === "method" && <CheckCircle2 className="w-6 h-6 text-primary" />}
-                    </div>
-
-                    <div className="flex-1">
-                      <h4 className="text-lg font-bold mb-2">Test Method Only</h4>
-                      <p className="text-sm text-muted-foreground leading-relaxed mb-4">
-                        Lightweight method snippet that you can integrate into existing test classes
-                      </p>
-
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <CheckCircle2 className="w-4 h-4 text-green-600" />
-                          Minimal imports
-                        </div>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <CheckCircle2 className="w-4 h-4 text-green-600" />
-                          @Test method only
-                        </div>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <CheckCircle2 className="w-4 h-4 text-green-600" />
-                          Quick integration
-                        </div>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <CheckCircle2 className="w-4 h-4 text-green-600" />
-                          Compact code
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="pt-4 border-t">
-                      <Badge variant="secondary" className="text-xs">
-                        ~30-50 lines
-                      </Badge>
-                    </div>
-                  </div>
-                </div>
-              </label>
-            </div>
-
-            {/* Preview Snippet */}
-            {codeConfig.option && (
-              <div className="mt-8 p-6 bg-muted/50 rounded-xl border-2 max-w-4xl mx-auto">
-                <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                  <FileText className="w-4 h-4" />
-                  Code Structure Preview
-                </h4>
-                <pre className="text-sm font-mono bg-slate-950 text-slate-50 p-4 rounded-lg overflow-x-auto">
-                  {codeConfig.option === "full"
-                    ? `import io.restassured.RestAssured;
-import org.testng.annotations.*;
-
-public class ServiceName {
-    @BeforeClass
-    public void setup() {
-        RestAssured.baseURI = "...";
-    }
-    
-    @Test
-    public void apiNameTest() {
-        // Your test code here
-    }
-}`
-                    : `@Test
-public void apiNameTest() {
-    given()
-        .header("Content-Type", "application/json")
-    .when()
-        .get("/endpoint")
-    .then()
-        .statusCode(200);
-}`}
-                </pre>
-              </div>
-            )}
-
-            <div className="flex justify-end gap-3 pt-4 border-t-2">
-              <Button variant="outline" onClick={handleClose} className="px-6">
-                Cancel
-              </Button>
-              <Button onClick={handleNextToConfig} disabled={!codeConfig.option} className="bg-primary px-8 gap-2">
-                Next: Configure
-                <ChevronRight className="w-4 h-4" />
-              </Button>
-            </div>
+        {redactedCount > 0 && (
+          <div
+            role="alert"
+            className="shrink-0 flex items-start gap-2 p-3 rounded-md border border-amber-500/40 bg-amber-500/10 text-sm text-amber-900 dark:text-amber-200"
+          >
+            <ShieldAlert className="w-4 h-4 mt-0.5 flex-shrink-0" aria-hidden="true" />
+            <span>
+              {redactedCount} secret value{redactedCount === 1 ? " was" : "s were"} redacted from this request and not
+              re-entered. The generated code will contain <code className="font-mono">[REDACTED]</code> in their place.
+            </span>
           </div>
         )}
 
-        {/* STEP 2: Configure */}
-        {currentStep === "config" && (
-          <div className="flex flex-1 overflow-hidden gap-6">
-            {/* Left Sidebar - Quick Stats */}
-            <div className="w-64 flex-shrink-0 space-y-4">
-              <div className="p-4 bg-gradient-to-br from-cyan-500/10 to-teal-500/5 rounded-xl border-2 border-cyan-500/20">
-                <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                  <Settings2 className="w-4 h-4" />
-                  Generation Summary
-                </h4>
-                <div className="space-y-3 text-sm">
-                  <div className="flex justify-between items-center">
-                    <span className="text-muted-foreground">Type:</span>
-                    <Badge variant="outline" className="text-xs">
-                      {codeConfig.option === "full" ? "Full Class" : "Method Only"}
-                    </Badge>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-muted-foreground">Files:</span>
-                    <span className="font-semibold">{getFileCount()}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-muted-foreground">Est. Lines:</span>
-                    <span className="font-semibold">~{getEstimatedLOC()}</span>
-                  </div>
-                  <div className="pt-3 border-t space-y-2">
-                    {codeConfig.needPojo && (
-                      <div className="flex items-center gap-2 text-xs">
-                        <CheckCircle2 className="w-3 h-3 text-green-600" />
-                        <span>POJO included</span>
-                      </div>
-                    )}
-                    {codeConfig.generatePom && (
-                      <div className="flex items-center gap-2 text-xs">
-                        <CheckCircle2 className="w-3 h-3 text-green-600" />
-                        <span>POM included</span>
-                      </div>
-                    )}
-                    {codeConfig.includeRetry && (
-                      <div className="flex items-center gap-2 text-xs">
-                        <CheckCircle2 className="w-3 h-3 text-green-600" />
-                        <span>Retry logic</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
+        {currentStep === "config" ? (
+          <>
+            <div className="space-y-6 overflow-y-auto flex-1 min-h-0 pr-2">
+              {/* Generation Type Selection */}
+              <div className="space-y-3">
+                <p id="generation-type-label" className="text-sm font-medium">
+                  Generation Type <span className="text-destructive">*</span>
+                </p>
+
+                <RadioGroup
+                  value={form.option}
+                  onValueChange={(next) => selectOption(next as "full" | "method")}
+                  aria-labelledby="generation-type-label"
+                  aria-required="true"
+                  aria-invalid={shownErrors.option ? true : undefined}
+                  aria-describedby={shownErrors.option ? "option-error" : undefined}
+                >
+                  <RadioCard id="option-full" value="full" selected={form.option === "full"} title="Full Test Class">
+                    <p>Complete Java class with imports, @BeforeClass setup, and @Test method</p>
+                  </RadioCard>
+                  <RadioCard id="option-method" value="method" selected={form.option === "method"} title="Test Method Only">
+                    <p>Just the @Test method with required imports</p>
+                  </RadioCard>
+                </RadioGroup>
+                <FieldError id="option-error" message={shownErrors.option} />
               </div>
-            </div>
 
-            {/* Main Configuration Area */}
-            <div className="flex-1 overflow-y-auto pr-2 space-y-6">
-              <Tabs value={configTab} onValueChange={(v) => setConfigTab(v as "basic" | "pom")} className="w-full">
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="basic">Basic</TabsTrigger>
-                  <TabsTrigger value="pom" disabled={codeConfig.option !== "full"}>
-                    POM
-                    {codeConfig.option !== "full" && <span className="ml-2 text-xs">(Full Test only)</span>}
-                  </TabsTrigger>
-                </TabsList>
+              {/* Configuration Options */}
+              {form.option && (
+                <div className="space-y-4 p-4 border rounded-lg bg-muted/30">
+                  <h3 className="font-semibold text-sm">Configuration</h3>
 
-                {/* Basic Tab */}
-                <TabsContent value="basic" className="space-y-6 mt-6">
-                  {/* Names Section */}
-                  <div className="p-6 border-2 rounded-xl bg-card space-y-4">
-                    <h3 className="font-semibold text-lg flex items-center gap-2">
-                      <FileCode className="w-5 h-5 text-primary" />
-                      Naming
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {codeConfig.option === "full" && (
-                        <div>
-                          <label className="text-sm font-medium mb-2 block">
-                            API Service Name <span className="text-red-500">*</span>
-                          </label>
-                          <Input
-                            value={codeConfig.serviceName}
-                            onChange={(e) => setCodeConfig({ ...codeConfig, serviceName: e.target.value })}
-                            placeholder="ServiceName"
-                            className="font-mono"
-                          />
-                        </div>
-                      )}
-                      <div>
-                        <label className="text-sm font-medium mb-2 block">
-                          Method Name <span className="text-red-500">*</span>
-                        </label>
-                        <Input
-                          value={codeConfig.methodName}
-                          onChange={(e) => setCodeConfig({ ...codeConfig, methodName: e.target.value })}
-                          placeholder="testApiRequest"
-                          className="font-mono"
-                        />
-                      </div>
+                  {form.option === "full" && (
+                    <div>
+                      <label htmlFor="class-name" className="text-sm font-medium mb-2 block">
+                        Test Class Name <span className="text-destructive">*</span>
+                      </label>
+                      <Input
+                        id="class-name"
+                        value={form.className}
+                        onChange={(e) => patchForm({ className: e.target.value }, "className")}
+                        placeholder="ApiTest"
+                        className={fieldClass("className")}
+                        aria-invalid={!!shownErrors.className}
+                        aria-describedby={shownErrors.className ? "class-name-error" : undefined}
+                      />
+                      <FieldError id="class-name-error" message={shownErrors.className} />
                     </div>
+                  )}
+
+                  <div>
+                    <label htmlFor="method-name" className="text-sm font-medium mb-2 block">
+                      Method Name <span className="text-destructive">*</span>
+                    </label>
+                    <Input
+                      id="method-name"
+                      value={form.methodName}
+                      onChange={(e) => patchForm({ methodName: e.target.value }, "methodName")}
+                      placeholder="testApiRequest"
+                      className={fieldClass("methodName")}
+                      aria-invalid={!!shownErrors.methodName}
+                      aria-describedby={shownErrors.methodName ? "method-name-error" : undefined}
+                    />
+                    <FieldError id="method-name-error" message={shownErrors.methodName} />
                   </div>
 
-                  {/* POJO Section */}
-                  <div
-                    className={`p-6 border-2 rounded-xl bg-gradient-to-br from-orange-500/5 to-amber-500/3 ${isPojoDisabled ? "opacity-50 cursor-not-allowed" : ""
-                      }`}
-                  >
-                    <label
-                      className={`flex items-start gap-4 group ${isPojoDisabled ? "cursor-not-allowed" : "cursor-pointer"}`}
-                    >
+                  {/* POJO Generation */}
+                  <div className={`space-y-3 p-3 border rounded-md ${pojoDisabled ? "opacity-60" : ""}`}>
+                    <label className={`flex items-start gap-3 ${pojoDisabled ? "cursor-not-allowed" : "cursor-pointer"}`}>
                       <Checkbox
-                        checked={codeConfig.needPojo}
-                        onCheckedChange={(checked) => setCodeConfig({ ...codeConfig, needPojo: !!checked })}
-                        disabled={isPojoDisabled}
-                        className="mt-1"
+                        checked={form.needPojo && !pojoDisabled}
+                        disabled={pojoDisabled}
+                        onCheckedChange={(checked) => patchForm({ needPojo: !!checked })}
+                        className="mt-0.5"
+                        aria-label="Generate POJO Classes"
                       />
                       <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <Package className="w-4 h-4 text-orange-600" />
-                          <span className={`font-semibold transition-colors ${!isPojoDisabled ? "group-hover:text-primary" : ""}`}>
-                            Generate POJO Classes
-                          </span>
-                          {isPojoDisabled && (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-medium">Generate POJO Classes</span>
+                          {pojoDisabled && (
                             <Badge variant="secondary" className="text-xs">
                               Not available for GET/DELETE/HEAD
                             </Badge>
                           )}
                         </div>
-                        <p className="text-sm text-muted-foreground leading-relaxed">
-                          Automatically create Lombok-based POJOs with @Data and @Builder annotations for request/response handling
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Create Lombok-based POJOs with @Data and @Builder annotations
                         </p>
                       </div>
                     </label>
-                  </div>
 
-                  {/* Core Options */}
-                  <div className="p-6 border-2 rounded-xl bg-card space-y-4">
-                    <h3 className="font-semibold text-lg">Test Features</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {[
-                        { key: "assertionRequired", label: "Include Assertions", desc: "Validate status code" },
-                        { key: "loggingRequired", label: "Include Logging", desc: "Debug output" },
-                        { key: "assertResponseTime", label: "Response Time Check", desc: "Performance validation" },
-                      ].map((option) => (
-                        <label
-                          key={option.key}
-                          className="flex items-center gap-3 cursor-pointer p-4 rounded-lg border-2 bg-card hover:border-primary/50 transition-all group"
-                        >
-                          <Checkbox
-                            checked={codeConfig[option.key as keyof typeof codeConfig] as boolean}
-                            onCheckedChange={(checked) => setCodeConfig({ ...codeConfig, [option.key]: !!checked })}
-                          />
-                          <div className="flex-1">
-                            <span className="text-sm font-medium group-hover:text-primary transition-colors">{option.label}</span>
-                            <p className="text-xs text-muted-foreground">{option.desc}</p>
-                          </div>
+                    {form.needPojo && !pojoDisabled && (
+                      <div className="pl-7 pt-2">
+                        <label htmlFor="pojo-class-name" className="text-sm font-medium mb-2 block">
+                          POJO Class Name <span className="text-destructive">*</span>
                         </label>
-                      ))}
-                    </div>
-
-                    {/* Nested Options */}
-                    {codeConfig.assertionRequired && (
-                      <div className="ml-8 pl-4 border-l-2 border-primary/30 space-y-3">
-                        <div>
-                          <label className="text-sm font-medium mb-2 block">Expected Status Code</label>
-                          <Input
-                            type="number"
-                            value={codeConfig.statusCode}
-                            onChange={(e) => setCodeConfig({ ...codeConfig, statusCode: e.target.value })}
-                            placeholder="200"
-                            className="w-32"
-                          />
-                        </div>
-                      </div>
-                    )}
-                    {codeConfig.assertResponseTime && (
-                      <div className="ml-8 pl-4 border-l-2 border-primary/30 space-y-3">
-                        <div>
-                          <label className="text-sm font-medium mb-2 block">Max Response Time (ms)</label>
-                          <Input
-                            type="number"
-                            value={codeConfig.maxResponseTimeMs ?? ""}
-                            onChange={(e) =>
-                              setCodeConfig({
-                                ...codeConfig,
-                                maxResponseTimeMs: e.target.value ? Number(e.target.value) : undefined,
-                              })
-                            }
-                            placeholder="2000"
-                            className="w-32"
-                          />
-                        </div>
+                        <Input
+                          id="pojo-class-name"
+                          value={form.pojoClassName}
+                          onChange={(e) => patchForm({ pojoClassName: e.target.value }, "pojoClassName")}
+                          placeholder="RequestBody"
+                          className={fieldClass("pojoClassName")}
+                          aria-invalid={!!shownErrors.pojoClassName}
+                          aria-describedby={shownErrors.pojoClassName ? "pojo-class-name-error" : undefined}
+                        />
+                        <FieldError id="pojo-class-name-error" message={shownErrors.pojoClassName} />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Base name for your POJO classes (e.g., UserRequest, OrderDetails)
+                        </p>
                       </div>
                     )}
                   </div>
-                </TabsContent>
 
-                {/* POM Tab */}
-                <TabsContent value="pom" className="space-y-6 mt-6">
-                  <div className="p-6 border-2 rounded-xl bg-gradient-to-br from-orange-500/5 to-transparent space-y-6">
-                    <label className="flex items-start gap-4 cursor-pointer group">
+                  {/* Additional Options */}
+                  <div className="space-y-3">
+                    <label className="flex items-start gap-3 cursor-pointer">
                       <Checkbox
-                        checked={codeConfig.generatePom}
-                        onCheckedChange={(checked) => setCodeConfig({ ...codeConfig, generatePom: !!checked })}
-                        className="mt-1"
+                        checked={form.assertionRequired}
+                        onCheckedChange={(checked) => patchForm({ assertionRequired: !!checked })}
+                        className="mt-0.5"
+                        aria-label="Include Assertions"
                       />
                       <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <FileText className="w-4 h-4 text-orange-600" />
-                          <span className="font-semibold group-hover:text-primary transition-colors">Generate POM.xml</span>
-                        </div>
-                        <p className="text-sm text-muted-foreground leading-relaxed">Create Maven POM file with all necessary dependencies</p>
+                        <span className="text-sm font-medium">Include Assertions</span>
+                        <p className="text-xs text-muted-foreground mt-1">Add TestNG assertions for response validation</p>
                       </div>
                     </label>
 
-                    {codeConfig.generatePom && codeConfig.option === "full" && (
-                      <div className="ml-8 pl-6 border-l-2 border-primary/30 space-y-5">
-
-                        {/* POM Type Selection */}
-                        <div>
-                          <label className="text-sm font-medium mb-2 block">
-                            POM Type <span className="text-red-500">*</span>
-                          </label>
-                          <Select
-                            value={pomConfig.pomType}
-                            onValueChange={(value: "full" | "dependencies_only") => handlePomConfigChange("pomType", value)}
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="full">Full POM (Complete project file)</SelectItem>
-                              <SelectItem value="dependencies_only">Dependencies Only</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="p-5 border-2 rounded-xl bg-gradient-to-br from-blue-500/5 to-cyan-500/3">
-                          <div className="flex items-start justify-between mb-4">
-                            <div>
-                              <h4 className="text-sm font-semibold mb-1 flex items-center gap-2">
-                                Data Format
-                                {isFormatAutoDetected && (
-                                  <Badge variant="secondary" className="text-xs">
-                                    Auto-detected: {getDataFormatLabel(detectedFormat)}
-                                  </Badge>
-                                )}
-                              </h4>
-                              <p className="text-xs text-muted-foreground">
-                                Select which data formats your API uses (affects POM dependencies)
-                              </p>
-                            </div>
-                            {isFormatAutoDetected && (
-                              <button
-                                onClick={() => setIsFormatAutoDetected(false)}
-                                className="text-xs text-primary hover:underline"
-                              >
-                                Override
-                              </button>
-                            )}
-                          </div>
-
-                          <div className="space-y-2">
-                            {(["json", "xml", "both"] as const).map((format) => (
-                              <label
-                                key={format}
-                                className={`flex items-start gap-3 cursor-pointer p-4 rounded-lg border-2 transition-all ${codeConfig.dataFormat === format
-                                    ? "border-primary bg-primary/5 shadow-sm"
-                                    : "border-border hover:border-primary/50 hover:bg-accent/30"
-                                  }`}
-                              >
-                                <input
-                                  type="radio"
-                                  name="dataFormat"
-                                  value={format}
-                                  checked={codeConfig.dataFormat === format}
-                                  onChange={(e) => {
-                                    setCodeConfig({ ...codeConfig, dataFormat: e.target.value as "json" | "xml" | "both" });
-                                    setIsFormatAutoDetected(false);
-                                  }}
-                                  className="mt-1"
-                                />
-                                <div className="flex-1">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <span className="font-medium text-sm">{getDataFormatLabel(format)}</span>
-                                    {format === detectedFormat && isFormatAutoDetected && (
-                                      <Badge variant="outline" className="text-xs">Detected</Badge>
-                                    )}
-                                  </div>
-                                  <p className="text-xs text-muted-foreground leading-relaxed">
-                                    {getDataFormatDescription(format)}
-                                  </p>
-
-                                  <div className="mt-2 text-xs text-muted-foreground">
-                                    {format === "json" && "Includes: Jackson Databind"}
-                                    {format === "xml" && "Includes: Jackson XML, JAXB (Java 11+)"}
-                                    {format === "both" && "Includes: Jackson Databind + Jackson XML + JAXB"}
-                                  </div>
-                                </div>
-                              </label>
-                            ))}
-                          </div>
-
-                          {codeConfig.dataFormat !== "json" && (
-                            <div className="mt-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg flex gap-2">
-                              <Info className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-                              <div className="text-xs text-muted-foreground">
-                                <strong className="text-foreground">XML Dependencies:</strong> JAXB is required for Java 11+
-                                to handle XML binding. It will be auto-included if Java version is 11, 17, or 21.
-                              </div>
-                            </div>
-                          )}
-                        </div>
-
-                        {pomConfig.pomType === "full" && (
-                          <div className="space-y-4 p-5 border-2 rounded-xl bg-muted/30">
-                            <h4 className="text-sm font-semibold">Project Information</h4>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <div>
-                                <label className="text-xs font-medium mb-1.5 block">
-                                  Group ID <span className="text-red-500">*</span>
-                                </label>
-                                <Input
-                                  value={pomConfig.projectInfo?.groupId || ""}
-                                  onChange={(e) => handleProjectInfoChange("groupId", e.target.value)}
-                                  placeholder="com.example"
-                                  className="h-9 text-sm"
-                                />
-                              </div>
-                              <div>
-                                <label className="text-xs font-medium mb-1.5 block">
-                                  Artifact ID <span className="text-red-500">*</span>
-                                </label>
-                                <Input
-                                  value={pomConfig.projectInfo?.artifactId || ""}
-                                  onChange={(e) => handleProjectInfoChange("artifactId", e.target.value)}
-                                  placeholder="rest-assured-tests"
-                                  className="h-9 text-sm"
-                                />
-                              </div>
-                              <div>
-                                <label className="text-xs font-medium mb-1.5 block">
-                                  Version <span className="text-red-500">*</span>
-                                </label>
-                                <Input
-                                  value={pomConfig.projectInfo?.version || ""}
-                                  onChange={(e) => handleProjectInfoChange("version", e.target.value)}
-                                  placeholder="1.0-SNAPSHOT"
-                                  className="h-9 text-sm"
-                                />
-                              </div>
-                              <div>
-                                <label className="text-xs font-medium mb-1.5 block">Java Version</label>
-                                <Select
-                                  value={pomConfig.javaVersion}
-                                  onValueChange={(value: "8" | "11" | "17" | "21") => handlePomConfigChange("javaVersion", value)}
-                                >
-                                  <SelectTrigger className="h-9">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="8">Java 8</SelectItem>
-                                    <SelectItem value="11">Java 11</SelectItem>
-                                    <SelectItem value="17">Java 17</SelectItem>
-                                    <SelectItem value="21">Java 21</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                            </div>
-                          </div>
-                        )}
+                    {form.assertionRequired && (
+                      <div className="pl-7">
+                        <label htmlFor="status-code" className="text-sm font-medium mb-2 block">
+                          Expected Status Code
+                        </label>
+                        <Input
+                          id="status-code"
+                          type="number"
+                          value={form.statusCode}
+                          onChange={(e) => patchForm({ statusCode: e.target.value }, "statusCode")}
+                          placeholder="200"
+                          min="100"
+                          max="599"
+                          className={`w-32 ${shownErrors.statusCode ? "border-destructive" : ""}`}
+                          aria-invalid={!!shownErrors.statusCode}
+                          aria-describedby={shownErrors.statusCode ? "status-code-error" : undefined}
+                        />
+                        <FieldError id="status-code-error" message={shownErrors.statusCode} />
                       </div>
                     )}
+
+                    <label className="flex items-start gap-3 cursor-pointer">
+                      <Checkbox
+                        checked={form.loggingRequired}
+                        onCheckedChange={(checked) => patchForm({ loggingRequired: !!checked })}
+                        className="mt-0.5"
+                        aria-label="Include Logging"
+                      />
+                      <div className="flex-1">
+                        <span className="text-sm font-medium">Include Logging</span>
+                        <p className="text-xs text-muted-foreground mt-1">Add console output for debugging</p>
+                      </div>
+                    </label>
                   </div>
-                </TabsContent>
-              </Tabs>
 
-              <div className="flex justify-between gap-3 pt-4 border-t-2">
-                <Button variant="outline" onClick={handleBack} className="px-6">
-                  ← Back
-                </Button>
-                {configTab === "pom" ? (
-                  <Button
-                    onClick={handleGenerateCodeWithConfig}
-                    disabled={isGenerating || !canProceedToNext()}
-                    className="bg-primary px-8 min-w-40"
-                  >
-                    {isGenerating ? (
-                      <>
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                        Generating...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="w-4 h-4 mr-2" />
-                        Generate Code
-                      </>
-                    )}
-                  </Button>
-                ) : (
-                  <Button onClick={handleNextTab} disabled={!canProceedToNext()} className="bg-primary px-8 gap-2">
-                    Next
-                    <ChevronRight className="w-4 h-4" />
-                  </Button>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* STEP 3: Result */}
-        {currentStep === "result" && (
-          <div className="flex flex-col flex-1 overflow-hidden">
-            {/* Success Banner */}
-            <div className="mb-4 p-4 bg-emerald-500/10 border-2 border-emerald-500/20 rounded-xl flex items-center gap-3">
-              <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-              <div className="flex-1">
-                <p className="font-semibold text-sm">Successfully Generated!</p>
-                <p className="text-xs text-muted-foreground">
-                  {getFileCount()} file{getFileCount() > 1 ? "s" : ""} • ~{getEstimatedLOC()} lines of code
-                </p>
-              </div>
-            </div>
-
-            {/* Tabs (UPDATED STYLES) */}
-            <div className="flex justify-between items-center gap-2 mb-4 p-2 bg-gradient-to-r from-slate-50 to-slate-100/50 dark:from-slate-800 dark:to-slate-900/50 rounded-xl border-2 border-slate-200 dark:border-slate-700">
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setActiveTab("test")}
-                  className={`px-5 py-3 text-sm font-semibold rounded-lg transition-all duration-200 flex items-center gap-2 border-2 shadow-sm hover:shadow-md
-                    ${activeTab === "test"
-                      ? "bg-white dark:bg-slate-800 border-cyan-500 text-cyan-700 dark:text-cyan-400 shadow-md"
-                      : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:text-foreground hover:border-cyan-500/50 hover:bg-slate-50 dark:hover:bg-slate-800"
-                    }`}
-                >
-                  <Code2 className="w-4 h-4" />
-                  Test Code
-                </button>
-
-                {codeConfig.needPojo && pojoCode && (
-                  <button
-                    onClick={() => setActiveTab("pojo")}
-                    className={`px-5 py-3 text-sm font-semibold rounded-lg transition-all duration-200 flex items-center gap-2 border-2 shadow-sm hover:shadow-md
-                      ${activeTab === "pojo"
-                        ? "bg-white dark:bg-slate-800 border-cyan-500 text-cyan-700 dark:text-cyan-400 shadow-md"
-                        : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:text-foreground hover:border-cyan-500/50 hover:bg-slate-50 dark:hover:bg-slate-800"
-                      }`}
-                  >
-                    <Package className="w-4 h-4" />
-                    POJO Classes
-                  </button>
-                )}
-
-                {pomDependencies && (
-                  <button
-                    onClick={() => setActiveTab("pom")}
-                    className={`px-5 py-3 text-sm font-semibold rounded-lg transition-all duration-200 flex items-center gap-2 border-2 shadow-sm hover:shadow-md
-                      ${activeTab === "pom"
-                        ? "bg-white dark:bg-slate-800 border-cyan-500 text-cyan-700 dark:text-cyan-400 shadow-md"
-                        : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:text-foreground hover:border-cyan-500/50 hover:bg-slate-50 dark:hover:bg-slate-800"
-                      }`}
-                  >
-                    <FileText className="w-4 h-4" />
-                    POM.xml
-                  </button>
-                )}
-              </div>
-
-              {hasMultipleFiles() && (
-                <button
-                  onClick={handleDownloadAll}
-                  className="inline-flex items-center justify-center rounded-lg font-semibold border-2 border-cyan-500 bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-700 hover:to-teal-700 text-white shadow-md hover:shadow-lg h-10 px-4 text-sm gap-2 transition-all duration-200 disabled:opacity-50 disabled:pointer-events-none"
-                >
-                  <DownloadCloud className="w-4 h-4" />
-                  Download All
-                </button>
+                  <AdvancedSection
+                    open={advancedOpen}
+                    onOpenChange={setAdvancedOpen}
+                    form={form}
+                    onChange={patchForm}
+                    errors={shownErrors}
+                    detectedFormat={detectedFormat}
+                    effectiveFormat={effectiveFormat}
+                  />
+                </div>
               )}
             </div>
 
-            {/* Code Display */}
-            <div className="flex-1 flex flex-col overflow-hidden rounded-xl border-2 shadow-lg">
-              <div className="flex justify-between items-center gap-3 p-3 border-b-2 bg-muted/30">
-                <div className="flex items-center gap-3">
-                  <div className="text-sm text-muted-foreground font-medium px-2 font-mono">
-                    {activeTab === "test" && `${codeConfig.serviceName}_Test.java`}
-                    {activeTab === "pojo" && `${codeConfig.serviceName}_Model.java`}
-                    {activeTab === "pom" && "pom.xml"}
-                  </div>
-                  <Badge variant="secondary" className="text-xs">
-                    {activeTab === "test" && generatedCode.split("\n").length}
-                    {activeTab === "pojo" && pojoCode.split("\n").length}
-                    {activeTab === "pom" && pomDependencies.split("\n").length}
-                    {" lines"}
-                  </Badge>
+            {/* Pinned footer: Generate stays visible however long the form is. */}
+            <div className="shrink-0 border-t pt-4 space-y-3">
+              {(error || (attempted && errorCount > 0)) && (
+                <div
+                  ref={errorRef}
+                  role="alert"
+                  className="flex items-start gap-2 p-3 bg-destructive/10 text-destructive rounded-md text-sm border border-destructive/30"
+                >
+                  <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" aria-hidden="true" />
+                  <span>
+                    {error ||
+                      `Fix the ${errorCount} highlighted field${errorCount === 1 ? "" : "s"} above, then generate again.`}
+                  </span>
                 </div>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={handleCopyCode} className="hover:bg-primary hover:text-primary-foreground">
-                    {copied ? (
-                      <>
-                        <CheckCircle2 className="w-4 h-4 mr-2 text-green-600" />
-                        Copied!
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-4 h-4 mr-2" />
-                        Copy
-                      </>
-                    )}
+              )}
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={handleClose}>
+                  Cancel
+                </Button>
+                {isGenerating && (
+                  <Button variant="outline" onClick={cancelGeneration}>
+                    Stop waiting
                   </Button>
-                  {canDownload() && (
-                    <Button variant="outline" size="sm" onClick={handleDownloadCode} className="hover:bg-primary hover:text-primary-foreground">
-                      <Download className="w-4 h-4 mr-2" />
-                      Download
-                    </Button>
-                  )}
-                </div>
-              </div>
-              <div className="flex-1 overflow-auto bg-slate-950">
-                <pre className="text-m font-mono p-6 text-slate-50 leading-relaxed">
-                  <code>{activeTab === "test" ? generatedCode : activeTab === "pojo" ? pojoCode : pomDependencies}</code>
-                </pre>
+                )}
+                <Button onClick={handleGenerateCodeWithConfig} disabled={!form.option || isGenerating} className="bg-primary">
+                  {isGenerating ? "Generating..." : "Generate Code"}
+                </Button>
               </div>
             </div>
-
-            {/* Action Buttons */}
-            <div className="flex justify-between gap-3 pt-4 border-t-2 mt-4">
-              <Button variant="outline" onClick={handleBack} className="px-6">
+          </>
+        ) : (
+          <>
+            {result && <ResultPanel result={result} secretValues={secretValues} />}
+            <div className="shrink-0 flex justify-between gap-2 pt-4 border-t">
+              <Button variant="outline" onClick={handleBack}>
                 ← Back to Config
               </Button>
-              <Button variant="outline" onClick={handleClose} className="px-6">
-                Close
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setFeedbackOpen(true)}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <MessageSquare className="w-4 h-4 mr-2" />
+                  Feedback
+                </Button>
+                <Button variant="outline" onClick={handleClose}>
+                  Close
+                </Button>
+              </div>
             </div>
-          </div>
+          </>
         )}
       </DialogContent>
+
+      <FeedbackDialog
+        open={feedbackOpen}
+        onOpenChange={setFeedbackOpen}
+        generatedCode={result?.testCode ?? ""}
+        knownSecrets={secretValues}
+      />
     </Dialog>
   );
 }
+
+export default memo(CodeGenerationDialogInner);

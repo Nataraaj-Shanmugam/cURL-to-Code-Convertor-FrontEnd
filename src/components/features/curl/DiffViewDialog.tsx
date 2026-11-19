@@ -1,0 +1,259 @@
+import { memo, useId, useMemo, useState } from "react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import type { ParsedCurl } from "@/types/curl";
+import { computeDiff } from "@/lib/utils/diffEngine";
+import type { DiffEntry } from "@/types/diff";
+import { RotateCcw } from "lucide-react";
+import { CHIP_COLORS } from "@/constants/curl";
+import { MASK, maskParsedCurl, redactFieldValue } from "@/lib/utils/redaction";
+import { MaskedString, MaskedText, RevealToggle } from "./editor/SecretValue";
+
+interface DiffViewDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  originalParsed: ParsedCurl;
+  currentParsed: ParsedCurl;
+  onRevert: (path: string) => void;
+}
+
+function formatValue(value: unknown): string {
+  if (value === undefined) return "—";
+  if (value === null) return "null";
+  if (typeof value === "object") {
+    return JSON.stringify(value, null, 2);
+  }
+  return String(value);
+}
+
+function rowBg(type: DiffEntry["type"]): string {
+  switch (type) {
+    case "added":
+      return "bg-green-50 dark:bg-green-950/20";
+    case "removed":
+      return "bg-red-50 dark:bg-red-950/20";
+    case "modified":
+      return "bg-amber-50 dark:bg-amber-950/20";
+  }
+}
+
+function typeBadge(type: DiffEntry["type"]) {
+  switch (type) {
+    case "added":
+      return (
+        <Badge className={`${CHIP_COLORS.success} border-0 text-[10px]`}>
+          added
+        </Badge>
+      );
+    case "removed":
+      return (
+        <Badge className={`${CHIP_COLORS.danger} border-0 text-[10px]`}>
+          removed
+        </Badge>
+      );
+    case "modified":
+      return (
+        <Badge className={`${CHIP_COLORS.warning} border-0 text-[10px]`}>
+          modified
+        </Badge>
+      );
+  }
+}
+
+/** One changed field. Secret values (old and new) stay masked until the row's toggle is pressed. */
+function DiffRow({ entry, onRevert }: { entry: DiffEntry; onRevert: (path: string) => void }) {
+  const [revealed, setRevealed] = useState(false);
+  const valuesId = useId();
+  const oldText = formatValue(entry.oldValue);
+  const newText = formatValue(entry.newValue);
+  const maskedOld = entry.oldValue === undefined ? oldText : formatValue(redactFieldValue(entry.path, entry.oldValue, { placeholder: MASK }));
+  const maskedNew = entry.newValue === undefined ? newText : formatValue(redactFieldValue(entry.path, entry.newValue, { placeholder: MASK }));
+  const hasSecret = maskedOld !== oldText || maskedNew !== newText;
+  const hidden = hasSecret && !revealed;
+
+  return (
+    <tr className={`border-b last:border-0 ${rowBg(entry.type)}`}>
+      <td id={`${valuesId}-path`} className="px-3 py-2 font-mono break-all align-top">
+        {entry.path}
+      </td>
+      <td className="px-3 py-2 font-mono break-all align-top max-w-[160px]">
+        <span id={`${valuesId}-old`} className="whitespace-pre-wrap line-clamp-3 text-red-700 dark:text-red-400">
+          {hidden ? <MaskedString text={maskedOld} /> : oldText}
+        </span>
+      </td>
+      <td className="px-3 py-2 font-mono break-all align-top max-w-[160px]">
+        <div className="flex items-start gap-1">
+          <span id={`${valuesId}-new`} className="flex-1 min-w-0 whitespace-pre-wrap line-clamp-3 text-green-700 dark:text-green-400">
+            {hidden ? <MaskedString text={maskedNew} /> : newText}
+          </span>
+          {hasSecret && (
+            <RevealToggle
+              label={entry.path}
+              revealed={revealed}
+              onToggle={() => setRevealed((r) => !r)}
+              controls={`${valuesId}-old ${valuesId}-new`}
+            />
+          )}
+        </div>
+      </td>
+      <td className="px-3 py-2 align-top">{typeBadge(entry.type)}</td>
+      <td className="px-3 py-2 align-top">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6"
+          title={`Revert ${entry.path}`}
+          aria-label={`Revert ${entry.path}`}
+          aria-describedby={`${valuesId}-path`}
+          onClick={() => onRevert(entry.path)}
+        >
+          <RotateCcw className="w-3 h-3" aria-hidden="true" />
+        </Button>
+      </td>
+    </tr>
+  );
+}
+
+/** Rows rendered at first; "Show more" adds a page. A large diff no longer mounts every row (FE-PERF-3). */
+const DIFF_ROW_PAGE = 200;
+
+/** The two JSON panes, built only while the Raw JSON tab is shown (stringifying a big request is slow). */
+function RawJsonPanes({ originalParsed, currentParsed }: { originalParsed: ParsedCurl; currentParsed: ParsedCurl }) {
+  const originalJson = useMemo(() => JSON.stringify(originalParsed, null, 2), [originalParsed]);
+  const currentJson = useMemo(() => JSON.stringify(currentParsed, null, 2), [currentParsed]);
+  const maskedOriginalJson = useMemo(() => JSON.stringify(maskParsedCurl(originalParsed), null, 2), [originalParsed]);
+  const maskedCurrentJson = useMemo(() => JSON.stringify(maskParsedCurl(currentParsed), null, 2), [currentParsed]);
+  return (
+    <div className="grid grid-cols-2 gap-3 h-full">
+      <div className="space-y-1">
+        <p className="text-xs font-medium text-muted-foreground">Original</p>
+        <MaskedText label="original request JSON" text={originalJson} maskedText={maskedOriginalJson} className={RAW_JSON_CLASS} scrollable />
+      </div>
+      <div className="space-y-1">
+        <p className="text-xs font-medium text-muted-foreground">Current</p>
+        <MaskedText label="current request JSON" text={currentJson} maskedText={maskedCurrentJson} className={RAW_JSON_CLASS} scrollable />
+      </div>
+    </div>
+  );
+}
+
+const RAW_JSON_CLASS =
+  "text-xs font-mono bg-code text-code-foreground border border-code-border p-3 rounded-md overflow-auto max-h-[50vh] whitespace-pre-wrap break-all";
+
+function DiffViewDialog({
+  open,
+  onOpenChange,
+  originalParsed,
+  currentParsed,
+  onRevert,
+}: DiffViewDialogProps) {
+  const [activeTab, setActiveTab] = useState<"table" | "raw">("table");
+  const [rowLimit, setRowLimit] = useState(DIFF_ROW_PAGE);
+
+  // Only while open. computeDiff skips subtrees shared by identity, so with the editor's
+  // structural sharing its cost follows the size of the change, not of the request.
+  const diffs = useMemo(
+    () => (open ? computeDiff(originalParsed as unknown, currentParsed as unknown) : []),
+    [open, originalParsed, currentParsed]
+  );
+
+  const additions = diffs.filter((d) => d.type === "added").length;
+  const modifications = diffs.filter((d) => d.type === "modified").length;
+  const deletions = diffs.filter((d) => d.type === "removed").length;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-3xl max-h-[85vh] overflow-hidden flex flex-col">
+        <DialogHeader>
+          <DialogTitle>Review Changes</DialogTitle>
+          <DialogDescription>Secret values are hidden; use the eye button on a row or pane to reveal them.</DialogDescription>
+        </DialogHeader>
+
+        {/* Summary */}
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* Zero counts are left out: "+0 additions" is noise next to the one that changed. */}
+          {additions > 0 && (
+            <Badge className={`${CHIP_COLORS.success} border-0`}>
+              {additions} added
+            </Badge>
+          )}
+          {modifications > 0 && (
+            <Badge className={`${CHIP_COLORS.warning} border-0`}>
+              {modifications} modified
+            </Badge>
+          )}
+          {deletions > 0 && (
+            <Badge className={`${CHIP_COLORS.danger} border-0`}>
+              {deletions} removed
+            </Badge>
+          )}
+          {diffs.length === 0 && (
+            <span className="text-sm text-muted-foreground">No changes detected.</span>
+          )}
+        </div>
+
+        <Tabs
+          value={activeTab}
+          onValueChange={(v: string) => setActiveTab(v as "table" | "raw")}
+          className="flex-1 flex flex-col overflow-hidden"
+        >
+          <TabsList className="shrink-0">
+            <TabsTrigger value="table">Change Table</TabsTrigger>
+            <TabsTrigger value="raw">Raw JSON</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="table" className="flex-1 overflow-auto mt-0 pt-3">
+            {diffs.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">
+                No changes to display.
+              </p>
+            ) : (
+              <div className="rounded-md border overflow-hidden">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b bg-muted/50">
+                      <th className="text-left px-3 py-2 font-medium w-1/4">Path</th>
+                      <th className="text-left px-3 py-2 font-medium w-1/4">Original</th>
+                      <th className="text-left px-3 py-2 font-medium w-1/4">Current</th>
+                      <th className="text-left px-3 py-2 font-medium w-1/6">Type</th>
+                      <th className="text-left px-3 py-2 font-medium w-16">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {diffs.slice(0, rowLimit).map((entry) => (
+                      <DiffRow key={entry.path} entry={entry} onRevert={onRevert} />
+                    ))}
+                  </tbody>
+                </table>
+                {diffs.length > rowLimit && (
+                  <div className="flex items-center justify-center gap-2 p-2 border-t text-xs text-muted-foreground">
+                    Showing {rowLimit.toLocaleString()} of {diffs.length.toLocaleString()} changes.
+                    <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setRowLimit((l) => l + DIFF_ROW_PAGE)}>
+                      Show {Math.min(DIFF_ROW_PAGE, diffs.length - rowLimit).toLocaleString()} more
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="raw" className="flex-1 overflow-auto mt-0 pt-3">
+            {open && activeTab === "raw" && (
+              <RawJsonPanes originalParsed={originalParsed} currentParsed={currentParsed} />
+            )}
+          </TabsContent>
+        </Tabs>
+
+        <div className="flex justify-end pt-3 border-t">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Close
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export default memo(DiffViewDialog);
