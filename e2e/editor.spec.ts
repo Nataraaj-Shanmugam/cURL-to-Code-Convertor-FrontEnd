@@ -55,6 +55,11 @@ test.describe('Editor Page', () => {
   test('shows original cURL command', async ({ mockPage: page }) => {
     await navigateToEditor(page);
 
+    // Collapsed by default (D-12): the header opens it.
+    const toggle = page.getByRole('button', { name: /Original cURL Command/ });
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
     await expect(page.getByText(/curl -X POST/i).first()).toBeVisible();
   });
 

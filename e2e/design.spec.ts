@@ -21,7 +21,24 @@ async function setTheme(page: Page, theme: Theme) {
   await page.emulateMedia({ colorScheme: theme });
 }
 
+/**
+ * Waits for every finite CSS/Web animation to end (entrance fades, dialog zoom), so contrast is
+ * measured on final colours. A fixed sleep was not enough on a loaded runner: the staggered Home
+ * cards were caught mid fade-in. Infinite ones (spinners, pulses) are skipped, they never finish.
+ */
+async function settleAnimations(page: Page) {
+  await page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter((a) => Number.isFinite(Number(a.effect?.getComputedTiming().endTime)))
+        .map((a) => a.finished.catch(() => undefined)),
+    ),
+  );
+}
+
 async function expectNoAxeViolations(page: Page, where: string) {
+  await settleAnimations(page);
   const results = await new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'best-practice'])
     .analyze();
@@ -150,7 +167,6 @@ for (const theme of THEMES) {
       test(name, async ({ mockPage: page }) => {
         await setTheme(page, theme);
         await open(page);
-        await page.waitForTimeout(400); // let route/dialog animations settle before measuring contrast
         await expectNoAxeViolations(page, `${name} (${theme})`);
       });
     }
