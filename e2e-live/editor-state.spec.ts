@@ -56,7 +56,7 @@ test.describe('Review Changes and Reset', () => {
     await expect(row('data.age')).toContainText('removed');
     await expect(row('headers.X-Trace')).toContainText('added');
 
-    await row('data.age').getByRole('button', { name: 'Revert change' }).click();
+    await row('data.age').getByRole('button', { name: 'Revert data.age' }).click();
     await expect(dialog.getByRole('row')).toHaveCount(3);
 
     await dialog.getByRole('tab', { name: 'Raw JSON' }).click();
@@ -132,7 +132,8 @@ test.describe('Preview and Export', () => {
     const dialog = page.getByRole('dialog', { name: 'Export JSON' });
     const redact = dialog.getByRole('checkbox', { name: 'Redact secrets in the downloaded file' });
     await expect(redact).toBeChecked();
-    await expect(redact).toBeFocused();
+    // D-13: the dialog opens on its heading, not on a setting or an eye button.
+    await expect(dialog.getByRole('heading', { name: 'Export JSON' })).toBeFocused();
     for (const s of ALL_SECRETS) await expect(dialog).not.toContainText(s);
 
     // Reveal one secret on screen.
