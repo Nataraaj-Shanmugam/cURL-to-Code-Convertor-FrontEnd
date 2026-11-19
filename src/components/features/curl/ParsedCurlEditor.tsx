@@ -27,7 +27,7 @@ import RequestPreviewDialog from "./RequestPreviewDialog";
 import DiffViewDialog from "./DiffViewDialog";
 import ExportJsonDialog from "./ExportJsonDialog";
 import { MaskedText } from "./editor/SecretValue";
-import { MASK, REDACTED_PLACEHOLDER, countRedactions, redactBodyString, redactCurlString } from "@/lib/utils/redaction";
+import { MASK, REDACTED_PLACEHOLDER, countRedactions, redactBodyString, redactCurlForRequest } from "@/lib/utils/redaction";
 import type { ParsedCurl } from "@/types/curl";
 import { EditorContext, createEditorStore, type EditorCallbacks, type EditorRowState } from "./editor/EditorContext";
 import SectionRenderer from "./editor/SectionRenderer";
@@ -348,9 +348,11 @@ function ParsedCurlEditor({
 
   // What the Original cURL card shows while masked; Copy puts the redacted form on the clipboard
   // (never the secrets, whether or not the card is currently revealed).
+  // Masked by pattern and by the secret values of the request it was parsed into, which also covers
+  // shell shapes the patterns miss (PowerShell cookie objects, cmd `^"` quoting).
   const maskedOriginal = useMemo(
-    () => (originalCurl ? redactCurlString(originalCurl, { placeholder: MASK }) : ""),
-    [originalCurl],
+    () => (originalCurl ? redactCurlForRequest(originalCurl, initialData, { placeholder: MASK }) : ""),
+    [originalCurl, initialData],
   );
   const originalHasSecret = Boolean(originalCurl) && maskedOriginal !== originalCurl;
 

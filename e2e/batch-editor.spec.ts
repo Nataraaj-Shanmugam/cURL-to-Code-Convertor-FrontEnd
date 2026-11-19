@@ -454,7 +454,7 @@ test.describe('Batch Editor Page', () => {
     await expect(dialog.getByText('Generated Batch Code')).toHaveCount(0);
   });
 
-  test('copying the batch code redacts secrets unless the user opts out', async ({ mockPage: page, context }) => {
+  test('the batch result masks secrets on screen and copies redacted unless "Copy with secrets" (D-3)', async ({ mockPage: page, context }) => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write']);
     await page.route(/\/api\/generate-from-parsed/, async (route) => {
       const { config } = JSON.parse(route.request().postData() ?? '{}');
@@ -469,15 +469,18 @@ test.describe('Batch Editor Page', () => {
     await page.getByRole('button', { name: /Generate All/i }).click();
     const dialog = page.getByRole('dialog');
     await dialog.getByRole('button', { name: 'Generate All' }).click();
-    const redact = dialog.getByRole('checkbox', { name: 'Redact secrets when copying' });
-    await expect(redact).toBeChecked();
+    const code = dialog.getByRole('tabpanel');
+    await expect(code).toContainText('Bearer ••••••••');
+    await expect(code).not.toContainText('abc123tokenvalue');
 
-    await dialog.getByRole('button', { name: /Copy/ }).click();
+    await dialog.getByRole('button', { name: 'Copy redacted' }).click();
     expect(await page.evaluate(() => navigator.clipboard.readText())).not.toContain('abc123tokenvalue');
 
-    await redact.click();
-    await dialog.getByRole('button', { name: /Copy/ }).click();
-    expect(await page.evaluate(() => navigator.clipboard.readText())).toContain('abc123tokenvalue');
+    await dialog.getByRole('button', { name: 'Copy with secrets' }).click();
+    await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toContain('abc123tokenvalue');
+
+    await dialog.getByRole('button', { name: 'Reveal value of generated code' }).click();
+    await expect(code).toContainText('abc123tokenvalue');
   });
 
   // ── Secrets in history.state ─────────────────────────────────────────────

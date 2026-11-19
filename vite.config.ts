@@ -3,9 +3,10 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import { envGuard } from './scripts/envGuard';
+import { cspMeta } from './scripts/cspMeta';
 
 export default defineConfig({
-  plugins: [react(), envGuard()],
+  plugins: [react(), envGuard(), cspMeta()],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

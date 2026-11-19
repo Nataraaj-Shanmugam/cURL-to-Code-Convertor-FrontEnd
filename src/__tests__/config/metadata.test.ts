@@ -92,6 +92,16 @@ describe('deploy security headers (vercel.json)', () => {
     expect(csp['frame-ancestors']).toEqual(["'none'"]);
   });
 
+  // SEC-9: default-src does not cover these. connect-src stays 'self' https: in the header because
+  // vercel.json is shared by production and previews (different backends); a production build
+  // narrows it with a meta policy (scripts/cspMeta.ts).
+  it('closes base-uri, form-action and plugins', () => {
+    expect(csp['object-src']).toEqual(["'none'"]);
+    expect(csp['base-uri']).toEqual(["'self'"]);
+    expect(csp['form-action']).toEqual(["'self'"]);
+    expect(headers['Permissions-Policy']).toBe('camera=(), microphone=(), geolocation=()');
+  });
+
   it('sets nosniff and strict-origin-when-cross-origin referrer policy', () => {
     expect(headers['X-Content-Type-Options']).toBe('nosniff');
     expect(headers['Referrer-Policy']).toBe('strict-origin-when-cross-origin');

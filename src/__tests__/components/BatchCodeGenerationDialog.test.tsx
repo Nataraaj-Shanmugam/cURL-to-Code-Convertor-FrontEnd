@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { server } from '../mocks/server';
@@ -53,8 +53,10 @@ async function generate(items: BatchItem[]) {
   const user = userEvent.setup();
   renderWithProviders(<BatchCodeGenerationDialog open onOpenChange={vi.fn()} items={items} />);
   await user.click(screen.getByRole('button', { name: 'Generate All' }));
-  const code = await screen.findByText(/public class BatchApiTest/);
-  return code.textContent ?? '';
+  // The result is syntax-highlighted (one element per token), so read the whole code panel.
+  const panel = await screen.findByRole('tabpanel');
+  await waitFor(() => expect(panel).toHaveTextContent(/public class BatchApiTest/));
+  return panel.textContent ?? '';
 }
 
 describe('BatchCodeGenerationDialog relaxed HTTPS', () => {

@@ -11,7 +11,10 @@
  *  - every value in the cookies section;
  *  - every value nested under a secret-named key (`{"auth": {"p": "..."}}`);
  *  - JWT-shaped values (`eyJ...`) under any name, anywhere;
- *  - secret-named parameters in a URL query string or #fragment (`#access_token=...`).
+ *  - secret-named parameters in a URL query string or #fragment (`#access_token=...`);
+ *  - payment data: card numbers, CVV/CVC, PAN, account numbers, IBAN, SSN (by name);
+ *  - text of XML elements with a secret name (`<password>...</password>`);
+ *  - the password part of a client certificate (`-E cert.pem:password`).
  *
  * The name test is a substring match, so it over-redacts on purpose (`author`, `monkey`, ...).
  * A masked harmless value costs the user one click; a leaked credential costs much more.
@@ -26,13 +29,16 @@ export const MASK = "••••••••";
 
 /** Header, query, form and body-key names that hold secrets. Case-insensitive substring test. */
 export const SECRET_NAME_PATTERN =
-  /token|key|secret|passw(?:or)?d|passphrase|passcode|pwd|session|auth|credential|bearer|jwt|signature|hmac|csrf|xsrf|verifier/i;
+  /token|key|secret|passw(?:or)?d|passphrase|passcode|pwd|session|auth|credential|bearer|jwt|signature|hmac|csrf|xsrf|verifier|cvv|cvc|(?:card|account|acct).?(?:num|no(?![a-z]))/i;
 
 /**
  * Short secret words that would over-match as substrings (`shipping`, `design`, `compass`, `footprint`):
  * matched as whole words of the name instead (`X-Pass`, `user_pin`, `otpCode`, `?sig=`).
  */
-const SECRET_NAME_WORDS = new Set(["pass", "pin", "otp", "totp", "hotp", "mfa", "sig"]);
+const SECRET_NAME_WORDS = new Set(["pass", "pin", "otp", "totp", "hotp", "mfa", "sig", "pan", "cvn", "iban", "ssn"]);
+
+/** Names that contain a secret word but are not secret: the HTTP/2 `:authority` header is the host. */
+const NOT_SECRET_NAMES = new Set(["authority", ":authority"]);
 
 /** Names that are secret only on their own: the OAuth authorization `code` (`?code=...`). */
 const SECRET_EXACT_NAMES = new Set(["code"]);
@@ -75,6 +81,9 @@ const AUTH_CONFIG_SAFE_KEYS = new Set(["type", "auth_type", "authtype", "scheme"
 /** Credential-ish keys inside the other *_config sections (proxy_config.proxy_user, ftp_config.user, ...). */
 const CONFIG_USER_KEY = /^(?:[a-z]+_)?(?:user|username|login)$/i;
 
+/** Client-certificate keys inside ssl_config (`cert: "client.pem:password"`). */
+const CONFIG_CERT_KEY = /^(?:[a-z]+_)?cert(?:ificate)?$/i;
+
 /** Minimum length for value-based replacement in free text, to avoid mangling code around short secrets. */
 const MIN_KNOWN_SECRET_LENGTH = 6;
 
@@ -112,6 +121,7 @@ function nameWords(name: string): string[] {
 }
 
 export function isSecretName(name: string): boolean {
+  if (NOT_SECRET_NAMES.has(name.trim().toLowerCase())) return false;
   if (SECRET_NAME_PATTERN.test(name)) return true;
   if (SECRET_EXACT_NAMES.has(name.trim().toLowerCase())) return true;
   return nameWords(name).some((word) => SECRET_NAME_WORDS.has(word));
@@ -209,7 +219,8 @@ export function redactUrlString(text: string, opts: RedactOptions = {}): string 
   const sub = makeSub(opts);
   const out = text
     .replace(/(:\/\/)([^/\s@?#'"]+)@/g, (_m, scheme: string, userinfo: string) => `${scheme}${sub(userinfo)}@`)
-    .replace(/([?&#])([^=&#\s'"]+)=([^&#\s'"]*)/g, (m, sep: string, name: string, val: string) => {
+    // A cmd-escaped `^&` / closing `^"` ends the value; the caret is kept.
+    .replace(/([?&#])([^=&#\s'"]+)=((?:[^&#\s'"^]|\^(?![&"]))*)/g, (m, sep: string, name: string, val: string) => {
       if (!val || !isSecretName(safeDecode(name))) return m;
       return `${sep}${name}=${sub(val)}`;
     });
@@ -260,7 +271,7 @@ function redactJsonValue(value: unknown, sub: Sub, opts: RedactOptions, depth = 
       return redactBodyStringAt(value, opts, depth + 1);
     }
     // Every free-text pattern needs one of these characters (JWTs are caught by redactSection).
-    return /[:=("'@]/.test(value) ? redactText(value, opts) : value;
+    return /[:=("'@<]/.test(value) ? redactText(value, opts) : value;
   }
   if (Array.isArray(value)) return value.map((item) => redactJsonValue(item, sub, opts, depth));
   if (isPlainObject(value)) {
@@ -403,6 +414,100 @@ function rebuildArg(prefix: string, single: string | undefined, double: string |
 }
 
 /**
+ * `cert.pem:password` (curl -E / --cert): the part after the first unescaped colon. A Windows drive
+ * letter (`C:\\certs\\a.pem`) and a PKCS#11 URI are not a password separator.
+ */
+function redactCertArg(arg: string, sub: Sub): string {
+  if (/^pkcs11:/i.test(arg)) return arg;
+  for (let i = 0; i < arg.length; i++) {
+    if (arg[i] === "\\") {
+      i++;
+      continue;
+    }
+    if (arg[i] !== ":") continue;
+    if (i === 1 && /^[A-Za-z]:[\\/]/.test(arg)) continue;
+    const pass = arg.slice(i + 1);
+    return pass ? `${arg.slice(0, i + 1)}${sub(pass)}` : arg;
+  }
+  return arg;
+}
+
+/** curl --variable `name=value`: the value when the name is secret (`%ENV` imports and `name@file` stay). */
+function redactVariableArg(arg: string, sub: Sub): string {
+  const eq = arg.indexOf("=");
+  if (arg.startsWith("%") || eq <= 0) return arg;
+  const name = arg.slice(0, eq);
+  const value = arg.slice(eq + 1);
+  return value && !name.includes("@") && isSecretName(name) ? `${name}=${sub(value)}` : arg;
+}
+
+/** curl --url-query `name=value` (a leading `+` means "already encoded"). */
+function redactUrlQueryArg(arg: string, opts: RedactOptions): string {
+  const plus = arg.startsWith("+") ? "+" : "";
+  return `${plus}${redactFormEncoded(arg.slice(plus.length), opts)}`;
+}
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Replaces each secret inside `escaped`, a quoted argument whose characters may each carry the shell's
+ * escape character (`^` for cmd, `` ` `` for PowerShell). The secrets were found in the unescaped text.
+ */
+function scrubEscaped(escaped: string, secrets: readonly string[], escapeChar: string, placeholder: string): string {
+  const esc = escapeRegExp(escapeChar);
+  let out = escaped;
+  for (const secret of [...new Set(secrets)].sort((a, b) => b.length - a.length)) {
+    if (!secret || secret === placeholder) continue;
+    const pattern = [...secret].map((c) => `${esc}?${escapeRegExp(c)}`).join("");
+    out = out.replace(new RegExp(pattern, "g"), placeholder);
+  }
+  return out;
+}
+
+/**
+ * Chrome's "Copy as cURL (cmd)": every argument is `^"..."^"` with each special character escaped by
+ * `^` (and `"` written `^\\^"`). Each such argument is redacted as the plain argument it stands for
+ * (judged by the flag before it), then the secrets found are replaced in the escaped text, so the
+ * command keeps its cmd quoting.
+ */
+const CMD_ARG = /(^|[\s;&|])(?:(-[A-Za-z]|--[a-z][\w-]*)(\s+|=))?\^"((?:\^\\\^"|\^[^"]|[^^\r\n])*)\^"/g;
+
+function redactCmdArgs(text: string, opts: RedactOptions, placeholder: string): string {
+  if (!text.includes('^"')) return text;
+  return text.replace(CMD_ARG, (m: string, _start: string, flag: string | undefined, sep: string | undefined, inner: string) => {
+    const plain = inner.replace(/\^(.)/g, "$1");
+    const found: string[] = [];
+    redactText(`curl ${flag ? `${flag}${sep}` : ""}"${plain}"`, { ...opts, knownSecrets: undefined, collect: (s) => found.push(s) });
+    if (found.length === 0) return m;
+    found.forEach((s) => opts.collect?.(s));
+    return `${m.slice(0, m.length - inner.length - 2)}${scrubEscaped(inner, found, "^", placeholder)}^"`;
+  });
+}
+
+/**
+ * Chrome's "Copy as PowerShell": `-Body "{\`"password\`":\`"v\`"}"` (quotes escaped with a backtick)
+ * and `New-Object System.Net.Cookie("name", "value", "/", "host")`.
+ */
+function redactPowerShell(text: string, opts: RedactOptions, sub: Sub, placeholder: string): string {
+  if (!/-Body\b|System\.Net\.Cookie/i.test(text)) return text;
+  return text
+    .replace(
+      /(System\.Net\.Cookie\s*\(\s*(?:"(?:[^"`]|`.)*"|'(?:[^']|'')*')\s*,\s*)(?:"((?:[^"`]|`.)*)"|'((?:[^']|'')*)')/gi,
+      (_m, head: string, double?: string, single?: string) =>
+        double !== undefined ? `${head}"${sub(double)}"` : `${head}'${sub(single ?? "")}'`,
+    )
+    .replace(/((?:^|\s)-Body\s+)"((?:[^"`]|`.)*)"/gi, (m: string, head: string, inner: string) => {
+      const found: string[] = [];
+      redactBodyString(inner.replace(/`(.)/g, "$1"), { ...opts, knownSecrets: undefined, collect: (s) => found.push(s) });
+      if (found.length === 0) return m;
+      found.forEach((s) => opts.collect?.(s));
+      return `${head}"${scrubEscaped(inner, found, "`", placeholder)}"`;
+    });
+}
+
+/**
  * Redacts secrets in free text: a raw cURL command, generated REST Assured code, or JSON.
  * Pattern-based, plus exact-value scrubbing when `knownSecrets` is given.
  */
@@ -411,6 +516,10 @@ export function redactText(text: string, opts: RedactOptions = {}): string {
   const placeholder = opts.placeholder ?? REDACTED_PLACEHOLDER;
   const sub = makeSub(opts);
   let out = opts.knownSecrets?.length ? matchingKnownSecrets(text, opts.knownSecrets, placeholder) : text;
+
+  // Windows shells (Chrome's "Copy as cURL (cmd)" and "Copy as PowerShell").
+  out = redactCmdArgs(out, opts, placeholder);
+  out = redactPowerShell(out, opts, sub, placeholder);
 
   // curl -H / --header '<Name>: <value>'
   out = out.replace(
@@ -430,8 +539,8 @@ export function redactText(text: string, opts: RedactOptions = {}): string {
 
   // Header lines outside -H arguments (raw HTTP, logs).
   out = out
-    .replace(/((?:proxy-)?authorization[ \t]*:[ \t]*)([^\r\n'"]+)/gi, (_m, head: string, value: string) => `${head}${redactAuthorizationValue(value, opts)}`)
-    .replace(/((?:set-)?cookie[ \t]*:[ \t]*)([^\r\n'"]+)/gi, (_m, head: string, value: string) => `${head}${redactCookieString(value, opts)}`);
+    .replace(/((?:proxy-)?authorization[ \t]*:[ \t]*)((?:[^\r\n'"^]|\^(?!"))+)/gi, (_m, head: string, value: string) => `${head}${redactAuthorizationValue(value, opts)}`)
+    .replace(/((?:set-)?cookie[ \t]*:[ \t]*)((?:[^\r\n'"^]|\^(?!"))+)/gi, (_m, head: string, value: string) => `${head}${redactCookieString(value, opts)}`);
 
   // curl -b / --cookie (short form may be attached: -bsid=x)
   out = out.replace(
@@ -446,8 +555,10 @@ export function redactText(text: string, opts: RedactOptions = {}): string {
   // curl -u / --user / --proxy-user (short forms may be attached: -ubob:pw)
   out = out.replace(
     new RegExp(`(${ARG_START}(?:-[uU](?:\\s+|=)?|--user(?:\\s+|=)|--proxy-user(?:\\s+|=)))${QUOTED_OR_BARE}`, "g"),
-    (_m: string, prefix: string, single?: string, double?: string, bare?: string) => {
+    (m: string, prefix: string, single?: string, double?: string, bare?: string) => {
       const inner = single ?? double ?? bare ?? "";
+      // `-Uri`, `-UseBasicParsing`, `-UserAgent`: PowerShell parameters, not curl's attached -u/-U.
+      if (/-[uU]$/.test(prefix) && bare !== undefined && /^(?:ri|se[A-Za-z]*)$/i.test(bare)) return m;
       const colon = inner.indexOf(":");
       const next = colon < 0 ? sub(inner) : `${sub(inner.slice(0, colon))}:${sub(inner.slice(colon + 1))}`;
       return rebuildArg(prefix, single, double, bare, next);
@@ -459,6 +570,26 @@ export function redactText(text: string, opts: RedactOptions = {}): string {
     new RegExp(`(${ARG_START}(?:--oauth2-bearer|--pass|--proxy-pass)(?:\\s+|=))${QUOTED_OR_BARE}`, "g"),
     (_m: string, prefix: string, single?: string, double?: string, bare?: string) =>
       rebuildArg(prefix, single, double, bare, sub(single ?? double ?? bare ?? "")),
+  );
+
+  // curl -E / --cert / --proxy-cert `file:password` (-E may be attached; `-ErrorAction` has no colon)
+  out = out.replace(
+    new RegExp(`(${ARG_START}(?:-E(?:\\s+|=)?|--cert(?:\\s+|=)|--proxy-cert(?:\\s+|=)))${QUOTED_OR_BARE}`, "g"),
+    (m: string, prefix: string, single?: string, double?: string, bare?: string) => {
+      const inner = single ?? double ?? bare ?? "";
+      const next = redactCertArg(inner, sub);
+      return next === inner ? m : rebuildArg(prefix, single, double, bare, next);
+    },
+  );
+
+  // curl --url-query `name=value` / --variable `name=value`
+  out = out.replace(
+    new RegExp(`(${ARG_START}(--url-query|--variable)(?:\\s+|=))${QUOTED_OR_BARE}`, "g"),
+    (m: string, prefix: string, flag: string, single?: string, double?: string, bare?: string) => {
+      const inner = single ?? double ?? bare ?? "";
+      const next = flag === "--variable" ? redactVariableArg(inner, sub) : redactUrlQueryArg(inner, opts);
+      return next === inner ? m : rebuildArg(prefix, single, double, bare, next);
+    },
   );
 
   // curl -d / --data* / -F with url-encoded or name=value content (JSON bodies are handled by the literal pairs below)
@@ -512,6 +643,16 @@ export function redactText(text: string, opts: RedactOptions = {}): string {
   out = redactLiteralPairs(out, /"(?:[^"\\\r\n]|\\.)*"/g, 1, opts);
   out = redactLiteralPairs(out, /'(?:[^'\\\r\n]|\\.)*'/g, 1, opts);
 
+  // XML element text: <password>v</password>, <ns:Token>v</ns:Token> (leaf elements only)
+  if (out.includes("</")) {
+    out = out.replace(/<([A-Za-z_][\w.:-]*)(\s[^<>]*)?>([^<>]+)<\/\1\s*>/g, (m: string, tag: string, attrs: string | undefined, body: string) => {
+      if (!body.trim() || !isSecretName(tag.slice(tag.lastIndexOf(":") + 1))) return m;
+      const lead = /^\s*/.exec(body)![0];
+      const trail = /\s*$/.exec(body)![0];
+      return `<${tag}${attrs ?? ""}>${lead}${sub(body.trim())}${trail}</${tag}>`;
+    });
+  }
+
   // URLs: userinfo and secret query parameters
   return redactUrlString(out, opts);
 }
@@ -547,7 +688,8 @@ function redactConfigSection(value: unknown, opts: RedactOptions, sub: Sub): unk
   if (!isPlainObject(value)) return typeof value === "string" ? redactUrlString(value, opts) : value;
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(value)) {
-    out[k] = isSecretName(k) || CONFIG_USER_KEY.test(k) ? mapLeaves(v, sub) : redactConfigSection(v, opts, sub);
+    if (CONFIG_CERT_KEY.test(k) && typeof v === "string") out[k] = redactCertArg(v, sub);
+    else out[k] = isSecretName(k) || CONFIG_USER_KEY.test(k) ? mapLeaves(v, sub) : redactConfigSection(v, opts, sub);
   }
   return out;
 }
@@ -569,6 +711,14 @@ function redactFlagArgument(flag: string, arg: string, opts: RedactOptions, sub:
     case "--pass":
     case "--proxy-pass":
       return sub(arg);
+    case "-E":
+    case "--cert":
+    case "--proxy-cert":
+      return redactCertArg(arg, sub);
+    case "--variable":
+      return redactVariableArg(arg, sub);
+    case "--url-query":
+      return redactUrlQueryArg(arg, opts);
     case "-H":
     case "--header":
     case "--proxy-header": {
@@ -750,9 +900,30 @@ export function maskParsedCurl(parsed: ParsedCurl, revealed: ReadonlySet<string>
 
 /** The secret substrings in a request, longest first, for scrubbing generated code. */
 export function collectSecretValues(parsed: ParsedCurl): string[] {
+  return redactParsedCurlWithSecrets(parsed).secrets;
+}
+
+/** redactParsedCurl and collectSecretValues in one walk of the request. */
+export function redactParsedCurlWithSecrets<T extends ParsedCurl>(parsed: T, opts: RedactOptions = {}): { redacted: T; secrets: string[] } {
   const found = new Set<string>();
-  redactParsedCurl(parsed, { collect: (secret) => found.add(secret) });
-  return [...found].filter((s) => s.length >= MIN_KNOWN_SECRET_LENGTH).sort((a, b) => b.length - a.length);
+  const redacted = redactParsedCurl(parsed, {
+    ...opts,
+    collect: (secret) => {
+      found.add(secret);
+      opts.collect?.(secret);
+    },
+  });
+  const secrets = [...found].filter((s) => s.length >= MIN_KNOWN_SECRET_LENGTH).sort((a, b) => b.length - a.length);
+  return { redacted, secrets };
+}
+
+/**
+ * A raw cURL command (any shell: bash, cmd, PowerShell) redacted for storage or display: by pattern,
+ * and by value with the secrets of its parsed request, which catches shapes the patterns miss.
+ */
+export function redactCurlForRequest(curl: string, parsed: ParsedCurl | null | undefined, opts: RedactOptions = {}): string {
+  const knownSecrets = parsed ? collectSecretValues(parsed) : [];
+  return redactCurlString(curl, { ...opts, knownSecrets: [...knownSecrets, ...(opts.knownSecrets ?? [])] });
 }
 
 // ── redaction markers ────────────────────────────────────────────────────────

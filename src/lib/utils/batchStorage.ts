@@ -7,7 +7,7 @@
  * (liveRequestStore): an in-app Back/Forward gets them back, a reload gets the redacted copy.
  */
 import type { BatchParseFailure, ParsedCurlEntry } from "@/types/batch";
-import { redactCurlString, redactParsedCurl, redactText } from "@/lib/utils/redaction";
+import { redactCurlString, redactParsedCurlWithSecrets, redactText } from "@/lib/utils/redaction";
 import { recallLiveRequest, rememberLiveRequest } from "@/lib/utils/liveRequestStore";
 
 export const BATCH_LIVE_SLOT = "batch";
@@ -47,11 +47,16 @@ function snapshotOf(state: BatchRouteState | null): BatchSnapshot {
 
 export function redactBatchSnapshot(snapshot: BatchSnapshot): BatchSnapshot {
   return {
-    items: snapshot.items.map((entry) => ({
-      ...entry,
-      parsed: redactParsedCurl(entry.parsed),
-      originalCurl: typeof entry.originalCurl === "string" ? redactCurlString(entry.originalCurl) : entry.originalCurl,
-    })),
+    items: snapshot.items.map((entry) => {
+      // The raw command is also scrubbed by the secret values of its parsed request (see editorStorage).
+      const { redacted, secrets } = redactParsedCurlWithSecrets(entry.parsed);
+      return {
+        ...entry,
+        parsed: redacted,
+        originalCurl:
+          typeof entry.originalCurl === "string" ? redactCurlString(entry.originalCurl, { knownSecrets: secrets }) : entry.originalCurl,
+      };
+    }),
     failures: snapshot.failures.map((failure) => ({
       ...failure,
       curl: typeof failure.curl === "string" ? redactCurlString(failure.curl) : failure.curl,

@@ -2,7 +2,7 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup } from '@testing-library/react';
 import { afterEach, beforeAll, afterAll } from 'vitest';
 import { server } from './mocks/server';
-import { apiClientConfig, resetBackendAwareness } from '@/lib/api/apiClient';
+import { apiClientConfig, resetBackendAwareness, resetRateLimit } from '@/lib/api/apiClient';
 
 // Keep the client's retry backoff to a few milliseconds so retried failures don't slow the suite.
 apiClientConfig.retryBaseDelayMs = 1;
@@ -61,5 +61,6 @@ afterEach(() => {
   cleanup();
   server.resetHandlers();
   resetBackendAwareness();
+  resetRateLimit();
 });
 afterAll(() => server.close());

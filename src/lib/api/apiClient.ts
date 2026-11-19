@@ -21,7 +21,16 @@ export const apiClientConfig = {
   retryMaxDelayMs: 5_000,
   /** Largest Retry-After (from a 503) the client will honour instead of its own backoff. */
   maxRetryAfterMs: 10_000,
+  /** Longest a 429 (rate limited) is waited out before the request fails instead. */
+  maxRateLimitWaitMs: 30_000,
+  /** How many 429s one call waits out (on top of `retries`, which they do not use up). */
+  rateLimitRetries: 4,
+  /** Shortest wait after a 429 (a Retry-After of 0 would otherwise retry at once). */
+  minRateLimitWaitMs: 250,
 };
+
+/** The backend's rate limiter (token bucket per client IP) answers 429 with Retry-After. */
+const RATE_LIMITED = 429;
 
 export type ApiErrorKind = 'http' | 'network' | 'timeout' | 'invalid-response' | 'aborted';
 
@@ -32,9 +41,9 @@ export class ApiError extends Error {
   readonly status?: number;
   /** Backend error code from `{ error: { code } }`, when present. */
   readonly code?: string;
-  /** True for failures another attempt may fix (network, timeout, 502/503/504). */
+  /** True for failures another attempt may fix (network, timeout, 429, 502/503/504). */
   readonly retryable: boolean;
-  /** Server-requested wait before retrying (Retry-After), in milliseconds. */
+  /** Server-requested wait before retrying (Retry-After, or the 429 body's retry_after), in milliseconds. */
   readonly retryAfterMs?: number;
 
   constructor(
@@ -67,6 +76,8 @@ export interface RequestOptions {
   /**
    * Extra attempts after the first for network errors, timeouts and 502/503/504, with jittered
    * exponential backoff. Only for calls that don't change server state. Default: 2 for GET, 0 for POST.
+   * A call with retries also waits out a 429 (Retry-After, at most maxRateLimitWaitMs), up to
+   * rateLimitRetries times, without using these up.
    */
   retries?: number;
   /** Resolve with `data: null` for an empty body (e.g. 204) instead of failing. */
@@ -108,6 +119,60 @@ export function resetBackendAwareness() {
 function markAwake() {
   lastAwakeAt = Date.now();
   emit('up');
+}
+
+// ── Rate limiting ───────────────────────────────────────────────────────────
+// The backend limits each client IP (a token bucket). A 429 holds EVERY request of this tab until
+// the Retry-After has passed, so parallel callers (batch parsing runs several at once) back off
+// together instead of each burning its attempts. Listeners get the time the hold ends, then null.
+
+/** When the current hold ends (epoch ms), or null when not rate limited. */
+export type RateLimitState = { until: number } | null;
+type RateLimitListener = (state: RateLimitState) => void;
+
+const rateLimitListeners = new Set<RateLimitListener>();
+let rateLimitedUntil = 0;
+let rateLimitTimer: ReturnType<typeof setTimeout> | undefined;
+
+export function onRateLimit(listener: RateLimitListener): () => void {
+  rateLimitListeners.add(listener);
+  return () => {
+    rateLimitListeners.delete(listener);
+  };
+}
+
+function emitRateLimit(state: RateLimitState) {
+  rateLimitListeners.forEach((listener) => listener(state));
+}
+
+/** Milliseconds until requests are let through again (0 when not rate limited). */
+export function rateLimitRemainingMs(now = Date.now()): number {
+  return Math.max(0, rateLimitedUntil - now);
+}
+
+/** Test hook: forget any rate-limit hold. */
+export function resetRateLimit() {
+  rateLimitedUntil = 0;
+  clearTimeout(rateLimitTimer);
+  rateLimitTimer = undefined;
+}
+
+function holdForRateLimit(ms: number) {
+  const until = Date.now() + ms;
+  if (until <= rateLimitedUntil) return;
+  rateLimitedUntil = until;
+  clearTimeout(rateLimitTimer);
+  rateLimitTimer = setTimeout(() => {
+    rateLimitTimer = undefined;
+    emitRateLimit(null);
+  }, ms);
+  emitRateLimit({ until });
+}
+
+async function waitOutRateLimit(signal?: AbortSignal) {
+  for (let remaining = rateLimitRemainingMs(); remaining > 0; remaining = rateLimitRemainingMs()) {
+    await wait(remaining, signal);
+  }
 }
 
 // ── Response handling ───────────────────────────────────────────────────────
@@ -175,6 +240,15 @@ export function parseRetryAfter(value: string | null, now = Date.now()): number 
   return Math.max(0, date - now);
 }
 
+/** `{ error: { retry_after: 2 } }` or `{ retry_after: 2 }` (seconds), as the backend's 429 sends. */
+function bodyRetryAfter(data: unknown): number | undefined {
+  if (!data || typeof data !== 'object') return undefined;
+  const record = data as { retry_after?: unknown; error?: { retry_after?: unknown } };
+  const value = (record.error && typeof record.error === 'object' ? record.error.retry_after : undefined) ?? record.retry_after;
+  const seconds = typeof value === 'string' ? Number(value) : value;
+  return typeof seconds === 'number' && Number.isFinite(seconds) && seconds >= 0 ? seconds * 1000 : undefined;
+}
+
 function looksLikeJson(contentType: string, text: string): boolean {
   if (/[/+]json\b/i.test(contentType)) return true;
   // Tolerate a JSON body served without a JSON content type, but never guess for HTML.
@@ -208,12 +282,25 @@ async function readResponse(
     // A structured backend message is shown as is; a gateway's HTML page is replaced by a
     // plain-language message that names the status.
     const structured = parsed ? extractStructuredError(data) : {};
+    // Retry-After is not a CORS-safelisted header, so a cross-origin page may not see it; the
+    // backend's 429 body carries the same value (`error.retry_after`, seconds).
+    const retryAfterMs = parseRetryAfter(response.headers.get('retry-after')) ?? bodyRetryAfter(data);
+    if (response.status === RATE_LIMITED) {
+      const when = retryAfterMs !== undefined ? `in ${formatSeconds(retryAfterMs)}` : 'in a moment';
+      throw new ApiError(`The generator is rate limiting requests (HTTP ${describeStatus(response)}). Please try again ${when}.`, {
+        kind: 'http',
+        status: response.status,
+        code: structured.code,
+        retryable: true,
+        retryAfterMs,
+      });
+    }
     throw new ApiError(structured.message ?? httpFailureMessage(response), {
       kind: 'http',
       status: response.status,
       code: structured.code,
       retryable: GATEWAY_STATUSES.has(response.status),
-      retryAfterMs: parseRetryAfter(response.headers.get('retry-after')),
+      retryAfterMs,
     });
   }
 
@@ -344,12 +431,25 @@ async function request(
   const retries = Math.max(0, options.retries ?? defaultRetries);
   const allowEmpty = options.allowEmpty ?? false;
 
+  let rateLimitWaits = 0;
   for (let tryNumber = 0; ; tryNumber++) {
+    // Awaited only while held, so a request starts in the same tick as the call otherwise.
+    if (rateLimitRemainingMs() > 0) await waitOutRateLimit(options.signal);
     const baseTimeout = options.timeout ?? DEFAULT_TIMEOUT_MS;
     const timeout = isBackendKnownAwake() ? baseTimeout : Math.max(baseTimeout, COLD_START_TIMEOUT_MS);
     try {
       return await attempt(url, init, timeout, allowEmpty, options.signal);
     } catch (err) {
+      if (err instanceof ApiError && err.status === RATE_LIMITED) {
+        // The backend is up and refused the request unprocessed: wait (bounded) and try again.
+        const waitMs = Math.max(apiClientConfig.minRateLimitWaitMs, err.retryAfterMs ?? backoffDelay(rateLimitWaits + 1));
+        if (waitMs > apiClientConfig.maxRateLimitWaitMs) throw err;
+        holdForRateLimit(waitMs);
+        if (retries === 0 || rateLimitWaits >= apiClientConfig.rateLimitRetries) throw err;
+        rateLimitWaits++;
+        tryNumber--; // a 429 does not use up the call's retries
+        continue;
+      }
       if (!(err instanceof ApiError) || !err.retryable) throw err;
       if (tryNumber >= retries) {
         // Out of attempts on a network, timeout or gateway failure: the backend may be asleep.
