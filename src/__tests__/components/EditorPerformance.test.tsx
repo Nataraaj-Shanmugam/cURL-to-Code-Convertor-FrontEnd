@@ -38,7 +38,9 @@ const groupedBody = (groups: number, fields: number) =>
 
 beforeEach(() => isSecretFieldMock.mockClear());
 
-describe('editor rendering performance (FE-PERF-1..5)', () => {
+// These render very large bodies in jsdom; they assert behaviour and render counts, not speed, so a
+// slow CI runner must not fail them on the 5 s default timeout.
+describe('editor rendering performance (FE-PERF-1..5)', { timeout: 30_000 }, () => {
   it('FE-PERF-2: a keystroke in one field re-renders that field, not every row', async () => {
     const user = userEvent.setup();
     // 60 body leaves, below the collapse threshold: every row is mounted.
