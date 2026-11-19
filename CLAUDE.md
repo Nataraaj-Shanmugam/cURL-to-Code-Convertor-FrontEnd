@@ -28,7 +28,7 @@ npm run perf:check     # Build + measure + compare with perf/budgets.json (--bun
 
 ## Architecture
 
-**Tech stack:** React 18 + TypeScript (strict) + Vite 5 + Tailwind CSS 3 + shadcn/ui (Radix primitives) + Framer Motion is NOT a dependency (the test setup only mocks `IntersectionObserver` for it)
+**Tech stack:** React 18 + TypeScript (strict) + Vite 5 + Tailwind CSS 3 + shadcn/ui (Radix primitives). Framer Motion is not a dependency; the test setup still mocks `IntersectionObserver`.
 
 **Routing** (React Router v6; `src/main.tsx` mounts a data router via `createBrowserRouter` + `RouterProvider` with one catch-all route rendering `<App/>`, which owns the `<Routes>` in `src/App.tsx`; the data router is required by `useBlocker`, used for the editor's unsaved-edits guard. Tests render through a memory data router, see `src/__tests__/test-utils.tsx`):
 - `/` → `Home` — Landing page
